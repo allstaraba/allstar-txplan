@@ -133,7 +133,7 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
       model: 'claude-opus-4-6',
       max_tokens: 16000,
       system: systemPrompt,
-      messages: [{ role: 'user', content: notes }]
+      messages: [{ role: 'user', content: `${notes}\n\nIMPORTANT: Generate the COMPLETE treatment plan. Do not leave any section blank, do not use placeholders, and do not skip any section. Every section must be fully written out from beginning to end.` }]
     });
 
     const planText = response.content[0].text;
@@ -189,7 +189,7 @@ app.post('/api/revise', authMiddleware, async (req, res) => {
     }
     messages.push({
       role: 'user',
-      content: `${feedback}\n\nIMPORTANT: Return the complete, full treatment plan with this change incorporated. Do not summarize or return only the changed section — output the entire plan from beginning to end, exactly as it should appear, with all original sections preserved and only the requested change made.`,
+      content: `${feedback}\n\nIMPORTANT: Return the COMPLETE, full treatment plan with this change incorporated. Do not leave any section blank, do not use placeholders, and do not skip any section — output the entire plan from beginning to end with all original sections fully written out and only the requested change made.`,
     });
 
     // Stream the response to prevent Railway's request timeout from cutting off long generations
