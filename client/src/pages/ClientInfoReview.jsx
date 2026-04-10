@@ -3,13 +3,13 @@ import { Link } from 'react-router-dom';
 
 const SECTIONS = [
   { id: 'client_info', title: 'Client Information', fields: [
-    { key: 'client_full_name', label: 'Client Full Name', required: true },
-    { key: 'date_of_birth', label: 'Date of Birth', required: true },
-    { key: 'date_of_assessment', label: 'Date of Assessment', required: true },
+    { key: 'client_full_name', label: 'Client Full Name' },
+    { key: 'date_of_birth', label: 'Date of Birth' },
+    { key: 'date_of_assessment', label: 'Date of Assessment' },
     { key: 'date_of_reassessment', label: 'Date of Reassessment' },
   ]},
   { id: 'family', title: 'Family Structure', fields: [
-    { key: 'parent_guardian_name', label: 'Parent/Guardian Name', required: true },
+    { key: 'parent_guardian_name', label: 'Parent/Guardian Name' },
     { key: 'parent_guardian_phone', label: 'Parent/Guardian Phone' },
     { key: 'parent_guardian_email', label: 'Parent/Guardian Email' },
     { key: 'father_caregiver_name', label: 'Father/Caregiver Name' },
@@ -65,8 +65,8 @@ const SECTIONS = [
     { key: 'individuals_present', label: 'Individuals Present', type: 'textarea' },
   ]},
   { id: 'hours', title: 'Recommended Hours', fields: [
-    { key: 'hours_97153', label: '97153 — Direct BT Hours/Week', required: true },
-    { key: 'hours_97155', label: '97155-GT — BCBA Hours/Week', required: true },
+    { key: 'hours_97153', label: '97153 — Direct BT Hours/Week' },
+    { key: 'hours_97155', label: '97155-GT — BCBA Hours/Week' },
     { key: 'hours_97156', label: '97156-GT — Parent Training Hours/Week' },
     { key: 'hours_97151', label: '97151 — Assessment Hours (total)' },
     { key: 'authorization_start_date', label: 'Authorization Start Date' },
@@ -74,7 +74,7 @@ const SECTIONS = [
     { key: 'service_location', label: 'Service Location (Home / Clinic / School)' },
   ]},
   { id: 'provider', title: 'Provider Information', fields: [
-    { key: 'supervising_bcba_name', label: 'Supervising BCBA Name', required: true },
+    { key: 'supervising_bcba_name', label: 'Supervising BCBA Name' },
     { key: 'supervising_bcba_credentials', label: 'BCBA Credentials' },
     { key: 'supervising_bcba_phone', label: 'BCBA Phone' },
   ]},
@@ -98,9 +98,7 @@ export default function ClientInfoReview({ pendingReview, onStartGeneration }) {
   }, [pendingReview]);
 
   const [formData, setFormData] = useState(initFormData);
-  const [attempted, setAttempted] = useState(false);
   const [generating, setGenerating] = useState(false);
-  const [submitError, setSubmitError] = useState('');
 
   if (!pendingReview) {
     return (
@@ -110,10 +108,6 @@ export default function ClientInfoReview({ pendingReview, onStartGeneration }) {
       </div>
     );
   }
-
-  const allRequiredFields = SECTIONS.flatMap(s => s.fields.filter(f => f.required));
-  const missingRequired = allRequiredFields.filter(f => !formData[f.key] || !formData[f.key].trim());
-  const missingCount = missingRequired.length;
 
   const isMissing = (key) => pendingReview.found[key] === null || pendingReview.found[key] === undefined;
 
@@ -130,13 +124,7 @@ export default function ClientInfoReview({ pendingReview, onStartGeneration }) {
       outline: 'none',
       resize: 'vertical',
     };
-    const missing = isMissing(field.key);
-    const requiredEmpty = field.required && attempted && (!formData[field.key] || !formData[field.key].trim());
-
-    if (requiredEmpty) {
-      return { ...base, borderColor: '#ef4444', background: '#fff5f5' };
-    }
-    if (missing) {
+    if (isMissing(field.key)) {
       return { ...base, background: '#fefce8', borderColor: '#fde047' };
     }
     return base;
@@ -147,12 +135,6 @@ export default function ClientInfoReview({ pendingReview, onStartGeneration }) {
   };
 
   const handleSubmit = () => {
-    setAttempted(true);
-    if (missingCount > 0) {
-      setSubmitError('Please fill in all required fields (highlighted in red).');
-      return;
-    }
-    setSubmitError('');
     setGenerating(true);
     onStartGeneration(pendingReview.notes, formData);
   };
@@ -175,10 +157,10 @@ export default function ClientInfoReview({ pendingReview, onStartGeneration }) {
       }}>
         <div>
           <h1 style={{ fontSize: '20px', fontWeight: '700', color: '#0f172a', margin: 0 }}>
-            Complete Client Information
+            Review Client Information
           </h1>
           <p style={{ fontSize: '13px', color: '#64748b', margin: '4px 0 0' }}>
-            Fields highlighted in yellow were not found in the uploaded notes — please fill them in.
+            Fields highlighted in yellow were not found in the uploaded notes — fill them in or leave blank.
           </p>
         </div>
 
@@ -189,25 +171,7 @@ export default function ClientInfoReview({ pendingReview, onStartGeneration }) {
               <span style={{ display: 'inline-block', width: '14px', height: '14px', background: '#fefce8', border: '1.5px solid #fde047', borderRadius: '3px' }} />
               Not found in notes
             </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-              <span style={{ display: 'inline-block', width: '14px', height: '14px', background: '#fff5f5', border: '1.5px solid #ef4444', borderRadius: '3px' }} />
-              Required — must fill in
-            </span>
           </div>
-
-          {missingCount > 0 && (
-            <span style={{
-              background: '#fef2f2',
-              border: '1px solid #fecaca',
-              borderRadius: '20px',
-              padding: '4px 12px',
-              fontSize: '13px',
-              fontWeight: '600',
-              color: '#dc2626',
-            }}>
-              {missingCount} required field{missingCount !== 1 ? 's' : ''} missing
-            </span>
-          )}
 
           <button
             onClick={handleSubmit}
@@ -240,20 +204,6 @@ export default function ClientInfoReview({ pendingReview, onStartGeneration }) {
           </button>
         </div>
       </div>
-
-      {submitError && (
-        <div style={{
-          margin: '16px 32px 0',
-          padding: '12px 16px',
-          background: '#fef2f2',
-          border: '1px solid #fecaca',
-          borderRadius: '8px',
-          color: '#dc2626',
-          fontSize: '14px',
-        }}>
-          {submitError}
-        </div>
-      )}
 
       {/* Main content */}
       <div style={{ padding: '24px 32px', maxWidth: '1400px', margin: '0 auto' }}>
@@ -299,9 +249,6 @@ export default function ClientInfoReview({ pendingReview, onStartGeneration }) {
                         marginBottom: '4px',
                       }}>
                         {field.label}
-                        {field.required && (
-                          <span style={{ color: '#ef4444', marginLeft: '3px' }}>*</span>
-                        )}
                       </label>
                       {isTextarea ? (
                         <textarea
