@@ -527,7 +527,15 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('X-Accel-Buffering', 'no');
 
-    const send = (obj) => res.write(`data: ${JSON.stringify(obj)}\n\n`);
+    let totalChunksSent = 0;
+    let totalCharsSent = 0;
+    const send = (obj) => {
+      if (obj.type === 'chunk') {
+        totalChunksSent++;
+        totalCharsSent += (obj.text || '').length;
+      }
+      res.write(`data: ${JSON.stringify(obj)}\n\n`);
+    };
 
     let fullPlanText = '';
     // Compact summaries extracted after calls 1 & 2, used instead of full
@@ -620,7 +628,9 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
       });
     }
 
-    console.log(`[generate] All ${GENERATION_SECTIONS.length} sections complete. Total plan length: ${fullPlanText.length} chars`);
+    console.log(`[generate] ===== ALL SECTIONS COMPLETE =====`);
+    console.log(`[generate] TOTAL COMBINED LENGTH: ${fullPlanText.length} chars (${fullPlanText.split('\n').length} lines)`);
+    console.log(`[generate] SSE chunks sent: ${totalChunksSent}, total chars streamed: ${totalCharsSent}`);
 
     clearInterval(keepAlive);
 
@@ -629,6 +639,7 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
     if (planNameMatch && clientName === 'Unknown') clientName = planNameMatch[1].trim();
 
     // Save to DB
+    console.log(`[generate] Saving to DB: ${fullPlanText.length} chars for plan "${clientName}"`);
     const planInsert = db.prepare(
       'INSERT INTO plan_history (user_id, client_name, original_notes) VALUES (?, ?, ?)'
     ).run(req.user.id, clientName, notes);
@@ -637,6 +648,7 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
     db.prepare(
       'INSERT INTO plan_revisions (plan_id, revision_number, text, feedback) VALUES (?, ?, ?, ?)'
     ).run(planId, 0, fullPlanText, 'Initial generation');
+    console.log(`[generate] DB save complete. plan_id=${planId}, revision_number=0, text_length=${fullPlanText.length}`);
 
     if (clientInfo && Object.keys(clientInfo).length > 0) {
       db.prepare('INSERT OR REPLACE INTO client_info (plan_id, data, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)')
@@ -998,8 +1010,10 @@ app.get('/api/export/:plan_id/:revision_number', authMiddleware, async (req, res
     ).get(plan_id, revision_number);
     if (!revision) return res.status(404).json({ error: 'Revision not found' });
 
+    console.log(`[export] plan_id=${plan_id} rev=${revision_number} text_length=${revision.text.length} chars (${revision.text.split('\n').length} lines)`);
     const doc = buildDocx(revision.text, plan.client_name);
     const buffer = await Packer.toBuffer(doc);
+    console.log(`[export] docx buffer size: ${buffer.length} bytes`);
     const safeName = (plan.client_name || 'treatment-plan').replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, '-');
     const filename = `treatment-plan-${safeName}-rev${revision_number}.docx`;
 
@@ -1161,7 +1175,8 @@ app.post('/api/clients/:id/documents/:doc_id/extract', authMiddleware, async (re
     else if (ext==='.docx') { const r = await mammoth.extractRawText({buffer}); text = r.value; }
     else if (['.txt','.md','.rtf'].includes(ext)) { text = buffer.toString('utf8'); }
     else { text = buffer.toString('utf8'); }
-    res.json({ text: text.slice(0, 50000) });
+    console.log(`[upload] Extracted ${text.length} chars from ${ext} file`);
+    res.json({ text });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
