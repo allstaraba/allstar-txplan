@@ -515,24 +515,43 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
     const send = (obj) => res.write(`data: ${JSON.stringify(obj)}\n\n`);
 
     let fullPlanText = '';
+    // Compact summaries extracted after calls 1 & 2, used instead of full
+    // plan text for BIP calls (3-5) and closing calls (6-7) to maximize
+    // available output tokens.
+    let behaviorSummary = '';  // challenging behaviors + baseline from section 1
+    let goalList = '';          // "N. Goal Statement: ..." lines from section 2
 
-    // 7 sequential calls — each section gets its own API call with 16k tokens.
-    // BIPs are split one-per-function (calls 3/4/5) so each has ample room.
     for (const sec of GENERATION_SECTIONS) {
       console.log(`[generate] Starting section ${sec.number} of ${sec.total}: ${sec.label}`);
       send({ type: 'progress', section: sec.number, total: sec.total, label: sec.label });
 
-      // Pass all previously generated text as the assistant turn so goal
-      // numbers and context stay consistent across calls.
-      const messages = fullPlanText
+      // Build the context appended to baseMessage depending on which call this is:
+      // Calls 1-2  → full accumulated plan text (normal rolling context)
+      // Calls 3-5  → compact: behavior summary + goal list only
+      // Calls 6-7  → compact: goal list + client info only (no BIP text needed)
+      let contextBlock = '';
+      if (sec.number <= 2) {
+        contextBlock = fullPlanText;
+      } else if (sec.number <= 5) {
+        const parts = [];
+        if (behaviorSummary) parts.push(`=== CHALLENGING BEHAVIORS & BASELINE DATA (from clinical observation) ===\n${behaviorSummary}`);
+        if (goalList) parts.push(`=== SKILL ACQUISITION GOALS — use these goal numbers for all FERB references ===\n${goalList}`);
+        contextBlock = parts.join('\n\n');
+      } else {
+        // Calls 6-7 only need goal numbers for cross-references
+        if (goalList) contextBlock = `=== SKILL ACQUISITION GOALS — use these goal numbers for all references ===\n${goalList}`;
+      }
+
+      const messages = contextBlock
         ? [
             { role: 'user', content: baseMessage },
-            { role: 'assistant', content: fullPlanText },
+            { role: 'assistant', content: contextBlock },
             { role: 'user', content: sec.instruction },
           ]
         : [{ role: 'user', content: `${baseMessage}\n\n${sec.instruction}` }];
 
-      console.log(`[generate] Section ${sec.number} input: ~${Math.round(JSON.stringify(messages).length / 4)} tokens`);
+      const inputEst = Math.round(JSON.stringify(messages).length / 4);
+      console.log(`[generate] Section ${sec.number} input: ~${inputEst} tokens`);
 
       let sectionText = '';
 
@@ -550,6 +569,29 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
         });
 
         stream.on('finalMessage', (msg) => {
+          // After section 1: extract challenging behaviors narrative
+          if (sec.number === 1) {
+            const cbIdx = sectionText.search(/Challenging Behavior/i);
+            if (cbIdx >= 0) {
+              // Take from "Challenging Behaviors" heading to end of section 1
+              behaviorSummary = sectionText.slice(cbIdx, cbIdx + 4000);
+            } else {
+              behaviorSummary = sectionText.slice(-3000);
+            }
+            console.log(`[generate] Extracted behavior summary: ${behaviorSummary.length} chars`);
+          }
+
+          // After section 2: extract numbered goal statements only
+          if (sec.number === 2) {
+            const goalLines = [];
+            for (const line of sectionText.split('\n')) {
+              const m = line.match(/^\s*(\d+)\.\s+Goal Statement:\s*(.+)/);
+              if (m) goalLines.push(`${m[1]}. Goal Statement: ${m[2].trim()}`);
+            }
+            goalList = goalLines.join('\n');
+            console.log(`[generate] Extracted ${goalLines.length} goal statements for context`);
+          }
+
           fullPlanText += (fullPlanText ? '\n\n' : '') + sectionText;
           console.log(`[generate] Section ${sec.number} done. Stop: ${msg.stop_reason}. Output: ${sectionText.length} chars. Total: ${fullPlanText.length} chars`);
           resolve();
