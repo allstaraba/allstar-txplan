@@ -305,12 +305,12 @@ function formatClientInfoForPrompt(clientInfo) {
   return lines.join('\n');
 }
 
-// The sequential generation prompts — each builds on the previous sections as context.
-// Split into 5 calls so BIPs get their own dedicated 32k-token call and never get cut off.
+// 7 sequential generation calls. BIPs split one-per-function so each gets
+// its own 16k-token call and can never crowd out the others.
 const GENERATION_SECTIONS = [
   {
     number: 1,
-    total: 5,
+    total: 7,
     label: 'Client Info, Narrative & Assessments (sections 1–14)',
     instruction: `Generate ONLY sections 1 through 14 of the ABA treatment plan, in this exact order:
 1. "ABA Treatment Plan" title header
@@ -332,7 +332,7 @@ Be thorough and comprehensive. Write full paragraphs — do not abbreviate. STOP
   },
   {
     number: 2,
-    total: 5,
+    total: 7,
     label: 'Skill Acquisition Goals (section 15)',
     instruction: `Sections 1–14 have already been written above. Continue the plan — do not repeat anything already written.
 
@@ -358,36 +358,81 @@ Write all 25–40 goals completely. Do not truncate, do not summarize, do not wr
   },
   {
     number: 3,
-    total: 5,
-    label: 'Behavior Intervention Plans (section 16)',
+    total: 7,
+    label: 'BIP: Social Negative Reinforcement',
     instruction: `Sections 1–15 of the treatment plan have been written above. Continue — do not repeat anything.
 
-Generate ONLY section 16:
+Generate ONLY the Social Negative Reinforcement BIP (one BIP for escape/avoidance-maintained behaviors):
 
-16. Behavior Intervention Plans — write one complete BIP per hypothesized FUNCTION (not per topography). Include only the functions relevant to this client. Possible function categories:
-    • Social Negative Reinforcement (escape-maintained behaviors)
-    • Social Positive Reinforcement (attention/access-maintained behaviors)
-    • Automatic Positive Reinforcement (sensory/automatically-maintained behaviors)
+Review the BCBA notes. If this client has behaviors maintained by Social Negative Reinforcement (escape from tasks, demands, non-preferred activities, aversive stimuli, or social interactions), write one complete Behavior Intervention Plan with the header "Behavior Intervention Plan" and ALL of these subsections in full:
+- Date
+- Behavior Assessment (ABC)
+- Target Behavior: list every topography maintained by escape/avoidance
+- Operational Definition: one precise bullet per topography
+- Quantitative Baseline Data
+- Hypothesized Function: Social Negative Reinforcement — [description of escape function]
+- Functionally Equivalent Replacement Behaviors: reference specific goal numbers from section 15
+- Antecedent Interventions: detailed prose, each strategy with a bold sub-header
+- Consequence Interventions: detailed prose, each strategy with a bold sub-header
+- De-escalation Procedures: use the standard de-escalation protocol verbatim from your instructions
 
-    Each BIP must include ALL of the following subsections written in full — do not abbreviate, skip, or shorten any subsection:
-    - Date
-    - Behavior Assessment (ABC)
-    - Target Behavior (list all topographies that fall under this function)
-    - Operational Definition (bullet format, one detailed bullet per topography with precise measurable language)
-    - Quantitative Baseline Data
-    - Hypothesized Function
-    - Functionally Equivalent Replacement Behaviors (reference the specific goal numbers from section 15 by number)
-    - Antecedent Interventions (detailed prose, multiple strategies each with a bold sub-header)
-    - Consequence Interventions (detailed prose, multiple strategies each with a bold sub-header)
-    - De-escalation Procedures (use the standard de-escalation protocol verbatim from your instructions)
+If this client has NO escape/avoidance-maintained behaviors, write a single line: "No Social Negative Reinforcement BIP is indicated for this client." and stop.
 
-Write every BIP completely from start to finish before moving to the next. STOP after the last BIP's De-escalation Procedures. Do NOT write behavior reduction goals, parent training, generalization, or any later sections.`,
+STOP after the De-escalation Procedures. Do NOT write any other BIPs or later sections.`,
   },
   {
     number: 4,
-    total: 5,
+    total: 7,
+    label: 'BIP: Social Positive Reinforcement',
+    instruction: `Sections 1–15 of the treatment plan plus the Social Negative Reinforcement BIP have already been written above. Continue — do not repeat anything.
+
+Generate ONLY the Social Positive Reinforcement BIP (one BIP for attention/tangible-access-maintained behaviors):
+
+Review the BCBA notes. If this client has behaviors maintained by Social Positive Reinforcement (access to preferred items, tangibles, activities, or social attention), write one complete Behavior Intervention Plan with the header "Behavior Intervention Plan" and ALL of these subsections in full:
+- Date
+- Behavior Assessment (ABC)
+- Target Behavior: list every topography maintained by attention/access
+- Operational Definition: one precise bullet per topography
+- Quantitative Baseline Data
+- Hypothesized Function: Social Positive Reinforcement — [description of access/attention function]
+- Functionally Equivalent Replacement Behaviors: reference specific goal numbers from section 15
+- Antecedent Interventions: detailed prose, each strategy with a bold sub-header
+- Consequence Interventions: detailed prose, each strategy with a bold sub-header
+- De-escalation Procedures: use the standard de-escalation protocol verbatim from your instructions
+
+If this client has NO attention/access-maintained behaviors, write a single line: "No Social Positive Reinforcement BIP is indicated for this client." and stop.
+
+STOP after the De-escalation Procedures. Do NOT write any other BIPs or later sections.`,
+  },
+  {
+    number: 5,
+    total: 7,
+    label: 'BIP: Automatic Positive Reinforcement',
+    instruction: `Sections 1–15 of the treatment plan plus the Social Negative and Social Positive Reinforcement BIPs have already been written above. Continue — do not repeat anything.
+
+Generate ONLY the Automatic Positive Reinforcement BIP (one BIP for sensory/automatically-maintained behaviors):
+
+Review the BCBA notes. If this client has behaviors maintained by Automatic Positive Reinforcement (self-stimulatory behaviors, sensory behaviors, or behaviors that occur independent of social consequences), write one complete Behavior Intervention Plan with the header "Behavior Intervention Plan" and ALL of these subsections in full:
+- Date
+- Behavior Assessment (ABC)
+- Target Behavior: list every topography maintained by automatic reinforcement
+- Operational Definition: one precise bullet per topography
+- Quantitative Baseline Data
+- Hypothesized Function: Automatic Positive Reinforcement — [description of sensory/automatic function]
+- Functionally Equivalent Replacement Behaviors: reference specific goal numbers from section 15
+- Antecedent Interventions: detailed prose, each strategy with a bold sub-header
+- Consequence Interventions: detailed prose, each strategy with a bold sub-header
+- De-escalation Procedures: use the standard de-escalation protocol verbatim from your instructions
+
+If this client has NO automatically-maintained behaviors, write a single line: "No Automatic Positive Reinforcement BIP is indicated for this client." and stop.
+
+STOP after the De-escalation Procedures. Do NOT write behavior reduction goals, parent training, generalization, or any later sections.`,
+  },
+  {
+    number: 6,
+    total: 7,
     label: 'Behavior Reduction Goals & Parent Training (sections 17–18)',
-    instruction: `Sections 1–16 of the treatment plan have been written above. Continue — do not repeat anything.
+    instruction: `Sections 1–16 (including all BIPs) of the treatment plan have been written above. Continue — do not repeat anything.
 
 Generate ONLY sections 17 and 18:
 
@@ -407,12 +452,12 @@ Generate ONLY sections 17 and 18:
 Write every goal completely. STOP after the last parent training goal. Do NOT write generalization, fading, discharge, crisis, or any later sections.`,
   },
   {
-    number: 5,
-    total: 5,
-    label: 'Generalization, Fading, Crisis, CPT Codes & Consent (sections 19–25)',
+    number: 7,
+    total: 7,
+    label: 'Generalization, Fading, Crisis, CPT Codes & Consent (sections 19–26)',
     instruction: `Sections 1–18 of the treatment plan have been written above. Now write the final sections — do not repeat anything.
 
-Generate ONLY sections 19 through 25:
+Generate ONLY sections 19 through 26:
 
 19. Generalization Plan — use the exact 6-step generalization protocol from your instructions, verbatim. Follow with Data Collection Standard Language verbatim.
 
@@ -471,76 +516,50 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
 
     let fullPlanText = '';
 
-    // Run sequential generation calls — one per GENERATION_SECTIONS entry.
-    // Each call auto-continues if it hits max_tokens (stop_reason !== 'end_turn').
+    // 7 sequential calls — each section gets its own API call with 16k tokens.
+    // BIPs are split one-per-function (calls 3/4/5) so each has ample room.
     for (const sec of GENERATION_SECTIONS) {
       console.log(`[generate] Starting section ${sec.number} of ${sec.total}: ${sec.label}`);
       send({ type: 'progress', section: sec.number, total: sec.total, label: sec.label });
 
+      // Pass all previously generated text as the assistant turn so goal
+      // numbers and context stay consistent across calls.
+      const messages = fullPlanText
+        ? [
+            { role: 'user', content: baseMessage },
+            { role: 'assistant', content: fullPlanText },
+            { role: 'user', content: sec.instruction },
+          ]
+        : [{ role: 'user', content: `${baseMessage}\n\n${sec.instruction}` }];
+
+      console.log(`[generate] Section ${sec.number} input: ~${Math.round(JSON.stringify(messages).length / 4)} tokens`);
+
       let sectionText = '';
-      let continuationCount = 0;
-      let stopReason = null;
 
-      while (stopReason !== 'end_turn') {
-        // First call: use the section instruction.
-        // Continuation calls: tell Claude to continue from where it left off.
-        let userInstruction;
-        if (continuationCount === 0) {
-          userInstruction = sec.instruction;
-        } else {
-          userInstruction = `Continue from EXACTLY where you left off above. Do not repeat any text that has already been written. Do not add a heading or introduction — just continue mid-sentence or mid-word if needed. Complete the current section and then stop.`;
-          console.log(`[generate] Section ${sec.number} hit max_tokens, starting continuation ${continuationCount}...`);
-          send({ type: 'progress', section: sec.number, total: sec.total, label: `${sec.label} (continuing…)` });
-        }
-
-        // Build messages: pass all prior context + whatever this section has already produced
-        const contextSoFar = fullPlanText + (sectionText ? '\n\n' + sectionText : '');
-        const messages = contextSoFar
-          ? [
-              { role: 'user', content: baseMessage },
-              { role: 'assistant', content: contextSoFar },
-              { role: 'user', content: userInstruction },
-            ]
-          : [{ role: 'user', content: `${baseMessage}\n\n${userInstruction}` }];
-
-        console.log(`[generate] Section ${sec.number} call ${continuationCount + 1}: input ~${Math.round(JSON.stringify(messages).length / 4)} tokens`);
-
-        await new Promise((resolve, reject) => {
-          const stream = anthropic.messages.stream({
-            model: 'claude-opus-4-6',
-            max_tokens: 32768,
-            system: systemPrompt,
-            messages,
-          });
-
-          stream.on('text', (chunk) => {
-            sectionText += chunk;
-            send({ type: 'chunk', text: chunk });
-          });
-
-          stream.on('finalMessage', (msg) => {
-            stopReason = msg.stop_reason;
-            console.log(`[generate] Section ${sec.number} call ${continuationCount + 1} done. Stop reason: ${msg.stop_reason}. Section so far: ${sectionText.length} chars`);
-            resolve();
-          });
-
-          stream.on('error', (err) => {
-            console.error(`[generate] Section ${sec.number} call ${continuationCount + 1} error:`, err);
-            reject(err);
-          });
+      await new Promise((resolve, reject) => {
+        const stream = anthropic.messages.stream({
+          model: 'claude-opus-4-6',
+          max_tokens: 16000,
+          system: systemPrompt,
+          messages,
         });
 
-        continuationCount++;
+        stream.on('text', (chunk) => {
+          sectionText += chunk;
+          send({ type: 'chunk', text: chunk });
+        });
 
-        // Safety cap: never loop more than 4 times per section
-        if (continuationCount >= 4) {
-          console.log(`[generate] Section ${sec.number} reached max continuations (4). Moving on.`);
-          break;
-        }
-      }
+        stream.on('finalMessage', (msg) => {
+          fullPlanText += (fullPlanText ? '\n\n' : '') + sectionText;
+          console.log(`[generate] Section ${sec.number} done. Stop: ${msg.stop_reason}. Output: ${sectionText.length} chars. Total: ${fullPlanText.length} chars`);
+          resolve();
+        });
 
-      fullPlanText += (fullPlanText ? '\n\n' : '') + sectionText;
-      console.log(`[generate] Section ${sec.number} fully complete after ${continuationCount} call(s). Total accumulated: ${fullPlanText.length} chars`);
+        stream.on('error', (err) => {
+          console.error(`[generate] Section ${sec.number} error:`, err);
+          reject(err);
+        });
+      });
     }
 
     console.log(`[generate] All ${GENERATION_SECTIONS.length} sections complete. Total plan length: ${fullPlanText.length} chars`);
