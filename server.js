@@ -439,27 +439,8 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
 
     console.log("=== STARTING PLAN GENERATION ===");
 
-    for (const sec of GENERATION_SECTIONS) {
-      console.log(`[generate] Starting section ${sec.number} of ${sec.total}: ${sec.label}`);
-      send({ type: 'progress', section: sec.number, total: sec.total, label: sec.label });
-
-      // Build the context appended to baseMessage depending on which call this is:
-      // Calls 1-2  → full accumulated plan text (normal rolling context)
-      // Calls 3-5  → compact: behavior summary + goal list only
-      // Calls 6-7  → compact: goal list + client info only (no BIP text needed)
-      let contextBlock = '';
-      if (sec.number <= 2) {
-        contextBlock = fullPlanText;
-      } else if (sec.number <= 5) {
-        const parts = [];
-        if (behaviorSummary) parts.push(`=== CHALLENGING BEHAVIORS & BASELINE DATA (from clinical observation) ===\n${behaviorSummary}`);
-        if (goalList) parts.push(`=== SKILL ACQUISITION GOALS — use these goal numbers for all FERB references ===\n${goalList}`);
-        contextBlock = parts.join('\n\n');
-      } else {
-        // Calls 6-7 only need goal numbers for cross-references
-        if (goalList) contextBlock = `=== SKILL ACQUISITION GOALS — use these goal numbers for all references ===\n${goalList}`;
-      }
-
+    // Helper: run one section and return its text
+    const runSection = (sec, contextBlock) => {
       const messages = contextBlock
         ? [
             { role: 'user', content: baseMessage },
@@ -469,59 +450,78 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
         : [{ role: 'user', content: `${baseMessage}\n\n${sec.instruction}` }];
 
       const msgChars = messages.reduce((sum, m) => sum + (typeof m.content === 'string' ? m.content.length : 0), 0);
-      const inputEst = Math.round(msgChars / 4);
-      console.log(`[generate] Section ${sec.number} messages: ${msgChars.toLocaleString()} chars (~${inputEst.toLocaleString()} tokens input)`);
+      console.log(`[generate] Section ${sec.number} messages: ${msgChars.toLocaleString()} chars (~${Math.round(msgChars/4).toLocaleString()} tokens input)`);
 
       let sectionText = '';
-
-      await new Promise((resolve, reject) => {
+      return new Promise((resolve, reject) => {
         const stream = anthropic.messages.stream({
           model: 'claude-opus-4-6',
           max_tokens: 32768,
           system: systemPrompt,
           messages,
         });
-
         stream.on('text', (chunk) => {
           sectionText += chunk;
           send({ type: 'chunk', text: chunk });
         });
-
         stream.on('finalMessage', (msg) => {
-          // After section 1: extract challenging behaviors narrative
-          if (sec.number === 1) {
-            const cbIdx = sectionText.search(/Challenging Behavior/i);
-            if (cbIdx >= 0) {
-              // Take from "Challenging Behaviors" heading to end of section 1
-              behaviorSummary = sectionText.slice(cbIdx, cbIdx + 4000);
-            } else {
-              behaviorSummary = sectionText.slice(-3000);
-            }
-            console.log(`[generate] Extracted behavior summary: ${behaviorSummary.length} chars`);
-          }
-
-          // After section 2: extract numbered goal statements only
-          if (sec.number === 2) {
-            const goalLines = [];
-            for (const line of sectionText.split('\n')) {
-              const m = line.match(/^\s*(\d+)\.\s+Goal Statement:\s*(.+)/);
-              if (m) goalLines.push(`${m[1]}. Goal Statement: ${m[2].trim()}`);
-            }
-            goalList = goalLines.join('\n');
-            console.log(`[generate] Extracted ${goalLines.length} goal statements for context`);
-          }
-
-          fullPlanText += (fullPlanText ? '\n\n' : '') + sectionText;
-          console.log(`[generate] Section ${sec.number} done. Stop: ${msg.stop_reason}. Output: ${sectionText.length} chars. Total: ${fullPlanText.length} chars`);
+          console.log(`[generate] Section ${sec.number} done. Stop: ${msg.stop_reason}. Output: ${sectionText.length} chars`);
           console.log("CHUNK " + sec.number + " COMPLETE - length: " + sectionText.length + " chars");
-          resolve();
+          resolve(sectionText);
         });
-
         stream.on('error', (err) => {
           console.error(`[generate] Section ${sec.number} error:`, err);
           reject(err);
         });
       });
+    };
+
+    // Sections 1 & 2: sequential (each needs the previous output as context)
+    const seq12 = GENERATION_SECTIONS.filter(s => s.number <= 2);
+    for (const sec of seq12) {
+      send({ type: 'progress', section: sec.number, total: sec.total, label: sec.label });
+      const contextBlock = fullPlanText;
+      const text = await runSection(sec, contextBlock);
+
+      if (sec.number === 1) {
+        const cbIdx = text.search(/Challenging Behavior/i);
+        behaviorSummary = cbIdx >= 0 ? text.slice(cbIdx, cbIdx + 4000) : text.slice(-3000);
+        console.log(`[generate] Extracted behavior summary: ${behaviorSummary.length} chars`);
+      }
+      if (sec.number === 2) {
+        const goalLines = [];
+        for (const line of text.split('\n')) {
+          const m = line.match(/^\s*(\d+)\.\s+Goal Statement:\s*(.+)/);
+          if (m) goalLines.push(`${m[1]}. Goal Statement: ${m[2].trim()}`);
+        }
+        goalList = goalLines.join('\n');
+        console.log(`[generate] Extracted ${goalLines.length} goal statements for context`);
+      }
+      fullPlanText += (fullPlanText ? '\n\n' : '') + text;
+    }
+
+    // Sections 3, 4, 5: BIPs run in parallel — they share the same context and are independent
+    const bipSections = GENERATION_SECTIONS.filter(s => s.number >= 3 && s.number <= 5);
+    send({ type: 'progress', section: 3, total: 7, label: 'Behavior Intervention Plans (parallel)' });
+    console.log('[generate] Starting BIP sections 3, 4, 5 in parallel');
+    const bipContextParts = [];
+    if (behaviorSummary) bipContextParts.push(`=== CHALLENGING BEHAVIORS & BASELINE DATA (from clinical observation) ===\n${behaviorSummary}`);
+    if (goalList) bipContextParts.push(`=== SKILL ACQUISITION GOALS — use these goal numbers for all FERB references ===\n${goalList}`);
+    const bipContext = bipContextParts.join('\n\n');
+
+    const bipTexts = await Promise.all(bipSections.map(sec => runSection(sec, bipContext)));
+    bipTexts.forEach(text => {
+      fullPlanText += '\n\n' + text;
+    });
+    console.log(`[generate] BIPs complete. Total so far: ${fullPlanText.length} chars`);
+
+    // Sections 6 & 7: sequential after BIPs
+    const seq67 = GENERATION_SECTIONS.filter(s => s.number >= 6);
+    for (const sec of seq67) {
+      send({ type: 'progress', section: sec.number, total: sec.total, label: sec.label });
+      const contextBlock = goalList ? `=== SKILL ACQUISITION GOALS — use these goal numbers for all references ===\n${goalList}` : '';
+      const text = await runSection(sec, contextBlock);
+      fullPlanText += '\n\n' + text;
     }
 
     console.log(`[generate] ===== ALL SECTIONS COMPLETE =====`);
