@@ -275,7 +275,7 @@ Review the BCBA notes. If this client has behaviors maintained by Social Negativ
 - Functionally Equivalent Replacement Behaviors: reference specific goal numbers from section 15
 - Antecedent Interventions: each strategy gets a bold sub-header + 2–3 sentences max
 - Consequence Interventions: each strategy gets a bold sub-header + 2–3 sentences max
-- De-escalation Procedures: write only the marker `[STANDARD_DEESCALATION_PROTOCOL]` — do not write any other text in that cell
+- De-escalation Procedures: write only the marker '[STANDARD_DEESCALATION_PROTOCOL]' — do not write any other text in that cell
 
 If this client has NO escape/avoidance-maintained behaviors, write a single line: "No Social Negative Reinforcement BIP is indicated for this client." and stop.
 
@@ -304,7 +304,7 @@ Review the BCBA notes. If this client has behaviors maintained by Social Positiv
 - Functionally Equivalent Replacement Behaviors: reference specific goal numbers from section 15
 - Antecedent Interventions: each strategy gets a bold sub-header + 2–3 sentences max
 - Consequence Interventions: each strategy gets a bold sub-header + 2–3 sentences max
-- De-escalation Procedures: write only the marker `[STANDARD_DEESCALATION_PROTOCOL]` — do not write any other text in that cell
+- De-escalation Procedures: write only the marker '[STANDARD_DEESCALATION_PROTOCOL]' — do not write any other text in that cell
 
 If this client has NO attention/access-maintained behaviors, write a single line: "No Social Positive Reinforcement BIP is indicated for this client." and stop.
 
@@ -333,7 +333,7 @@ Review the BCBA notes. If this client has behaviors maintained by Automatic Posi
 - Functionally Equivalent Replacement Behaviors: reference specific goal numbers from section 15
 - Antecedent Interventions: each strategy gets a bold sub-header + 2–3 sentences max
 - Consequence Interventions: each strategy gets a bold sub-header + 2–3 sentences max
-- De-escalation Procedures: write only the marker `[STANDARD_DEESCALATION_PROTOCOL]` — do not write any other text in that cell
+- De-escalation Procedures: write only the marker '[STANDARD_DEESCALATION_PROTOCOL]' — do not write any other text in that cell
 
 If this client has NO automatically-maintained behaviors, write a single line: "No Automatic Positive Reinforcement BIP is indicated for this client." and stop.
 
@@ -370,22 +370,22 @@ Write every goal completely. STOP after the last parent training goal. Do NOT wr
 
 Generate ONLY sections 19 through 26:
 
-19. Generalization Plan — Bordered table with header row "Generalization Protocol" and a second row containing only: `[STANDARD_GENERALIZATION_STEPS]`. Then a third row header "Maintenance Protocol" and row containing only: `[STANDARD_MAINTENANCE_STEPS]`. Then a data collection row containing only: `[DATA_COLLECTION_LANGUAGE]`.
+19. Generalization Plan — Bordered table with header row "Generalization Protocol" and a second row containing only: '[STANDARD_GENERALIZATION_STEPS]'. Then a third row header "Maintenance Protocol" and row containing only: '[STANDARD_MAINTENANCE_STEPS]'. Then a data collection row containing only: '[DATA_COLLECTION_LANGUAGE]'.
 
-20. Transition and Fading Plan — Bordered cell containing only: `[FADING_PLAN_INTRO]`. Then a transition table (N/A rows). Then the fading rationale (individualized — write the two paragraphs with actual client name and hours). Then the 4-phase fading table using the exact phase criteria from your instructions, referencing specific goal numbers. End with a Discharge Criteria section whose content cell contains only: `[DISCHARGE_CRITERIA]`.
+20. Transition and Fading Plan — Bordered cell containing only: '[FADING_PLAN_INTRO]'. Then a transition table (N/A rows). Then the fading rationale (individualized — write the two paragraphs with actual client name and hours). Then the 4-phase fading table using the exact phase criteria from your instructions, referencing specific goal numbers. End with a Discharge Criteria section whose content cell contains only: '[DISCHARGE_CRITERIA]'.
 
-21. Crisis Plan — Crisis intro text in bordered cell. Emergency contacts table. Crisis protocol bordered cell. Individualized crisis protocol table (or "no individualized crisis plan" if no safety behaviors). Post-Crisis Procedures cell containing only: `[POST_CRISIS_PROCEDURES]`.
+21. Crisis Plan — Crisis intro text in bordered cell. Emergency contacts table. Crisis protocol bordered cell. Individualized crisis protocol table (or "no individualized crisis plan" if no safety behaviors). Post-Crisis Procedures cell containing only: '[POST_CRISIS_PROCEDURES]'.
 
-22. Recommendations for ABA Services — Medical necessity cell containing only: `[MEDICAL_NECESSITY_LANGUAGE]`. Then CPT codes TABLE (CPT Code | Number of Hours Requested | Total Units | Place of Service). Calculate Total Units as hours/week × 26 weeks × 4 and show calculation inline. Include rows for 97151, 97153, 97155-GT, and 97156-GT/U2. Then the Anticipated Schedule table.
+22. Recommendations for ABA Services — Medical necessity cell containing only: '[MEDICAL_NECESSITY_LANGUAGE]'. Then CPT codes TABLE (CPT Code | Number of Hours Requested | Total Units | Place of Service). Calculate Total Units as hours/week × 26 weeks × 4 and show calculation inline. Include rows for 97151, 97153, 97155-GT, and 97156-GT/U2. Then the Anticipated Schedule table.
 
-23. Provider Information table (Provider Name, Credentials, Signature, Date, NPI). Attestation cell containing only: `[ATTESTATION_LANGUAGE]`. Clinical Reviewer table with signature line.
+23. Provider Information table (Provider Name, Credentials, Signature, Date, NPI). Attestation cell containing only: '[ATTESTATION_LANGUAGE]'. Clinical Reviewer table with signature line.
 
-24. Consent cell containing only: `[CONSENT_LANGUAGE]`. Followed by EXACTLY these three signature lines:
+24. Consent cell containing only: '[CONSENT_LANGUAGE]'. Followed by EXACTLY these three signature lines:
     Client Signature: ______________________________ Date: ______________
     Parent/Caregiver Signature: ____________________ Date: ______________
     Date: ______________
 
-25. Maryland Medicaid Telehealth Readiness Checklist — write only: `[TELEHEALTH_CHECKLIST]``,
+25. Maryland Medicaid Telehealth Readiness Checklist — write only: '[TELEHEALTH_CHECKLIST]'`,
   },
 ];
 
@@ -574,8 +574,8 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
         .run(planId, JSON.stringify(clientInfo));
     }
 
-    // Send done with full injected text so client display updates without reload
-    send({ type: 'done', plan_id: planId, client_name: clientName, full_text: injectedPlanText });
+    // Keep done event small — client fetches injected text from /api/plans/:id
+    send({ type: 'done', plan_id: planId, client_name: clientName });
     res.end();
 
     // Generate clarifying questions in the background AFTER the response is closed

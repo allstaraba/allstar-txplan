@@ -9,7 +9,7 @@ import ManageUsers from './pages/ManageUsers.jsx';
 import PlanHistory from './pages/PlanHistory.jsx';
 import ClientRecords from './pages/ClientRecords.jsx';
 import ClientProfile from './pages/ClientProfile.jsx';
-import { getMe, logout, generatePlan } from './api.js';
+import { getMe, logout, generatePlan, getPlan } from './api.js';
 
 const styles = {
   layout: {
@@ -158,7 +158,15 @@ function Layout({ user, onLogout, currentPlan, setCurrentPlan, injectedText, set
         },
         controller.signal
       );
-      setCurrentPlan({ plan_id: data.plan_id, text: data.full_text || accumulated, client_name: data.client_name });
+      // Fetch from DB to get the boilerplate-injected text (markers replaced)
+      try {
+        const planData = await getPlan(data.plan_id);
+        const revs = planData.revisions;
+        const planText = (revs && revs.length > 0) ? revs[revs.length - 1].text : accumulated;
+        setCurrentPlan({ plan_id: data.plan_id, text: planText, client_name: data.client_name });
+      } catch {
+        setCurrentPlan({ plan_id: data.plan_id, text: accumulated, client_name: data.client_name });
+      }
       setGeneratingPlan(null);
     } catch (err) {
       if (err.name === 'AbortError') {
