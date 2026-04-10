@@ -95,7 +95,11 @@ Each function-based BIP must include assigned topographies with a statement like
 
 Ensure slight required variation in intervention descriptions between function-based BIPs — interventions should be individualized to the function and the specific client based on the observing BCBA's notes.
 
-Each BIP includes: Date, Behavior Assessment (ABC or FAST), Target Behavior, Operational Definition (in bullet format), Quantitative Baseline Data, Hypothesized Function, Functionally Equivalent Replacement Behaviors (reference specific FERB goals), Antecedent Interventions (detailed with bold headers), Consequence Interventions (detailed with bold headers), De-escalation Procedures.
+Each BIP includes: Date, Behavior Assessment (ABC), Target Behavior, Operational Definition (in bullet format), Quantitative Baseline Data, Hypothesized Function, Functionally Equivalent Replacement Behaviors (reference specific FERB goals), Antecedent Interventions (detailed with bold headers), Consequence Interventions (detailed with bold headers), De-escalation Procedures.
+
+In all BIP Antecedent Interventions and Consequence Interventions text, use "Technician" in place of "treatment team" (e.g., "The Technician will..." not "The treatment team will...").
+
+When writing the Operational Definition for tantrum behaviors (crying, screaming, whining, dropping to floor, or any vocalization-based tantrum topography), the duration criterion must be "10 or more seconds" — never "5 seconds".
 
 Standard De-escalation Protocol (use this exact language every time):
 Stay calm to prevent the situation from escalating. Ensure the area is clear of environmental hazards.
