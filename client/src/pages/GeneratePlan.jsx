@@ -11,7 +11,7 @@ export default function GeneratePlan({ onGenerate, isGenerating }) {
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef(null);
 
-  const acceptedExts = ['.pdf', '.docx', '.txt', '.md', '.rtf', '.zip'];
+  const acceptedExts = ['.pdf', '.docx', '.txt', '.md', '.rtf', '.zip', '.xlsx', '.xls'];
 
   const handleFiles = async (files) => {
     for (const file of Array.from(files)) {

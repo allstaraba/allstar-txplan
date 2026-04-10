@@ -12,6 +12,7 @@ const mammoth = require('mammoth');
 const pdfParse = require('pdf-parse');
 const { Packer } = require('docx');
 const { buildDocx } = require('./docx-builder');
+const XLSX = require('xlsx');
 const db = require('./db');
 
 const app = express();
@@ -759,9 +760,18 @@ app.post('/api/upload', authMiddleware, upload.single('file'), async (req, res) 
     if (isPDF) {
       const data = await pdfParse(buffer);
       extractedText = data.text;
-    } else if (ext === '.docx' || (isZip && ext !== '.zip')) {
+    } else if (ext === '.docx' || (isZip && ext !== '.zip' && ext !== '.xlsx')) {
       const result = await mammoth.extractRawText({ buffer });
       extractedText = result.value;
+    } else if (['.xlsx', '.xls'].includes(ext)) {
+      const workbook = XLSX.read(buffer, { type: 'buffer' });
+      const parts = [];
+      for (const sheetName of workbook.SheetNames) {
+        const sheet = workbook.Sheets[sheetName];
+        const csv = XLSX.utils.sheet_to_csv(sheet, { blankrows: false });
+        if (csv.trim()) parts.push(`--- Sheet: ${sheetName} ---\n${csv}`);
+      }
+      extractedText = parts.join('\n\n');
     } else if (['.txt', '.md', '.rtf'].includes(ext)) {
       extractedText = buffer.toString('utf8');
     } else if (ext === '.zip') {
