@@ -13,6 +13,7 @@ const pdfParse = require('pdf-parse');
 const { Packer } = require('docx');
 const { buildDocx } = require('./docx-builder');
 const XLSX = require('xlsx');
+const { injectBoilerplate } = require('./plan-boilerplate');
 const db = require('./db');
 
 const app = express();
@@ -274,7 +275,7 @@ Review the BCBA notes. If this client has behaviors maintained by Social Negativ
 - Functionally Equivalent Replacement Behaviors: reference specific goal numbers from section 15
 - Antecedent Interventions: each strategy gets a bold sub-header + 2–3 sentences max
 - Consequence Interventions: each strategy gets a bold sub-header + 2–3 sentences max
-- De-escalation Procedures: use the standard de-escalation protocol verbatim from your instructions
+- De-escalation Procedures: write only the marker `[STANDARD_DEESCALATION_PROTOCOL]` — do not write any other text in that cell
 
 If this client has NO escape/avoidance-maintained behaviors, write a single line: "No Social Negative Reinforcement BIP is indicated for this client." and stop.
 
@@ -303,7 +304,7 @@ Review the BCBA notes. If this client has behaviors maintained by Social Positiv
 - Functionally Equivalent Replacement Behaviors: reference specific goal numbers from section 15
 - Antecedent Interventions: each strategy gets a bold sub-header + 2–3 sentences max
 - Consequence Interventions: each strategy gets a bold sub-header + 2–3 sentences max
-- De-escalation Procedures: use the standard de-escalation protocol verbatim from your instructions
+- De-escalation Procedures: write only the marker `[STANDARD_DEESCALATION_PROTOCOL]` — do not write any other text in that cell
 
 If this client has NO attention/access-maintained behaviors, write a single line: "No Social Positive Reinforcement BIP is indicated for this client." and stop.
 
@@ -332,7 +333,7 @@ Review the BCBA notes. If this client has behaviors maintained by Automatic Posi
 - Functionally Equivalent Replacement Behaviors: reference specific goal numbers from section 15
 - Antecedent Interventions: each strategy gets a bold sub-header + 2–3 sentences max
 - Consequence Interventions: each strategy gets a bold sub-header + 2–3 sentences max
-- De-escalation Procedures: use the standard de-escalation protocol verbatim from your instructions
+- De-escalation Procedures: write only the marker `[STANDARD_DEESCALATION_PROTOCOL]` — do not write any other text in that cell
 
 If this client has NO automatically-maintained behaviors, write a single line: "No Automatic Positive Reinforcement BIP is indicated for this client." and stop.
 
@@ -369,24 +370,22 @@ Write every goal completely. STOP after the last parent training goal. Do NOT wr
 
 Generate ONLY sections 19 through 26:
 
-19. Generalization Plan — use the exact 6-step generalization protocol from your instructions, verbatim. Follow with Data Collection Standard Language verbatim.
+19. Generalization Plan — Bordered table with header row "Generalization Protocol" and a second row containing only: `[STANDARD_GENERALIZATION_STEPS]`. Then a third row header "Maintenance Protocol" and row containing only: `[STANDARD_MAINTENANCE_STEPS]`. Then a data collection row containing only: `[DATA_COLLECTION_LANGUAGE]`.
 
-20. Maintenance Protocol — use the exact maintenance schedule from your instructions (Daily → Weekly → Semi-monthly → Monthly → Bi-monthly → Semi-annually), verbatim.
+20. Transition and Fading Plan — Bordered cell containing only: `[FADING_PLAN_INTRO]`. Then a transition table (N/A rows). Then the fading rationale (individualized — write the two paragraphs with actual client name and hours). Then the 4-phase fading table using the exact phase criteria from your instructions, referencing specific goal numbers. End with a Discharge Criteria section whose content cell contains only: `[DISCHARGE_CRITERIA]`.
 
-21. Transition and Fading Plan — include both fading plan boilerplate introduction paragraphs verbatim, then all 4 phases using the exact phase structure. Each phase's opening sentence MUST embed mastery, maintenance, and generalization criteria. Reference specific skill acquisition goal numbers from section 15 in each phase. End with Discharge Criteria using the exact standard list from your instructions.
+21. Crisis Plan — Crisis intro text in bordered cell. Emergency contacts table. Crisis protocol bordered cell. Individualized crisis protocol table (or "no individualized crisis plan" if no safety behaviors). Post-Crisis Procedures cell containing only: `[POST_CRISIS_PROCEDURES]`.
 
-22. Crisis Plan — Emergency contacts table (Emergency/Crisis Type | Date of Implementation | Protocol | Contact Plan | Notes) + individualized crisis protocol table for clients with SIB, aggression, elopement, or safety behaviors + Post-Crisis Procedures. If the client has no significant safety behaviors, write "At this time, the client does not require an individualized crisis plan."
+22. Recommendations for ABA Services — Medical necessity cell containing only: `[MEDICAL_NECESSITY_LANGUAGE]`. Then CPT codes TABLE (CPT Code | Number of Hours Requested | Total Units | Place of Service). Calculate Total Units as hours/week × 26 weeks × 4 and show calculation inline. Include rows for 97151, 97153, 97155-GT, and 97156-GT/U2. Then the Anticipated Schedule table.
 
-23. Recommendations for ABA Services — write the medical necessity boilerplate paragraph verbatim, then format CPT codes as a TABLE with exactly these four columns: CPT Code | Number of Hours Requested | Total Units | Place of Service. Calculate Total Units as hours/week × 26 weeks × 4 units/hour and show the calculation inline (e.g. "2,600 (25 hrs/wk × 26 wks × 4)"). Include rows for 97151, 97153, 97155-GT, and 97156-GT/U2. Then include the Anticipated Schedule.
+23. Provider Information table (Provider Name, Credentials, Signature, Date, NPI). Attestation cell containing only: `[ATTESTATION_LANGUAGE]`. Clinical Reviewer table with signature line.
 
-24. Provider Information table (Provider Name, Credentials, Signature, Date, NPI) + Attestation using this exact text: "I hereby attest that I have individually reviewed the listed items and confirm they are true and correct." + Clinical Reviewer section with signature line.
-
-25. Consent — use ONLY this exact text: "I have read the goals and behavior intervention plan as outlined in this report. I have been provided with the opportunity to ask any questions, my questions have been answered, and with this knowledge, I voluntarily consent to this treatment plan." Followed by EXACTLY these three signature lines:
+24. Consent cell containing only: `[CONSENT_LANGUAGE]`. Followed by EXACTLY these three signature lines:
     Client Signature: ______________________________ Date: ______________
     Parent/Caregiver Signature: ____________________ Date: ______________
     Date: ______________
 
-26. Maryland Medicaid Telehealth Readiness Checklist — include this verbatim after consent. Use the client's name, BCBA name, and assessment date. All answers are "Yes". Follow the exact format from your instructions.`,
+25. Maryland Medicaid Telehealth Readiness Checklist — write only: `[TELEHEALTH_CHECKLIST]``,
   },
 ];
 
@@ -548,9 +547,18 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
     const planNameMatch = fullPlanText.match(/Participant Name[:\s]+([^\n\r]+)/i);
     if (planNameMatch && clientName === 'Unknown') clientName = planNameMatch[1].trim();
 
-    // Save to DB
-    console.log(`[generate] Saving to DB: ${fullPlanText.length} chars for plan "${clientName}"`);
-    console.log("=== SAVING TO DB - length: " + fullPlanText.length + " chars ===");
+    // Extract BCBA name and assessment date for telehealth checklist injection
+    const bcbaMatch = fullPlanText.match(/(?:Supervising BCBA|BCBA Name)[:\s|]+([^\n\r|]+)/i);
+    const bcbaName = bcbaMatch ? bcbaMatch[1].trim() : '[BCBA NAME]';
+    const dateMatch = fullPlanText.match(/Assessment Date[:\s|]+([^\n\r|]+)/i);
+    const assessmentDate = dateMatch ? dateMatch[1].trim() : '[DATE]';
+
+    // Inject boilerplate markers — keeps system prompt lean but final plan has full text
+    const injectedPlanText = injectBoilerplate(fullPlanText, clientName, bcbaName, assessmentDate);
+    console.log(`[generate] Boilerplate injected. Raw: ${fullPlanText.length} chars → Final: ${injectedPlanText.length} chars`);
+
+    // Save injected text to DB
+    console.log(`[generate] Saving to DB: ${injectedPlanText.length} chars for plan "${clientName}"`);
     const planInsert = db.prepare(
       'INSERT INTO plan_history (user_id, client_name, original_notes) VALUES (?, ?, ?)'
     ).run(req.user.id, clientName, notes);
@@ -558,16 +566,16 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
 
     db.prepare(
       'INSERT INTO plan_revisions (plan_id, revision_number, text, feedback) VALUES (?, ?, ?, ?)'
-    ).run(planId, 0, fullPlanText, 'Initial generation');
-    console.log(`[generate] DB save complete. plan_id=${planId}, revision_number=0, text_length=${fullPlanText.length}`);
+    ).run(planId, 0, injectedPlanText, 'Initial generation');
+    console.log(`[generate] DB save complete. plan_id=${planId}, revision_number=0, text_length=${injectedPlanText.length}`);
 
     if (clientInfo && Object.keys(clientInfo).length > 0) {
       db.prepare('INSERT OR REPLACE INTO client_info (plan_id, data, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)')
         .run(planId, JSON.stringify(clientInfo));
     }
 
-    // Close the SSE connection immediately so the client isn't left waiting
-    send({ type: 'done', plan_id: planId, client_name: clientName });
+    // Send done with full injected text so client display updates without reload
+    send({ type: 'done', plan_id: planId, client_name: clientName, full_text: injectedPlanText });
     res.end();
 
     // Generate clarifying questions in the background AFTER the response is closed

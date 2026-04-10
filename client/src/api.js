@@ -90,7 +90,7 @@ export async function generatePlan(notes, clientInfo, onChunk, onProgress, signa
         try { evt = JSON.parse(jsonStr); } catch { continue; }
         if (evt.type === 'chunk' && onChunk) onChunk(evt.text);
         if (evt.type === 'progress' && onProgress) onProgress({ section: evt.section, total: evt.total, label: evt.label });
-        if (evt.type === 'done') result = { plan_id: evt.plan_id, client_name: evt.client_name };
+        if (evt.type === 'done') result = { plan_id: evt.plan_id, client_name: evt.client_name, full_text: evt.full_text };
         if (evt.type === 'error') throw new Error(evt.error || 'Generation failed');
       }
     }

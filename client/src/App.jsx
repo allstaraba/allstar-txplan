@@ -158,7 +158,7 @@ function Layout({ user, onLogout, currentPlan, setCurrentPlan, injectedText, set
         },
         controller.signal
       );
-      setCurrentPlan({ plan_id: data.plan_id, text: accumulated, client_name: data.client_name });
+      setCurrentPlan({ plan_id: data.plan_id, text: data.full_text || accumulated, client_name: data.client_name });
       setGeneratingPlan(null);
     } catch (err) {
       if (err.name === 'AbortError') {
