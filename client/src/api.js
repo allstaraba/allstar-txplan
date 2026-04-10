@@ -59,11 +59,12 @@ export async function getMe() {
   return data;
 }
 
-export async function generatePlan(notes, clientInfo, onChunk, onProgress) {
+export async function generatePlan(notes, clientInfo, onChunk, onProgress, signal) {
   const res = await fetch(`${BASE_URL}/api/generate`, {
     method: 'POST',
     headers: authHeaders(),
     body: JSON.stringify({ notes, clientInfo }),
+    signal,
   });
   if (!res.ok) {
     let errMsg = 'Failed to generate plan';
@@ -74,23 +75,28 @@ export async function generatePlan(notes, clientInfo, onChunk, onProgress) {
   const decoder = new TextDecoder();
   let buffer = '';
   let result = null;
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
-    buffer = lines.pop();
-    for (const line of lines) {
-      if (!line.startsWith('data: ')) continue;
-      const jsonStr = line.slice(6).trim();
-      if (!jsonStr) continue;
-      let evt;
-      try { evt = JSON.parse(jsonStr); } catch { continue; }
-      if (evt.type === 'chunk' && onChunk) onChunk(evt.text);
-      if (evt.type === 'progress' && onProgress) onProgress({ section: evt.section, total: evt.total, label: evt.label });
-      if (evt.type === 'done') result = { plan_id: evt.plan_id, client_name: evt.client_name };
-      if (evt.type === 'error') throw new Error(evt.error || 'Generation failed');
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const jsonStr = line.slice(6).trim();
+        if (!jsonStr) continue;
+        let evt;
+        try { evt = JSON.parse(jsonStr); } catch { continue; }
+        if (evt.type === 'chunk' && onChunk) onChunk(evt.text);
+        if (evt.type === 'progress' && onProgress) onProgress({ section: evt.section, total: evt.total, label: evt.label });
+        if (evt.type === 'done') result = { plan_id: evt.plan_id, client_name: evt.client_name };
+        if (evt.type === 'error') throw new Error(evt.error || 'Generation failed');
+      }
     }
+  } catch (err) {
+    reader.cancel();
+    throw err;
   }
   if (!result) throw new Error('Failed to generate plan');
   return result;

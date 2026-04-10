@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, NavLink, useNavigate } from 'react-router-dom';
 import Login from './pages/Login.jsx';
 import GeneratePlan from './pages/GeneratePlan.jsx';
@@ -118,6 +118,7 @@ function Layout({ user, onLogout, currentPlan, setCurrentPlan, injectedText, set
   // generatingPlan tracks an in-progress generation so navigation doesn't kill it
   // { text: string, status: 'running' | 'error', error: string | null }
   const [generatingPlan, setGeneratingPlan] = useState(null);
+  const abortControllerRef = useRef(null);
 
   const handleLogout = async () => {
     await logout();
@@ -126,11 +127,22 @@ function Layout({ user, onLogout, currentPlan, setCurrentPlan, injectedText, set
     navigate('/login');
   };
 
+  const stopGeneration = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setGeneratingPlan(null);
+  };
+
   // Start generation at Layout level so it survives page navigation
   const startGeneration = async (notes) => {
     setCurrentPlan(null);
     setGeneratingPlan({ text: '', status: 'running', section: 1, total: 7, label: 'Client Info, Narrative & Assessments', error: null });
     navigate('/review');
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     let accumulated = '';
     try {
@@ -143,12 +155,19 @@ function Layout({ user, onLogout, currentPlan, setCurrentPlan, injectedText, set
         },
         ({ section, total, label }) => {
           setGeneratingPlan(prev => ({ ...prev, section, total, label }));
-        }
+        },
+        controller.signal
       );
       setCurrentPlan({ plan_id: data.plan_id, text: accumulated, client_name: data.client_name });
       setGeneratingPlan(null);
     } catch (err) {
-      setGeneratingPlan(prev => ({ ...prev, status: 'error', error: err.message }));
+      if (err.name === 'AbortError') {
+        setGeneratingPlan(null); // clean stop, no error shown
+      } else {
+        setGeneratingPlan(prev => ({ ...prev, status: 'error', error: err.message }));
+      }
+    } finally {
+      abortControllerRef.current = null;
     }
   };
 
@@ -218,10 +237,26 @@ function Layout({ user, onLogout, currentPlan, setCurrentPlan, injectedText, set
                     background: '#60a5fa', borderRadius: '2px', transition: 'width 0.4s ease',
                   }} />
                 </div>
-                <div style={{ fontSize: '11px', color: '#60a5fa', lineHeight: 1.3 }}>
+                <div style={{ fontSize: '11px', color: '#60a5fa', lineHeight: 1.3, marginBottom: '8px' }}>
                   {generatingPlan.label}<br />
                   <span style={{ color: '#93c5fd', opacity: 0.7 }}>Click to watch progress</span>
                 </div>
+                <button
+                  onClick={(e) => { e.stopPropagation(); stopGeneration(); }}
+                  style={{
+                    width: '100%',
+                    padding: '5px 0',
+                    background: 'rgba(239,68,68,0.18)',
+                    border: '1px solid rgba(239,68,68,0.35)',
+                    borderRadius: '5px',
+                    color: '#fca5a5',
+                    fontSize: '11px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                  }}
+                >
+                  ✕ Stop Generating
+                </button>
               </div>
             ) : (
               <div style={{ fontSize: '12px', color: '#fca5a5' }}>
