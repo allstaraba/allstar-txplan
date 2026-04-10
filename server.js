@@ -436,6 +436,8 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
     let behaviorSummary = '';  // challenging behaviors + baseline from section 1
     let goalList = '';          // "N. Goal Statement: ..." lines from section 2
 
+    console.log("=== STARTING PLAN GENERATION ===");
+
     for (const sec of GENERATION_SECTIONS) {
       console.log(`[generate] Starting section ${sec.number} of ${sec.total}: ${sec.label}`);
       send({ type: 'progress', section: sec.number, total: sec.total, label: sec.label });
@@ -510,6 +512,7 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
 
           fullPlanText += (fullPlanText ? '\n\n' : '') + sectionText;
           console.log(`[generate] Section ${sec.number} done. Stop: ${msg.stop_reason}. Output: ${sectionText.length} chars. Total: ${fullPlanText.length} chars`);
+          console.log("CHUNK " + sec.number + " COMPLETE - length: " + sectionText.length + " chars");
           resolve();
         });
 
@@ -522,6 +525,7 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
 
     console.log(`[generate] ===== ALL SECTIONS COMPLETE =====`);
     console.log(`[generate] TOTAL COMBINED LENGTH: ${fullPlanText.length} chars (${fullPlanText.split('\n').length} lines)`);
+    console.log("=== ALL CHUNKS COMBINED - TOTAL LENGTH: " + fullPlanText.length + " chars ===");
     console.log(`[generate] SSE chunks sent: ${totalChunksSent}, total chars streamed: ${totalCharsSent}`);
 
     clearInterval(keepAlive);
@@ -532,6 +536,7 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
 
     // Save to DB
     console.log(`[generate] Saving to DB: ${fullPlanText.length} chars for plan "${clientName}"`);
+    console.log("=== SAVING TO DB - length: " + fullPlanText.length + " chars ===");
     const planInsert = db.prepare(
       'INSERT INTO plan_history (user_id, client_name, original_notes) VALUES (?, ?, ?)'
     ).run(req.user.id, clientName, notes);
