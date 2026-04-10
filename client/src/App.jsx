@@ -138,7 +138,7 @@ function Layout({ user, onLogout, currentPlan, setCurrentPlan, injectedText, set
   // Start generation at Layout level so it survives page navigation
   const startGeneration = async (notes) => {
     setCurrentPlan(null);
-    setGeneratingPlan({ text: '', status: 'running', section: 1, total: 7, label: 'Client Info, Narrative & Assessments', error: null });
+    setGeneratingPlan({ text: '', status: 'running', section: 1, total: 4, label: 'Client Info & Narrative', error: null });
     navigate('/review');
 
     const controller = new AbortController();

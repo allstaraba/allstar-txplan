@@ -201,193 +201,166 @@ function formatClientInfoForPrompt(clientInfo) {
   return lines.join('\n');
 }
 
-// 7 sequential generation calls. BIPs split one-per-function so each gets
-// its own 16k-token call and can never crowd out the others.
-const GENERATION_SECTIONS = [
-  {
-    number: 1,
-    total: 7,
-    label: 'Client Info, Narrative & Assessments (sections 1–14)',
-    instruction: `Generate ONLY sections 1 through 14 of the ABA treatment plan, in this exact order:
+// Generation pipeline:
+//   S1 (seq)  → S2 (seq) → [S3A ‖ S3B] (parallel) → [S3C ‖ S3D] (parallel) → concatenate
+const GEN = {
+  S1: {
+    id: 'S1',
+    label: 'Client Info & Narrative (sections 1–9)',
+    instruction: `Generate ONLY sections 1 through 9 of the ABA treatment plan:
+
 1. "ABA Treatment Plan" title header
 2. ☐ Review checkbox: "☐ I reviewed the ABA treatment plan requirements before submitting this report."
 3. Client Information table (Name, DOB, Assessment Date, Reassessment Date, Guardian Contact)
-4. Biopsychosocial Information: Current Family Structure table, Medications table, Medical History table including Birth History
+4. Biopsychosocial Information: Current Family Structure table (include Environmental Factors and Safety Concerns rows), Medications table, Medical History table including Birth History, School Placement table
 5. History of ABA Services table
 6. Other Mental Health Services table and Other Services table
-7. Coordination of Care section with coordination language and provider table
+7. Coordination of Care — write '[COORDINATION_CARE_LANGUAGE]' in the bordered coordination text cell. Then the provider table. Write '[COORDINATION_NOTES_LANGUAGE]' in the coordination notes cell.
 8. Major Life Changes table
-9. Narrative section: Direct Observation table (Date, Start Time, End Time, Location, Individuals Present) + full Clinical Narrative written as flowing prose with domain sub-headers: Communication, Social, Adaptive/Safety Skills, Challenging Behaviors
-10. Strengths, Challenges & Severity Level — four complete domain boxes (Language/Communication, Social Skills, Adaptive/Self-Care, Challenging Behaviors), each with a Strengths paragraph, Challenges paragraph, and Severity: ☐ Mild ☐ Moderate ☐ Severe
-11. Standardized Assessment — Vineland-3 boilerplate introduction + ABC and Domain Score Summary table + Subdomain Score Summary table + Maladaptive Behavior Score Summary table
-12. Criterion-Referenced Assessment — VB-MAPP or ABLLS-R boilerplate introduction + score narrative
+9. Narrative section: Direct Observation table (Date, Start Time, End Time, Location, Individuals Present) + full Clinical Narrative in bordered table with domain sub-headers: Communication, Social, Adaptive/Safety Skills, Challenging Behaviors
+
+Be thorough. Write full paragraphs. STOP after section 9. Do NOT write Strengths/Challenges, assessments, goals, BIPs, or any later sections.`,
+  },
+
+  S2: {
+    id: 'S2',
+    label: 'Assessments & Goal Summary (sections 10–14)',
+    instruction: `Sections 1–9 have been written above. Continue — do not repeat anything.
+
+Generate ONLY sections 10 through 14:
+
+10. Strengths, Challenges & Severity Level — 2-column table, four domain rows (Language/Communication, Social Skills, Adaptive/Self-Care, Challenging Behaviors). Each row: Strengths paragraph, Challenges paragraph, Severity: ☐ Mild ☐ Moderate ☐ Severe
+11. Standardized Assessment — Vineland-3 boilerplate introduction + ABC and Domain Score Summary placeholder + Subdomain Score Summary placeholder + Maladaptive Behavior Score Summary table (Internalizing, Externalizing, Critical Items)
+12. Criterion-Referenced Assessment — VB-MAPP or ABLLS-R boilerplate introduction + full score narrative for all domains
 13. Goal Objective Summary table (columns: Total Goals, Mastered, In-Progress, On Hold, Discontinued, New)
 14. Response to Treatment / Authorization Summary (write "N/A — Initial Treatment Plan" for initial plans)
 
-Be thorough and comprehensive. Write full paragraphs — do not abbreviate. STOP after section 14. Do NOT write skill acquisition goals, BIPs, behavior reduction, parent training, generalization, fading, discharge, crisis, recommendations, CPT codes, provider info, or consent.`,
+Be thorough. STOP after section 14. Do NOT write skill acquisition goals, BIPs, behavior reduction, or any later sections.`,
   },
-  {
-    number: 2,
-    total: 7,
-    label: 'Skill Acquisition Goals (section 15)',
-    instruction: `Sections 1–14 have already been written above. Continue the plan — do not repeat anything already written.
 
-Generate ONLY section 15:
+  S3A: {
+    id: 'S3A',
+    label: 'Communication & Social Goals',
+    instruction: `Sections 1–14 of the treatment plan have been written above. Continue — do not repeat anything.
 
-15. Skill Acquisition Goals — organized by domain with bold sub-headers:
-    • Language/Communication Goals
-    • Social Goals
-    • Adaptive/Self-Care Goals
-    Generate 25–40 goals total. Be thorough — write every goal in full, do not abbreviate or skip any. Use this EXACT format for EVERY goal:
+Generate ONLY the Language/Communication and Social skill acquisition goals (the first two domains of section 15):
 
-      Medical Necessity Rationale: Core Deficit of ASD Addressed:
-      A. [criterion A bullet]
-      B. [criterion B bullet]
-      C. [criterion C bullet if applicable]
-      [Number]. Goal Statement: [include FERB prefix if applicable] When [condition], [client name] will [behavior] in [X]% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.
-      Baseline: [data] on [date]
-      Date of Introduction: [date]
-      Projected Mastery: [date ~6 months out]
-      Progress Data: N/A
+**Language/Communication Goals** (shaded domain header row, then goals)
+Write 12–18 goals for this domain.
 
-Write all 25–40 goals completely. Do not truncate, do not summarize, do not write "continued in next section." STOP after the last skill acquisition goal. Do NOT write BIPs, behavior reduction goals, parent training, generalization, or any later sections.`,
+**Social Goals** (shaded domain header row, then goals)
+Write 8–12 goals for this domain.
+
+Start numbering at Goal 1. Use this EXACT format for every goal:
+| Medical Necessity Rationale: | Core Deficit of ASD Addressed: A. ... B. ... C. ... |
+| [N]. Goal Statement: | (FERB if applicable) When [condition], [client] will [behavior] in [X]% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people. |
+| Baseline: | [descriptive baseline with date] |
+| Date of Introduction: | [date] |
+| Projected Mastery: | [date ~6 months out] |
+| Progress Data: | N/A |
+
+Write every goal in full. STOP after the last Social goal. Do NOT write Adaptive goals, BIPs, behavior reduction, or any later sections.`,
   },
-  {
-    number: 3,
-    total: 7,
-    label: 'BIP: Social Negative Reinforcement',
-    instruction: `Sections 1–15 of the treatment plan have been written above. Continue — do not repeat anything.
 
-CRITICAL — CONCISENESS RULE FOR THIS BIP:
-Each individual antecedent intervention and consequence intervention entry must be 2–3 sentences maximum. Do NOT write explanatory paragraphs. Be direct and clinical. Match the style of All Star ABA's existing plans.
-CORRECT: "High Probability Request Sequence: Technician will present low effort, mastered tasks in rapid succession to build behavior momentum prior to placing effortful demands."
-WRONG: A full paragraph explaining what the strategy is, why it works, the theoretical rationale, and step-by-step implementation details.
+  S3B: {
+    id: 'S3B',
+    label: 'Adaptive Goals, Behavior Reduction & Parent Training',
+    instruction: `Sections 1–14 of the treatment plan have been written above. Continue — do not repeat anything.
 
-Generate ONLY the Social Negative Reinforcement BIP (one BIP for escape/avoidance-maintained behaviors):
+Generate three sections in order:
 
-Review the BCBA notes. If this client has behaviors maintained by Social Negative Reinforcement (escape from tasks, demands, non-preferred activities, aversive stimuli, or social interactions), write one complete Behavior Intervention Plan with the header "Behavior Intervention Plan" and ALL of these subsections in full:
+**Adaptive/Self-Care Goals** (shaded domain header row, section 15 third domain)
+Write 5–8 goals for this domain. Start numbering at Goal 25.
+Use the same exact goal table format as Communication and Social goals above.
+Do NOT include hygiene, dressing, or toileting as skill acquisition goals — instead write those as Caregiver Training goals below.
+
+**Behavior Reduction Goals** (section 17)
+Write one goal per target behavior identified in the BCBA notes using this format:
+| Medical Necessity Rationale: | Core Deficit of ASD Addressed: A. ... B. ... |
+| [N]. Goal Statement: | When [condition], [client] will reduce instances of [behavior] to [0 or specific number] instances per day across four consecutive weeks in the presence of two people and in two settings. |
+| Baseline: | [data] on [date] |
+| Date of Introduction: | [date] |
+| Projected Mastery: | [date ~6 months out] |
+| Progress Data: | N/A |
+
+**Parent or Caregiver Training Goals** (section 18)
+Write at least 2 goals using the standard parent training language from your instructions. Fill in [Client]'s actual name.
+
+Write every goal completely. STOP after the last Parent Training goal. Do NOT write BIPs, generalization, or any later sections.`,
+  },
+
+  S3C: {
+    id: 'S3C',
+    label: 'Behavior Intervention Plans (section 16)',
+    instruction: `The skill acquisition goals listed above contain the goal numbers to reference for FERB goals.
+
+Generate ONLY section 16: Behavior Intervention Plans, organized by function.
+
+CONCISENESS RULE: Each antecedent and consequence intervention entry must be 2–3 sentences maximum. Bold intervention name + brief clinical description. One blank line between interventions. No explanatory paragraphs.
+
+Write all applicable function-based BIPs. For each BIP that applies, include ALL subsections:
 - Date
 - Behavior Assessment (ABC)
-- Target Behavior: list every topography maintained by escape/avoidance
-- Operational Definition: one precise bullet per topography
+- Target Behavior (names only — list all topographies for this function)
+- Operational Definition (one precise bullet per topography; if not inherently maladaptive, specify maladaptive context)
 - Quantitative Baseline Data
-- Hypothesized Function: Social Negative Reinforcement — [description of escape function]
-- Functionally Equivalent Replacement Behaviors: reference specific goal numbers from section 15
-- Antecedent Interventions: each strategy gets a bold sub-header + 2–3 sentences max
-- Consequence Interventions: each strategy gets a bold sub-header + 2–3 sentences max
-- De-escalation Procedures: write only the marker '[STANDARD_DEESCALATION_PROTOCOL]' — do not write any other text in that cell
+- Hypothesized Function
+- Functionally Equivalent Replacement Behaviors (reference specific goal numbers from the goal list above)
+- Antecedent Interventions (bold sub-header + 2–3 sentences each)
+- Consequence Interventions (bold sub-header + 2–3 sentences each; include reinforcement schedule — CRF thinning to VR-2, VR-3, VR-5)
+- De-escalation Procedures: write only '[STANDARD_DEESCALATION_PROTOCOL]'
 
-If this client has NO escape/avoidance-maintained behaviors, write a single line: "No Social Negative Reinforcement BIP is indicated for this client." and stop.
+Write in this order:
+1. Social Negative Reinforcement BIP (escape/avoidance). If none: "No Social Negative Reinforcement BIP is indicated for this client."
+2. Social Positive Reinforcement BIP (access/attention). If none: "No Social Positive Reinforcement BIP is indicated for this client."
+3. Automatic Positive Reinforcement BIP (sensory/automatic). If none: "No Automatic Positive Reinforcement BIP is indicated for this client."
 
-STOP after the De-escalation Procedures. Do NOT write any other BIPs or later sections.`,
+STOP after all BIPs. Do NOT write generalization, fading, or any later sections.`,
   },
-  {
-    number: 4,
-    total: 7,
-    label: 'BIP: Social Positive Reinforcement',
-    instruction: `Sections 1–15 of the treatment plan plus the Social Negative Reinforcement BIP have already been written above. Continue — do not repeat anything.
 
-CRITICAL — CONCISENESS RULE FOR THIS BIP:
-Each individual antecedent intervention and consequence intervention entry must be 2–3 sentences maximum. Do NOT write explanatory paragraphs. Be direct and clinical. Match the style of All Star ABA's existing plans.
-CORRECT: "Technician will provide Brandon with brief, non-contingent access to preferred tangibles on a fixed-time schedule to abolish motivation for access-maintained behavior."
-WRONG: A full paragraph explaining what the strategy is, why it works, the theoretical rationale, and step-by-step implementation details.
+  S3D: {
+    id: 'S3D',
+    label: 'Generalization, Fading, Crisis & Final Sections',
+    instruction: `Sections 1–14 of the treatment plan have been written above. Now generate the final sections.
 
-Generate ONLY the Social Positive Reinforcement BIP (one BIP for attention/tangible-access-maintained behaviors):
+Generate sections 19 through 26 in order. Do not write skill acquisition goals, behavior reduction, parent training, or BIPs — those are handled separately.
 
-Review the BCBA notes. If this client has behaviors maintained by Social Positive Reinforcement (access to preferred items, tangibles, activities, or social attention), write one complete Behavior Intervention Plan with the header "Behavior Intervention Plan" and ALL of these subsections in full:
-- Date
-- Behavior Assessment (ABC)
-- Target Behavior: list every topography maintained by attention/access
-- Operational Definition: one precise bullet per topography
-- Quantitative Baseline Data
-- Hypothesized Function: Social Positive Reinforcement — [description of access/attention function]
-- Functionally Equivalent Replacement Behaviors: reference specific goal numbers from section 15
-- Antecedent Interventions: each strategy gets a bold sub-header + 2–3 sentences max
-- Consequence Interventions: each strategy gets a bold sub-header + 2–3 sentences max
-- De-escalation Procedures: write only the marker '[STANDARD_DEESCALATION_PROTOCOL]' — do not write any other text in that cell
+19. Generalization Plan — Bordered table:
+    Row 1 (header): "Generalization Protocol"
+    Row 2: '[STANDARD_GENERALIZATION_STEPS]'
+    Row 3 (header): "Maintenance Protocol"
+    Row 4: '[STANDARD_MAINTENANCE_STEPS]'
+    Row 5 (data collection): '[DATA_COLLECTION_LANGUAGE]'
 
-If this client has NO attention/access-maintained behaviors, write a single line: "No Social Positive Reinforcement BIP is indicated for this client." and stop.
+20. Transition and Fading Plan:
+    - Bordered cell: '[FADING_PLAN_INTRO]'
+    - Transition table: Description of Transition | Anticipated Date | Plan (all N/A)
+    - Bordered fading rationale: write BOTH paragraphs individualized with actual client name and hours per week from the BCBA notes
+    - 4-phase fading table (Phase | Service Levels | Status) — use the exact phase criteria from your instructions, reference specific skill acquisition goal numbers from the BCBA notes
+    - Discharge Criteria section whose content cell contains: '[DISCHARGE_CRITERIA]'
 
-STOP after the De-escalation Procedures. Do NOT write any other BIPs or later sections.`,
-  },
-  {
-    number: 5,
-    total: 7,
-    label: 'BIP: Automatic Positive Reinforcement',
-    instruction: `Sections 1–15 of the treatment plan plus the Social Negative and Social Positive Reinforcement BIPs have already been written above. Continue — do not repeat anything.
+21. Crisis Plan:
+    - Crisis intro bordered cell
+    - Emergency contacts table (Legal Guardian 1, Legal Guardian 2, Emergency Contact 1, Emergency Contact 2, Supervising BCBA, Clinical Director: Teba Aijaz, Central Office: Malka Tyberg, Emergency Services: 911)
+    - Crisis protocol bordered cell
+    - Individualized crisis protocol table (or "no individualized crisis plan" if client has no significant safety behaviors)
+    - Post-Crisis Procedures cell: '[POST_CRISIS_PROCEDURES]'
 
-CRITICAL — CONCISENESS RULE FOR THIS BIP:
-Each individual antecedent intervention and consequence intervention entry must be 2–3 sentences maximum. Do NOT write explanatory paragraphs. Be direct and clinical. Match the style of All Star ABA's existing plans.
-CORRECT: "Technician will provide access to sensory-compatible alternative stimuli (e.g., fidgets, weighted blanket) prior to and during sessions to reduce motivation for automatically-maintained behavior."
-WRONG: A full paragraph explaining what the strategy is, why it works, the theoretical rationale, and step-by-step implementation details.
+22. Recommendations for ABA Services:
+    - Medical necessity cell: '[MEDICAL_NECESSITY_LANGUAGE]'
+    - CPT codes table (CPT Code | Number of Hours Requested | Total Units | Place of Service) — calculate Total Units as hours/week × 26 weeks × 4, show calculation inline; include 97151, 97153, 97155-GT, 97156-GT/U2
+    - Anticipated Schedule table reflecting caregiver availability from BCBA notes, matching total hours to requested dosage
 
-Generate ONLY the Automatic Positive Reinforcement BIP (one BIP for sensory/automatically-maintained behaviors):
+23. Provider Information table (Provider Name, Credentials, Signature, Date, NPI). Attestation cell: '[ATTESTATION_LANGUAGE]'. Clinical Reviewer table with signature line.
 
-Review the BCBA notes. If this client has behaviors maintained by Automatic Positive Reinforcement (self-stimulatory behaviors, sensory behaviors, or behaviors that occur independent of social consequences), write one complete Behavior Intervention Plan with the header "Behavior Intervention Plan" and ALL of these subsections in full:
-- Date
-- Behavior Assessment (ABC)
-- Target Behavior: list every topography maintained by automatic reinforcement
-- Operational Definition: one precise bullet per topography
-- Quantitative Baseline Data
-- Hypothesized Function: Automatic Positive Reinforcement — [description of sensory/automatic function]
-- Functionally Equivalent Replacement Behaviors: reference specific goal numbers from section 15
-- Antecedent Interventions: each strategy gets a bold sub-header + 2–3 sentences max
-- Consequence Interventions: each strategy gets a bold sub-header + 2–3 sentences max
-- De-escalation Procedures: write only the marker '[STANDARD_DEESCALATION_PROTOCOL]' — do not write any other text in that cell
-
-If this client has NO automatically-maintained behaviors, write a single line: "No Automatic Positive Reinforcement BIP is indicated for this client." and stop.
-
-STOP after the De-escalation Procedures. Do NOT write behavior reduction goals, parent training, generalization, or any later sections.`,
-  },
-  {
-    number: 6,
-    total: 7,
-    label: 'Behavior Reduction Goals & Parent Training (sections 17–18)',
-    instruction: `Sections 1–16 (including all BIPs) of the treatment plan have been written above. Continue — do not repeat anything.
-
-Generate ONLY sections 17 and 18:
-
-17. Behavior Reduction Goals — write one goal per target behavior using the exact same goal format used in section 15:
-      Medical Necessity Rationale: Core Deficit of ASD Addressed:
-      A. [criterion A bullet]
-      B. [criterion B bullet]
-      C. [criterion C bullet if applicable]
-      [Number]. Goal Statement: When [condition], [client name] will [reduction criterion] across 5 consecutive sessions, in two settings, and in the presence of two people.
-      Baseline: [data] on [date]
-      Date of Introduction: [date]
-      Projected Mastery: [date ~6 months out]
-      Progress Data: N/A
-
-18. Parent or Caregiver Training — write at least 2 goals using the standard parent training boilerplate language exactly as specified in your instructions.
-
-Write every goal completely. STOP after the last parent training goal. Do NOT write generalization, fading, discharge, crisis, or any later sections.`,
-  },
-  {
-    number: 7,
-    total: 7,
-    label: 'Generalization, Fading, Crisis, CPT Codes & Consent (sections 19–26)',
-    instruction: `Sections 1–18 of the treatment plan have been written above. Now write the final sections — do not repeat anything.
-
-Generate ONLY sections 19 through 26:
-
-19. Generalization Plan — Bordered table with header row "Generalization Protocol" and a second row containing only: '[STANDARD_GENERALIZATION_STEPS]'. Then a third row header "Maintenance Protocol" and row containing only: '[STANDARD_MAINTENANCE_STEPS]'. Then a data collection row containing only: '[DATA_COLLECTION_LANGUAGE]'.
-
-20. Transition and Fading Plan — Bordered cell containing only: '[FADING_PLAN_INTRO]'. Then a transition table (N/A rows). Then the fading rationale (individualized — write the two paragraphs with actual client name and hours). Then the 4-phase fading table using the exact phase criteria from your instructions, referencing specific goal numbers. End with a Discharge Criteria section whose content cell contains only: '[DISCHARGE_CRITERIA]'.
-
-21. Crisis Plan — Crisis intro text in bordered cell. Emergency contacts table. Crisis protocol bordered cell. Individualized crisis protocol table (or "no individualized crisis plan" if no safety behaviors). Post-Crisis Procedures cell containing only: '[POST_CRISIS_PROCEDURES]'.
-
-22. Recommendations for ABA Services — Medical necessity cell containing only: '[MEDICAL_NECESSITY_LANGUAGE]'. Then CPT codes TABLE (CPT Code | Number of Hours Requested | Total Units | Place of Service). Calculate Total Units as hours/week × 26 weeks × 4 and show calculation inline. Include rows for 97151, 97153, 97155-GT, and 97156-GT/U2. Then the Anticipated Schedule table.
-
-23. Provider Information table (Provider Name, Credentials, Signature, Date, NPI). Attestation cell containing only: '[ATTESTATION_LANGUAGE]'. Clinical Reviewer table with signature line.
-
-24. Consent cell containing only: '[CONSENT_LANGUAGE]'. Followed by EXACTLY these three signature lines:
+24. Consent cell: '[CONSENT_LANGUAGE]'. Followed by EXACTLY these three signature lines:
     Client Signature: ______________________________ Date: ______________
     Parent/Caregiver Signature: ____________________ Date: ______________
     Date: ______________
 
 25. Maryland Medicaid Telehealth Readiness Checklist — write only: '[TELEHEALTH_CHECKLIST]'`,
   },
-];
+};
 
 app.post('/api/generate', authMiddleware, async (req, res) => {
   const keepAlive = setInterval(() => res.write(': ping\n\n'), 20000);
@@ -432,15 +405,10 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
     };
 
     let fullPlanText = '';
-    // Compact summaries extracted after calls 1 & 2, used instead of full
-    // plan text for BIP calls (3-5) and closing calls (6-7) to maximize
-    // available output tokens.
-    let behaviorSummary = '';  // challenging behaviors + baseline from section 1
-    let goalList = '';          // "N. Goal Statement: ..." lines from section 2
 
     console.log("=== STARTING PLAN GENERATION ===");
 
-    // Helper: run one section and return its text (with auto-retry on premature close)
+    // Helper: stream one section, auto-retry on premature close (only if no output yet)
     const runSection = async (sec, contextBlock, attempt = 1) => {
       const messages = contextBlock
         ? [
@@ -450,8 +418,8 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
           ]
         : [{ role: 'user', content: `${baseMessage}\n\n${sec.instruction}` }];
 
-      const msgChars = messages.reduce((sum, m) => sum + (typeof m.content === 'string' ? m.content.length : 0), 0);
-      console.log(`[generate] Section ${sec.number} attempt ${attempt} messages: ${msgChars.toLocaleString()} chars (~${Math.round(msgChars/4).toLocaleString()} tokens input)`);
+      const msgChars = messages.reduce((sum, m) => sum + (m.content ? m.content.length : 0), 0);
+      console.log(`[generate] ${sec.id} attempt ${attempt}: ${msgChars.toLocaleString()} chars input (~${Math.round(msgChars/4).toLocaleString()} tokens)`);
 
       let sectionText = '';
       try {
@@ -467,78 +435,70 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
             send({ type: 'chunk', text: chunk });
           });
           stream.on('finalMessage', (msg) => {
-            console.log(`[generate] Section ${sec.number} done. Stop: ${msg.stop_reason}. Output: ${sectionText.length} chars`);
-            resolve(sectionText);
+            console.log(`[generate] ${sec.id} done. stop_reason=${msg.stop_reason} output=${sectionText.length} chars`);
+            resolve();
           });
-          stream.on('error', (err) => {
-            reject(err);
-          });
+          stream.on('error', reject);
         });
       } catch (err) {
         const isPrematureClose = err.message === 'Premature close' || err.code === 'ERR_STREAM_PREMATURE_CLOSE';
-        // Only retry if no output was produced yet (safe to restart without duplicate content)
         if (isPrematureClose && attempt < 4 && sectionText.length === 0) {
-          const delay = attempt * 5000; // 5s, 10s, 15s
-          console.log(`[generate] Section ${sec.number} premature close on attempt ${attempt} (no output yet). Retrying in ${delay/1000}s...`);
+          const delay = attempt * 5000;
+          console.log(`[generate] ${sec.id} premature close (no output). Retrying in ${delay/1000}s...`);
           await new Promise(r => setTimeout(r, delay));
           return runSection(sec, contextBlock, attempt + 1);
         }
-        console.error(`[generate] Section ${sec.number} failed after ${attempt} attempt(s):`, err.message);
+        console.error(`[generate] ${sec.id} failed after ${attempt} attempt(s):`, err.message);
         throw err;
       }
       return sectionText;
     };
 
-    // Sections 1 & 2: sequential (each needs the previous output as context)
-    const seq12 = GENERATION_SECTIONS.filter(s => s.number <= 2);
-    for (const sec of seq12) {
-      send({ type: 'progress', section: sec.number, total: sec.total, label: sec.label });
-      const contextBlock = fullPlanText;
-      const text = await runSection(sec, contextBlock);
+    // ── Step 1: S1 — client info & narrative ──────────────────────────────
+    send({ type: 'progress', section: 1, total: 4, label: GEN.S1.label });
+    const s1Text = await runSection(GEN.S1, null);
 
-      if (sec.number === 1) {
-        const cbIdx = text.search(/Challenging Behavior/i);
-        behaviorSummary = cbIdx >= 0 ? text.slice(cbIdx, cbIdx + 4000) : text.slice(-3000);
-        console.log(`[generate] Extracted behavior summary: ${behaviorSummary.length} chars`);
-      }
-      if (sec.number === 2) {
-        const goalLines = [];
-        for (const line of text.split('\n')) {
-          const m = line.match(/^\s*(\d+)\.\s+Goal Statement:\s*(.+)/);
-          if (m) goalLines.push(`${m[1]}. Goal Statement: ${m[2].trim()}`);
-        }
-        goalList = goalLines.join('\n');
-        console.log(`[generate] Extracted ${goalLines.length} goal statements for context`);
-      }
-      fullPlanText += (fullPlanText ? '\n\n' : '') + text;
+    // ── Step 2: S2 — assessments & goal summary ───────────────────────────
+    send({ type: 'progress', section: 2, total: 4, label: GEN.S2.label });
+    const s2Text = await runSection(GEN.S2, s1Text);
+
+    const s1s2Context = s1Text + '\n\n' + s2Text;
+
+    // ── Step 3: S3A ‖ S3B — skill acquisition goals in parallel ──────────
+    send({ type: 'progress', section: 3, total: 4, label: 'Skill Acquisition Goals (parallel)' });
+    console.log('[generate] Starting S3A and S3B in parallel');
+    const [s3aText, s3bText] = await Promise.all([
+      runSection(GEN.S3A, s1s2Context),
+      runSection(GEN.S3B, s1s2Context),
+    ]);
+    console.log(`[generate] S3A+S3B complete. S3A=${s3aText.length} chars, S3B=${s3bText.length} chars`);
+
+    // Extract full goal list from S3A + S3B for BIP FERB references
+    const goalLines = [];
+    for (const line of (s3aText + '\n' + s3bText).split('\n')) {
+      const m = line.match(/^\s*(\d+)\.\s+Goal Statement:\s*(.+)/);
+      if (m) goalLines.push(`${m[1]}. Goal Statement: ${m[2].trim()}`);
     }
+    const goalList = goalLines.join('\n');
+    console.log(`[generate] Extracted ${goalLines.length} goal statements for BIP context`);
 
-    // Sections 3, 4, 5: BIPs run sequentially with shared context
-    const bipSections = GENERATION_SECTIONS.filter(s => s.number >= 3 && s.number <= 5);
-    const bipContextParts = [];
-    if (behaviorSummary) bipContextParts.push(`=== CHALLENGING BEHAVIORS & BASELINE DATA (from clinical observation) ===\n${behaviorSummary}`);
-    if (goalList) bipContextParts.push(`=== SKILL ACQUISITION GOALS — use these goal numbers for all FERB references ===\n${goalList}`);
-    const bipContext = bipContextParts.join('\n\n');
+    // ── Step 4: S3C ‖ S3D — BIPs and final sections in parallel ──────────
+    send({ type: 'progress', section: 4, total: 4, label: 'BIPs & Final Sections (parallel)' });
+    console.log('[generate] Starting S3C and S3D in parallel');
+    const bipContext = s1s2Context + (goalList
+      ? '\n\n=== SKILL ACQUISITION GOALS (reference these numbers for FERB goals) ===\n' + goalList
+      : '');
+    const [s3cText, s3dText] = await Promise.all([
+      runSection(GEN.S3C, bipContext),
+      runSection(GEN.S3D, s1s2Context),
+    ]);
+    console.log(`[generate] S3C+S3D complete. S3C=${s3cText.length} chars, S3D=${s3dText.length} chars`);
 
-    for (const sec of bipSections) {
-      send({ type: 'progress', section: sec.number, total: sec.total, label: sec.label });
-      const text = await runSection(sec, bipContext);
-      fullPlanText += '\n\n' + text;
-    }
-    console.log(`[generate] BIPs complete. Total so far: ${fullPlanText.length} chars`);
+    // ── Step 5: concatenate in document order ─────────────────────────────
+    fullPlanText = [s1Text, s2Text, s3aText, s3bText, s3cText, s3dText]
+      .filter(Boolean).join('\n\n');
 
-    // Sections 6 & 7: sequential after BIPs
-    const seq67 = GENERATION_SECTIONS.filter(s => s.number >= 6);
-    for (const sec of seq67) {
-      send({ type: 'progress', section: sec.number, total: sec.total, label: sec.label });
-      const contextBlock = goalList ? `=== SKILL ACQUISITION GOALS — use these goal numbers for all references ===\n${goalList}` : '';
-      const text = await runSection(sec, contextBlock);
-      fullPlanText += '\n\n' + text;
-    }
-
-    console.log(`[generate] ===== ALL SECTIONS COMPLETE =====`);
-    console.log(`[generate] TOTAL COMBINED LENGTH: ${fullPlanText.length} chars (${fullPlanText.split('\n').length} lines)`);
-    console.log("=== ALL CHUNKS COMBINED - TOTAL LENGTH: " + fullPlanText.length + " chars ===");
+    console.log(`[generate] All sections complete. Total: ${fullPlanText.length} chars (${fullPlanText.split('\n').length} lines)`);
     console.log(`[generate] SSE chunks sent: ${totalChunksSent}, total chars streamed: ${totalCharsSent}`);
 
     clearInterval(keepAlive);
