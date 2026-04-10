@@ -213,11 +213,19 @@ Include Post-Crisis Procedures section.
 For clients without significant safety behaviors: indicate "At this time, the client does not require an individualized crisis plan."
 
 CPT CODE FORMAT
-Use checkbox format and include GT/U2 modifiers:
-97151 Assessment/Reassessment — ☑ [X] hours per auth
-97153 Direct intervention by a behavior technician — ☑ [X] hours per week
-97155-GT Adaptive behavior treatment with protocol modification face-to-face with the client — ☑ [X] hours per week
-97156-GT/U2 Family adaptive behavior treatment with/without patient present — ☑ [X] hours per week
+Output CPT codes as a table with exactly these four columns: CPT Code | Number of Hours Requested | Total Units | Place of Service
+
+Unit calculation rule: 1 hour = 4 units. Total Units = (Hours per week × number of weeks in authorization period). Standard authorization period is 26 weeks unless otherwise specified.
+
+Example row: 97153 | 25 hours/week | 2,600 units (25 × 26 × 4) | Home
+
+Always include these rows (adjust hours based on BCBA notes; use 02 or 12 for Place of Service per payer):
+- 97151 — Assessment/Reassessment (hours per auth period, not per week; units = hours × 4)
+- 97153 — Direct intervention by a behavior technician (hours per week)
+- 97155-GT — Adaptive behavior treatment with protocol modification, face-to-face with client (hours per week)
+- 97156-GT/U2 — Family adaptive behavior treatment with/without patient present (hours per week)
+
+Show the calculation clearly in the Total Units cell, e.g. "2,600 (25 hrs/wk × 26 wks × 4)".
 
 Attestation Standard Language (use this exact text every time, no substitutions):
 "I hereby attest that I have individually reviewed the listed items and confirm they are true and correct."
