@@ -362,6 +362,11 @@ Write all 25–40 goals completely. Do not truncate, do not summarize, do not wr
     label: 'BIP: Social Negative Reinforcement',
     instruction: `Sections 1–15 of the treatment plan have been written above. Continue — do not repeat anything.
 
+CRITICAL — CONCISENESS RULE FOR THIS BIP:
+Each individual antecedent intervention and consequence intervention entry must be 2–3 sentences maximum. Do NOT write explanatory paragraphs. Be direct and clinical. Match the style of All Star ABA's existing plans.
+CORRECT: "High Probability Request Sequence: Technician will present low effort, mastered tasks in rapid succession to build behavior momentum prior to placing effortful demands."
+WRONG: A full paragraph explaining what the strategy is, why it works, the theoretical rationale, and step-by-step implementation details.
+
 Generate ONLY the Social Negative Reinforcement BIP (one BIP for escape/avoidance-maintained behaviors):
 
 Review the BCBA notes. If this client has behaviors maintained by Social Negative Reinforcement (escape from tasks, demands, non-preferred activities, aversive stimuli, or social interactions), write one complete Behavior Intervention Plan with the header "Behavior Intervention Plan" and ALL of these subsections in full:
@@ -372,8 +377,8 @@ Review the BCBA notes. If this client has behaviors maintained by Social Negativ
 - Quantitative Baseline Data
 - Hypothesized Function: Social Negative Reinforcement — [description of escape function]
 - Functionally Equivalent Replacement Behaviors: reference specific goal numbers from section 15
-- Antecedent Interventions: detailed prose, each strategy with a bold sub-header
-- Consequence Interventions: detailed prose, each strategy with a bold sub-header
+- Antecedent Interventions: each strategy gets a bold sub-header + 2–3 sentences max
+- Consequence Interventions: each strategy gets a bold sub-header + 2–3 sentences max
 - De-escalation Procedures: use the standard de-escalation protocol verbatim from your instructions
 
 If this client has NO escape/avoidance-maintained behaviors, write a single line: "No Social Negative Reinforcement BIP is indicated for this client." and stop.
@@ -386,6 +391,11 @@ STOP after the De-escalation Procedures. Do NOT write any other BIPs or later se
     label: 'BIP: Social Positive Reinforcement',
     instruction: `Sections 1–15 of the treatment plan plus the Social Negative Reinforcement BIP have already been written above. Continue — do not repeat anything.
 
+CRITICAL — CONCISENESS RULE FOR THIS BIP:
+Each individual antecedent intervention and consequence intervention entry must be 2–3 sentences maximum. Do NOT write explanatory paragraphs. Be direct and clinical. Match the style of All Star ABA's existing plans.
+CORRECT: "Technician will provide Brandon with brief, non-contingent access to preferred tangibles on a fixed-time schedule to abolish motivation for access-maintained behavior."
+WRONG: A full paragraph explaining what the strategy is, why it works, the theoretical rationale, and step-by-step implementation details.
+
 Generate ONLY the Social Positive Reinforcement BIP (one BIP for attention/tangible-access-maintained behaviors):
 
 Review the BCBA notes. If this client has behaviors maintained by Social Positive Reinforcement (access to preferred items, tangibles, activities, or social attention), write one complete Behavior Intervention Plan with the header "Behavior Intervention Plan" and ALL of these subsections in full:
@@ -396,8 +406,8 @@ Review the BCBA notes. If this client has behaviors maintained by Social Positiv
 - Quantitative Baseline Data
 - Hypothesized Function: Social Positive Reinforcement — [description of access/attention function]
 - Functionally Equivalent Replacement Behaviors: reference specific goal numbers from section 15
-- Antecedent Interventions: detailed prose, each strategy with a bold sub-header
-- Consequence Interventions: detailed prose, each strategy with a bold sub-header
+- Antecedent Interventions: each strategy gets a bold sub-header + 2–3 sentences max
+- Consequence Interventions: each strategy gets a bold sub-header + 2–3 sentences max
 - De-escalation Procedures: use the standard de-escalation protocol verbatim from your instructions
 
 If this client has NO attention/access-maintained behaviors, write a single line: "No Social Positive Reinforcement BIP is indicated for this client." and stop.
@@ -410,6 +420,11 @@ STOP after the De-escalation Procedures. Do NOT write any other BIPs or later se
     label: 'BIP: Automatic Positive Reinforcement',
     instruction: `Sections 1–15 of the treatment plan plus the Social Negative and Social Positive Reinforcement BIPs have already been written above. Continue — do not repeat anything.
 
+CRITICAL — CONCISENESS RULE FOR THIS BIP:
+Each individual antecedent intervention and consequence intervention entry must be 2–3 sentences maximum. Do NOT write explanatory paragraphs. Be direct and clinical. Match the style of All Star ABA's existing plans.
+CORRECT: "Technician will provide access to sensory-compatible alternative stimuli (e.g., fidgets, weighted blanket) prior to and during sessions to reduce motivation for automatically-maintained behavior."
+WRONG: A full paragraph explaining what the strategy is, why it works, the theoretical rationale, and step-by-step implementation details.
+
 Generate ONLY the Automatic Positive Reinforcement BIP (one BIP for sensory/automatically-maintained behaviors):
 
 Review the BCBA notes. If this client has behaviors maintained by Automatic Positive Reinforcement (self-stimulatory behaviors, sensory behaviors, or behaviors that occur independent of social consequences), write one complete Behavior Intervention Plan with the header "Behavior Intervention Plan" and ALL of these subsections in full:
@@ -420,8 +435,8 @@ Review the BCBA notes. If this client has behaviors maintained by Automatic Posi
 - Quantitative Baseline Data
 - Hypothesized Function: Automatic Positive Reinforcement — [description of sensory/automatic function]
 - Functionally Equivalent Replacement Behaviors: reference specific goal numbers from section 15
-- Antecedent Interventions: detailed prose, each strategy with a bold sub-header
-- Consequence Interventions: detailed prose, each strategy with a bold sub-header
+- Antecedent Interventions: each strategy gets a bold sub-header + 2–3 sentences max
+- Consequence Interventions: each strategy gets a bold sub-header + 2–3 sentences max
 - De-escalation Procedures: use the standard de-escalation protocol verbatim from your instructions
 
 If this client has NO automatically-maintained behaviors, write a single line: "No Automatic Positive Reinforcement BIP is indicated for this client." and stop.
@@ -550,8 +565,9 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
           ]
         : [{ role: 'user', content: `${baseMessage}\n\n${sec.instruction}` }];
 
-      const inputEst = Math.round(JSON.stringify(messages).length / 4);
-      console.log(`[generate] Section ${sec.number} input: ~${inputEst} tokens`);
+      const msgChars = messages.reduce((sum, m) => sum + (typeof m.content === 'string' ? m.content.length : 0), 0);
+      const inputEst = Math.round(msgChars / 4);
+      console.log(`[generate] Section ${sec.number} messages: ${msgChars.toLocaleString()} chars (~${inputEst.toLocaleString()} tokens input)`);
 
       let sectionText = '';
 
