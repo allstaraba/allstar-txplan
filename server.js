@@ -471,49 +471,76 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
 
     let fullPlanText = '';
 
-    // Run sequential generation calls — one per GENERATION_SECTIONS entry
+    // Run sequential generation calls — one per GENERATION_SECTIONS entry.
+    // Each call auto-continues if it hits max_tokens (stop_reason !== 'end_turn').
     for (const sec of GENERATION_SECTIONS) {
       console.log(`[generate] Starting section ${sec.number} of ${sec.total}: ${sec.label}`);
       send({ type: 'progress', section: sec.number, total: sec.total, label: sec.label });
 
-      // Build messages: for calls 2+, pass all accumulated text as prior assistant turn
-      // so goal numbers and context stay consistent across calls
-      const messages = fullPlanText
-        ? [
-            { role: 'user', content: baseMessage },
-            { role: 'assistant', content: fullPlanText },
-            { role: 'user', content: sec.instruction },
-          ]
-        : [{ role: 'user', content: `${baseMessage}\n\n${sec.instruction}` }];
-
-      console.log(`[generate] Section ${sec.number} input: ~${Math.round(JSON.stringify(messages).length / 4)} tokens (estimated)`);
-
       let sectionText = '';
+      let continuationCount = 0;
+      let stopReason = null;
 
-      await new Promise((resolve, reject) => {
-        const stream = anthropic.messages.stream({
-          model: 'claude-opus-4-6',
-          max_tokens: 32768,
-          system: systemPrompt,
-          messages,
+      while (stopReason !== 'end_turn') {
+        // First call: use the section instruction.
+        // Continuation calls: tell Claude to continue from where it left off.
+        let userInstruction;
+        if (continuationCount === 0) {
+          userInstruction = sec.instruction;
+        } else {
+          userInstruction = `Continue from EXACTLY where you left off above. Do not repeat any text that has already been written. Do not add a heading or introduction — just continue mid-sentence or mid-word if needed. Complete the current section and then stop.`;
+          console.log(`[generate] Section ${sec.number} hit max_tokens, starting continuation ${continuationCount}...`);
+          send({ type: 'progress', section: sec.number, total: sec.total, label: `${sec.label} (continuing…)` });
+        }
+
+        // Build messages: pass all prior context + whatever this section has already produced
+        const contextSoFar = fullPlanText + (sectionText ? '\n\n' + sectionText : '');
+        const messages = contextSoFar
+          ? [
+              { role: 'user', content: baseMessage },
+              { role: 'assistant', content: contextSoFar },
+              { role: 'user', content: userInstruction },
+            ]
+          : [{ role: 'user', content: `${baseMessage}\n\n${userInstruction}` }];
+
+        console.log(`[generate] Section ${sec.number} call ${continuationCount + 1}: input ~${Math.round(JSON.stringify(messages).length / 4)} tokens`);
+
+        await new Promise((resolve, reject) => {
+          const stream = anthropic.messages.stream({
+            model: 'claude-opus-4-6',
+            max_tokens: 32768,
+            system: systemPrompt,
+            messages,
+          });
+
+          stream.on('text', (chunk) => {
+            sectionText += chunk;
+            send({ type: 'chunk', text: chunk });
+          });
+
+          stream.on('finalMessage', (msg) => {
+            stopReason = msg.stop_reason;
+            console.log(`[generate] Section ${sec.number} call ${continuationCount + 1} done. Stop reason: ${msg.stop_reason}. Section so far: ${sectionText.length} chars`);
+            resolve();
+          });
+
+          stream.on('error', (err) => {
+            console.error(`[generate] Section ${sec.number} call ${continuationCount + 1} error:`, err);
+            reject(err);
+          });
         });
 
-        stream.on('text', (chunk) => {
-          sectionText += chunk;
-          send({ type: 'chunk', text: chunk });
-        });
+        continuationCount++;
 
-        stream.on('finalMessage', (msg) => {
-          fullPlanText += (fullPlanText ? '\n\n' : '') + sectionText;
-          console.log(`[generate] Section ${sec.number} complete. Output length: ${sectionText.length} chars. Stop reason: ${msg.stop_reason}. Total accumulated: ${fullPlanText.length} chars`);
-          resolve();
-        });
+        // Safety cap: never loop more than 4 times per section
+        if (continuationCount >= 4) {
+          console.log(`[generate] Section ${sec.number} reached max continuations (4). Moving on.`);
+          break;
+        }
+      }
 
-        stream.on('error', (err) => {
-          console.error(`[generate] Section ${sec.number} stream error:`, err);
-          reject(err);
-        });
-      });
+      fullPlanText += (fullPlanText ? '\n\n' : '') + sectionText;
+      console.log(`[generate] Section ${sec.number} fully complete after ${continuationCount} call(s). Total accumulated: ${fullPlanText.length} chars`);
     }
 
     console.log(`[generate] All ${GENERATION_SECTIONS.length} sections complete. Total plan length: ${fullPlanText.length} chars`);
