@@ -392,20 +392,30 @@ export default function ReviewRevise({ currentPlan, setCurrentPlan, injectedText
     });
   };
 
-  const handleDownload = () => {
-    const revNum = selectedRevision?.revision_number ?? 0;
+  const handleDownload = async () => {
+    // Don't allow download while streaming (revision_number is '…')
+    const revNum = selectedRevision?.revision_number;
+    if (revNum === undefined || revNum === null || revNum === '…') {
+      setError('Please wait for the revision to finish before downloading.');
+      return;
+    }
     const url = getExportUrl(currentPlan.plan_id, revNum);
     const token = localStorage.getItem('allstar_token');
-    fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-      .then(res => res.blob())
-      .then(blob => {
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = `${currentPlan.client_name || 'treatment-plan'}-rev${revNum}.docx`;
-        link.click();
-        URL.revokeObjectURL(link.href);
-      })
-      .catch(err => setError('Download failed: ' + err.message));
+    try {
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: `Server error ${res.status}` }));
+        throw new Error(err.error || 'Export failed');
+      }
+      const blob = await res.blob();
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `${currentPlan.client_name || 'treatment-plan'}-rev${revNum}.docx`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+    } catch (err) {
+      setError('Download failed: ' + err.message);
+    }
   };
 
   const revisionLabel = (rev) => {
