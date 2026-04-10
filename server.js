@@ -441,8 +441,8 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
 
     console.log("=== STARTING PLAN GENERATION ===");
 
-    // Helper: run one section and return its text
-    const runSection = (sec, contextBlock) => {
+    // Helper: run one section and return its text (with auto-retry on premature close)
+    const runSection = async (sec, contextBlock, attempt = 1) => {
       const messages = contextBlock
         ? [
             { role: 'user', content: baseMessage },
@@ -452,30 +452,42 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
         : [{ role: 'user', content: `${baseMessage}\n\n${sec.instruction}` }];
 
       const msgChars = messages.reduce((sum, m) => sum + (typeof m.content === 'string' ? m.content.length : 0), 0);
-      console.log(`[generate] Section ${sec.number} messages: ${msgChars.toLocaleString()} chars (~${Math.round(msgChars/4).toLocaleString()} tokens input)`);
+      console.log(`[generate] Section ${sec.number} attempt ${attempt} messages: ${msgChars.toLocaleString()} chars (~${Math.round(msgChars/4).toLocaleString()} tokens input)`);
 
       let sectionText = '';
-      return new Promise((resolve, reject) => {
-        const stream = anthropic.messages.stream({
-          model: CLAUDE_MODEL,
-          max_tokens: 32768,
-          system: systemPrompt,
-          messages,
+      try {
+        await new Promise((resolve, reject) => {
+          const stream = anthropic.messages.stream({
+            model: CLAUDE_MODEL,
+            max_tokens: 32768,
+            system: systemPrompt,
+            messages,
+          });
+          stream.on('text', (chunk) => {
+            sectionText += chunk;
+            send({ type: 'chunk', text: chunk });
+          });
+          stream.on('finalMessage', (msg) => {
+            console.log(`[generate] Section ${sec.number} done. Stop: ${msg.stop_reason}. Output: ${sectionText.length} chars`);
+            resolve(sectionText);
+          });
+          stream.on('error', (err) => {
+            reject(err);
+          });
         });
-        stream.on('text', (chunk) => {
-          sectionText += chunk;
-          send({ type: 'chunk', text: chunk });
-        });
-        stream.on('finalMessage', (msg) => {
-          console.log(`[generate] Section ${sec.number} done. Stop: ${msg.stop_reason}. Output: ${sectionText.length} chars`);
-          console.log("CHUNK " + sec.number + " COMPLETE - length: " + sectionText.length + " chars");
-          resolve(sectionText);
-        });
-        stream.on('error', (err) => {
-          console.error(`[generate] Section ${sec.number} error:`, err);
-          reject(err);
-        });
-      });
+      } catch (err) {
+        const isPrematureClose = err.message === 'Premature close' || err.code === 'ERR_STREAM_PREMATURE_CLOSE';
+        // Only retry if no output was produced yet (safe to restart without duplicate content)
+        if (isPrematureClose && attempt < 4 && sectionText.length === 0) {
+          const delay = attempt * 5000; // 5s, 10s, 15s
+          console.log(`[generate] Section ${sec.number} premature close on attempt ${attempt} (no output yet). Retrying in ${delay/1000}s...`);
+          await new Promise(r => setTimeout(r, delay));
+          return runSection(sec, contextBlock, attempt + 1);
+        }
+        console.error(`[generate] Section ${sec.number} failed after ${attempt} attempt(s):`, err.message);
+        throw err;
+      }
+      return sectionText;
     };
 
     // Sections 1 & 2: sequential (each needs the previous output as context)
