@@ -539,7 +539,7 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
       await new Promise((resolve, reject) => {
         const stream = anthropic.messages.stream({
           model: 'claude-opus-4-6',
-          max_tokens: 16000,
+          max_tokens: 32768,
           system: systemPrompt,
           messages,
         });
