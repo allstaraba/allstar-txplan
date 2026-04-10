@@ -54,9 +54,12 @@ export default function GeneratePlan({ setCurrentPlan }) {
     }
     setLoading(true);
     setError('');
+    let accumulated = '';
     try {
-      const data = await generatePlan(notes);
-      setCurrentPlan({ plan_id: data.plan_id, text: data.text, client_name: data.client_name });
+      const data = await generatePlan(notes, (chunk) => {
+        accumulated += chunk;
+      });
+      setCurrentPlan({ plan_id: data.plan_id, text: accumulated, client_name: data.client_name });
       navigate('/review');
     } catch (err) {
       setError(err.message);

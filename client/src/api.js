@@ -59,15 +59,40 @@ export async function getMe() {
   return data;
 }
 
-export async function generatePlan(notes) {
+export async function generatePlan(notes, onChunk) {
   const res = await fetch(`${BASE_URL}/api/generate`, {
     method: 'POST',
     headers: authHeaders(),
     body: JSON.stringify({ notes }),
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to generate plan');
-  return data;
+  if (!res.ok) {
+    const data = await res.json();
+    throw new Error(data.error || 'Failed to generate plan');
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let result = null;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop();
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      try {
+        const evt = JSON.parse(line.slice(6));
+        if (evt.type === 'chunk' && onChunk) onChunk(evt.text);
+        if (evt.type === 'done') result = { plan_id: evt.plan_id, client_name: evt.client_name };
+        if (evt.type === 'error') throw new Error(evt.error);
+      } catch (e) {
+        if (e.message && !e.message.startsWith('Failed to')) throw e;
+      }
+    }
+  }
+  if (!result) throw new Error('Failed to generate plan');
+  return result;
 }
 
 export async function revisePlan(plan_id, feedback, onChunk) {

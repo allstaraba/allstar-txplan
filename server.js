@@ -124,32 +124,53 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
       clientName = nameMatch[1].trim();
     }
 
-    const response = await anthropic.messages.create({
+    // Stream the response to prevent Railway's 60s timeout from cutting off long generations
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('X-Accel-Buffering', 'no');
+
+    let planText = '';
+    const stream = anthropic.messages.stream({
       model: 'claude-opus-4-6',
       max_tokens: 16000,
       system: systemPrompt,
-      messages: [{ role: 'user', content: `${notes}\n\nIMPORTANT: Generate the COMPLETE treatment plan. Do not leave any section blank, do not use placeholders, and do not skip any section. Every section must be fully written out from beginning to end.` }]
+      messages: [{ role: 'user', content: `${notes}\n\nIMPORTANT: Generate the COMPLETE treatment plan. Do not leave any section blank, do not use placeholders, and do not skip any section. Every section must be fully written out from beginning to end.` }],
     });
 
-    const planText = response.content[0].text;
+    const keepAlive = setInterval(() => res.write(': ping\n\n'), 20000);
 
-    // Try to extract client name from generated plan text (more reliable than notes)
-    const planNameMatch = planText.match(/Participant Name[:\s]+([^\n\r]+)/i);
-    if (planNameMatch) clientName = planNameMatch[1].trim();
+    stream.on('text', (chunk) => {
+      planText += chunk;
+      res.write(`data: ${JSON.stringify({ type: 'chunk', text: chunk })}\n\n`);
+    });
 
-    // Save to plan_history
-    const planInsert = db.prepare(
-      'INSERT INTO plan_history (user_id, client_name, original_notes) VALUES (?, ?, ?)'
-    ).run(req.user.id, clientName, notes);
+    stream.on('finalMessage', () => {
+      clearInterval(keepAlive);
 
-    const planId = planInsert.lastInsertRowid;
+      // Try to extract client name from generated plan text
+      const planNameMatch = planText.match(/Participant Name[:\s]+([^\n\r]+)/i);
+      if (planNameMatch) clientName = planNameMatch[1].trim();
 
-    // Save initial revision
-    db.prepare(
-      'INSERT INTO plan_revisions (plan_id, revision_number, text, feedback) VALUES (?, ?, ?, ?)'
-    ).run(planId, 0, planText, 'Initial generation');
+      const planInsert = db.prepare(
+        'INSERT INTO plan_history (user_id, client_name, original_notes) VALUES (?, ?, ?)'
+      ).run(req.user.id, clientName, notes);
+      const planId = planInsert.lastInsertRowid;
 
-    res.json({ plan_id: planId, text: planText, client_name: clientName });
+      db.prepare(
+        'INSERT INTO plan_revisions (plan_id, revision_number, text, feedback) VALUES (?, ?, ?, ?)'
+      ).run(planId, 0, planText, 'Initial generation');
+
+      res.write(`data: ${JSON.stringify({ type: 'done', plan_id: planId, client_name: clientName })}\n\n`);
+      res.end();
+    });
+
+    stream.on('error', (err) => {
+      clearInterval(keepAlive);
+      console.error('Generate stream error:', err);
+      res.write(`data: ${JSON.stringify({ type: 'error', error: err.message })}\n\n`);
+      res.end();
+    });
+
   } catch (err) {
     console.error('Generate error:', err);
     res.status(500).json({ error: err.message });
