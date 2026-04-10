@@ -59,11 +59,11 @@ export async function getMe() {
   return data;
 }
 
-export async function generatePlan(notes, onChunk) {
+export async function generatePlan(notes, clientInfo, onChunk) {
   const res = await fetch(`${BASE_URL}/api/generate`, {
     method: 'POST',
     headers: authHeaders(),
-    body: JSON.stringify({ notes }),
+    body: JSON.stringify({ notes, clientInfo }),
   });
   if (!res.ok) {
     let errMsg = 'Failed to generate plan';
@@ -341,6 +341,33 @@ export async function sendChatMessage(plan_id, message, onChunk) {
       if (evt.type === 'error') throw new Error(evt.error || 'Chat failed');
     }
   }
+}
+
+export async function extractClientInfo(notes) {
+  const res = await apiFetch(`${BASE_URL}/api/extract-client-info`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ notes }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to extract client info');
+  return data; // { found: {...} }
+}
+
+export async function getClientInfo(plan_id) {
+  const res = await apiFetch(`${BASE_URL}/api/client-info/${plan_id}`, { headers: authHeaders() });
+  const data = await res.json();
+  if (!res.ok) return {};
+  return data;
+}
+
+export async function saveClientInfo(plan_id, data) {
+  const res = await fetch(`${BASE_URL}/api/client-info/${plan_id}`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify({ data }),
+  });
+  return res.json();
 }
 
 // Regenerates the full plan incorporating all chat feedback (SSE streaming)

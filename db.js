@@ -105,6 +105,14 @@ db.exec(`CREATE TABLE IF NOT EXISTS chat_messages (
   FOREIGN KEY (plan_id) REFERENCES plan_history(id)
 )`);
 
+db.exec(`CREATE TABLE IF NOT EXISTS client_info (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  plan_id INTEGER UNIQUE NOT NULL,
+  data TEXT NOT NULL,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (plan_id) REFERENCES plan_history(id)
+)`);
+
 db.exec(`CREATE TABLE IF NOT EXISTS client_documents (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   plan_id INTEGER NOT NULL,

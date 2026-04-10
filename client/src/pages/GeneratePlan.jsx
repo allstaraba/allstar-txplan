@@ -1,10 +1,11 @@
 import React, { useState, useRef } from 'react';
-import { uploadFile } from '../api.js';
+import { uploadFile, extractClientInfo } from '../api.js';
 
-export default function GeneratePlan({ onStartGeneration, isGenerating }) {
+export default function GeneratePlan({ onExtractionComplete, isGenerating }) {
   const [notes, setNotes] = useState('');
   const [fileName, setFileName] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [extracting, setExtracting] = useState(false);
   const [error, setError] = useState('');
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef(null);
@@ -44,13 +45,20 @@ export default function GeneratePlan({ onStartGeneration, isGenerating }) {
 
   const handleDragLeave = () => setDragOver(false);
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     if (!notes.trim()) {
       setError('Please enter or upload notes before generating.');
       return;
     }
     setError('');
-    onStartGeneration(notes);
+    setExtracting(true);
+    try {
+      const data = await extractClientInfo(notes);
+      onExtractionComplete(notes, data.found);
+    } catch (err) {
+      setError(err.message || 'Failed to analyze notes. Please try again.');
+      setExtracting(false);
+    }
   };
 
   return (
@@ -150,31 +158,31 @@ export default function GeneratePlan({ onStartGeneration, isGenerating }) {
 
       <button
         onClick={handleGenerate}
-        disabled={isGenerating || uploading}
+        disabled={isGenerating || uploading || extracting}
         style={{
           marginTop: '20px',
           padding: '13px 32px',
-          background: isGenerating || uploading ? '#93c5fd' : '#2563eb',
+          background: isGenerating || uploading || extracting ? '#93c5fd' : '#2563eb',
           border: 'none',
           borderRadius: '8px',
           color: '#fff',
           fontSize: '15px',
           fontWeight: '600',
-          cursor: isGenerating || uploading ? 'not-allowed' : 'pointer',
+          cursor: isGenerating || uploading || extracting ? 'not-allowed' : 'pointer',
           display: 'flex',
           alignItems: 'center',
           gap: '10px',
           transition: 'background 0.15s',
         }}
       >
-        {isGenerating ? (
+        {(isGenerating || extracting) ? (
           <>
             <span style={{
               display: 'inline-block', width: '16px', height: '16px',
               border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff',
               borderRadius: '50%', animation: 'spin 0.7s linear infinite',
             }} />
-            Generating… you can navigate away safely
+            {extracting ? 'Reviewing notes… please wait' : 'Generating… you can navigate away safely'}
           </>
         ) : 'Generate Treatment Plan'}
       </button>

@@ -109,19 +109,226 @@ app.get('/api/me', authMiddleware, (req, res) => {
 
 // ---- GENERATE ROUTE ----
 
-app.post('/api/generate', authMiddleware, async (req, res) => {
+// ---- EXTRACT CLIENT INFO ----
+
+app.post('/api/extract-client-info', authMiddleware, async (req, res) => {
   try {
     const { notes } = req.body;
+    if (!notes) return res.status(400).json({ error: 'Notes are required' });
+
+    const extractionSystemPrompt = `You are a clinical data extractor. Extract client information from ABA therapy intake notes and return ONLY a valid JSON object — no explanation, no markdown, no text outside the JSON.
+
+For each key: return the extracted string value if found, or null if not found/not mentioned. Never guess or fabricate information.
+
+Keys to extract and what to look for:
+- client_full_name: Client's full legal name
+- date_of_birth: Date of birth (format MM/DD/YYYY)
+- date_of_assessment: Date of this assessment/evaluation (format MM/DD/YYYY)
+- date_of_reassessment: Date of next reassessment if mentioned (format MM/DD/YYYY)
+- parent_guardian_name: Primary parent or guardian full name
+- parent_guardian_phone: Primary parent/guardian phone number
+- parent_guardian_email: Primary parent/guardian email
+- father_caregiver_name: Father or secondary caregiver name
+- siblings: Sibling names and ages
+- marital_status: Parents' marital status
+- individuals_living_in_home: All individuals living in the home
+- cultural_legal_issues: Any cultural or legal issues noted
+- environmental_factors: Environmental factors mentioned
+- safety_concerns: Safety concerns including aggression, SIB, elopement
+- medications: All medications with dosage, frequency, and prescriber
+- pcp_name: Primary care physician name
+- pcp_phone: PCP phone number
+- allergies: Known allergies
+- medical_concerns: Medical diagnoses or concerns
+- dietary_restrictions: Dietary restrictions
+- surgery_history: Any surgeries or hospitalizations
+- er_history: Emergency room history
+- family_mental_health_history: Family mental health history
+- pregnancy_complications: Pregnancy complications
+- birth_concerns: Birth or neonatal concerns
+- delivery_method: Vaginal or cesarean
+- weeks_gestation: Weeks gestation at birth
+- school_name: Name of school
+- school_setting: Type of school placement
+- grade: Current grade
+- school_schedule: School schedule details
+- school_hours_per_week: Hours in school per week
+- prior_aba_history: Previous ABA services with provider/dates/hours/reason discontinued
+- other_mental_health_services: Other mental health services
+- other_services_slp_ot: SLP, OT, or other therapy services
+- coordination_providers: Coordination providers with name/role/phone
+- major_life_changes: Recent major life changes
+- observation_date: Date of clinical observation (format MM/DD/YYYY)
+- observation_start_time: Observation start time (format H:MM AM/PM)
+- observation_end_time: Observation end time (format H:MM AM/PM)
+- observation_location: Location of observation
+- individuals_present: Individuals present during observation
+- hours_97153: Recommended direct BT hours per week (number only)
+- hours_97155: Recommended BCBA direct hours per week (number only)
+- hours_97156: Recommended parent training hours per week (number only)
+- hours_97151: Assessment hours for this authorization (number only)
+- authorization_start_date: Authorization start date (format MM/DD/YYYY)
+- authorization_end_date: Authorization end date (format MM/DD/YYYY)
+- service_location: Service location (Home, Clinic, School, or combination)
+- supervising_bcba_name: Supervising BCBA full name
+- supervising_bcba_credentials: BCBA credentials (e.g. M.Ed, BCBA, LBA)
+- supervising_bcba_phone: BCBA phone number
+- emergency_contact_name: Emergency contact name
+- emergency_contact_phone: Emergency contact phone`;
+
+    const message = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 2000,
+      system: extractionSystemPrompt,
+      messages: [{ role: 'user', content: notes }],
+    });
+
+    let parsedJson = {};
+    try {
+      const responseText = message.content[0].text.trim();
+      parsedJson = JSON.parse(responseText);
+    } catch (e) {
+      // Return all nulls if parsing fails
+      const allKeys = [
+        'client_full_name','date_of_birth','date_of_assessment','date_of_reassessment',
+        'parent_guardian_name','parent_guardian_phone','parent_guardian_email','father_caregiver_name',
+        'siblings','marital_status','individuals_living_in_home','cultural_legal_issues',
+        'environmental_factors','safety_concerns','medications','pcp_name','pcp_phone',
+        'allergies','medical_concerns','dietary_restrictions','surgery_history','er_history',
+        'family_mental_health_history','pregnancy_complications','birth_concerns','delivery_method',
+        'weeks_gestation','school_name','school_setting','grade','school_schedule',
+        'school_hours_per_week','prior_aba_history','other_mental_health_services',
+        'other_services_slp_ot','coordination_providers','major_life_changes','observation_date',
+        'observation_start_time','observation_end_time','observation_location','individuals_present',
+        'hours_97153','hours_97155','hours_97156','hours_97151','authorization_start_date',
+        'authorization_end_date','service_location','supervising_bcba_name',
+        'supervising_bcba_credentials','supervising_bcba_phone','emergency_contact_name',
+        'emergency_contact_phone'
+      ];
+      parsedJson = Object.fromEntries(allKeys.map(k => [k, null]));
+    }
+
+    res.json({ found: parsedJson });
+  } catch (err) {
+    console.error('Extract client info error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---- CLIENT INFO SAVE/LOAD ----
+
+app.get('/api/client-info/:plan_id', authMiddleware, (req, res) => {
+  try {
+    const row = db.prepare('SELECT data FROM client_info WHERE plan_id = ?').get(req.params.plan_id);
+    if (!row) return res.json({});
+    res.json(JSON.parse(row.data));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/client-info/:plan_id', authMiddleware, (req, res) => {
+  try {
+    const { data } = req.body;
+    if (!data) return res.status(400).json({ error: 'data is required' });
+    db.prepare('INSERT OR REPLACE INTO client_info (plan_id, data, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)')
+      .run(req.params.plan_id, JSON.stringify(data));
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---- GENERATE ROUTE ----
+
+function formatClientInfoForPrompt(clientInfo) {
+  const sections = [
+    { title: 'CLIENT INFORMATION', keys: ['client_full_name','date_of_birth','date_of_assessment','date_of_reassessment'] },
+    { title: 'FAMILY STRUCTURE', keys: ['parent_guardian_name','parent_guardian_phone','parent_guardian_email','father_caregiver_name','siblings','marital_status','individuals_living_in_home','cultural_legal_issues','environmental_factors','safety_concerns'] },
+    { title: 'MEDICATIONS', keys: ['medications'] },
+    { title: 'MEDICAL HISTORY', keys: ['pcp_name','pcp_phone','allergies','medical_concerns','dietary_restrictions','surgery_history','er_history','family_mental_health_history'] },
+    { title: 'BIRTH HISTORY', keys: ['pregnancy_complications','birth_concerns','delivery_method','weeks_gestation'] },
+    { title: 'SCHOOL PLACEMENT', keys: ['school_name','school_setting','grade','school_schedule','school_hours_per_week'] },
+    { title: 'ABA HISTORY', keys: ['prior_aba_history'] },
+    { title: 'OTHER SERVICES', keys: ['other_mental_health_services','other_services_slp_ot'] },
+    { title: 'COORDINATION OF CARE', keys: ['coordination_providers','major_life_changes'] },
+    { title: 'OBSERVATION DETAILS', keys: ['observation_date','observation_start_time','observation_end_time','observation_location','individuals_present'] },
+    { title: 'RECOMMENDED HOURS', keys: ['hours_97153','hours_97155','hours_97156','hours_97151','authorization_start_date','authorization_end_date','service_location'] },
+    { title: 'PROVIDER INFORMATION', keys: ['supervising_bcba_name','supervising_bcba_credentials','supervising_bcba_phone'] },
+    { title: 'EMERGENCY CONTACTS', keys: ['emergency_contact_name','emergency_contact_phone'] },
+  ];
+
+  const keyLabels = {
+    client_full_name: 'Client Full Name', date_of_birth: 'Date of Birth',
+    date_of_assessment: 'Date of Assessment', date_of_reassessment: 'Date of Reassessment',
+    parent_guardian_name: 'Parent/Guardian Name', parent_guardian_phone: 'Parent/Guardian Phone',
+    parent_guardian_email: 'Parent/Guardian Email', father_caregiver_name: 'Father/Caregiver Name',
+    siblings: 'Siblings', marital_status: 'Marital Status',
+    individuals_living_in_home: 'Individuals Living in Home', cultural_legal_issues: 'Cultural/Legal Issues',
+    environmental_factors: 'Environmental Factors', safety_concerns: 'Safety Concerns',
+    medications: 'Medications', pcp_name: 'PCP Name', pcp_phone: 'PCP Phone',
+    allergies: 'Allergies', medical_concerns: 'Medical Concerns',
+    dietary_restrictions: 'Dietary Restrictions', surgery_history: 'Surgery History',
+    er_history: 'ER/Hospitalization History', family_mental_health_history: 'Family Mental Health History',
+    pregnancy_complications: 'Pregnancy Complications', birth_concerns: 'Birth/Neonatal Concerns',
+    delivery_method: 'Delivery Method', weeks_gestation: 'Weeks Gestation',
+    school_name: 'School Name', school_setting: 'School Setting', grade: 'Grade',
+    school_schedule: 'School Schedule', school_hours_per_week: 'School Hours Per Week',
+    prior_aba_history: 'Prior ABA History', other_mental_health_services: 'Other Mental Health Services',
+    other_services_slp_ot: 'Other Services (SLP/OT)', coordination_providers: 'Coordination Providers',
+    major_life_changes: 'Major Life Changes', observation_date: 'Observation Date',
+    observation_start_time: 'Observation Start Time', observation_end_time: 'Observation End Time',
+    observation_location: 'Observation Location', individuals_present: 'Individuals Present',
+    hours_97153: '97153 Direct BT Hours/Week', hours_97155: '97155-GT BCBA Hours/Week',
+    hours_97156: '97156-GT Parent Training Hours/Week', hours_97151: '97151 Assessment Hours',
+    authorization_start_date: 'Authorization Start Date', authorization_end_date: 'Authorization End Date',
+    service_location: 'Service Location', supervising_bcba_name: 'Supervising BCBA Name',
+    supervising_bcba_credentials: 'BCBA Credentials', supervising_bcba_phone: 'BCBA Phone',
+    emergency_contact_name: 'Emergency Contact Name', emergency_contact_phone: 'Emergency Contact Phone',
+  };
+
+  const lines = ['=== VERIFIED CLIENT INFORMATION (confirmed by BCBA) ===', ''];
+  for (const section of sections) {
+    const sectionLines = [];
+    for (const key of section.keys) {
+      const val = clientInfo[key];
+      if (val !== null && val !== undefined && String(val).trim() !== '') {
+        sectionLines.push(`${keyLabels[key] || key}: ${val}`);
+      }
+    }
+    if (sectionLines.length > 0) {
+      lines.push(`${section.title}:`);
+      lines.push(...sectionLines);
+      lines.push('');
+    }
+  }
+  return lines.join('\n');
+}
+
+app.post('/api/generate', authMiddleware, async (req, res) => {
+  try {
+    const { notes, clientInfo } = req.body;
     if (!notes) return res.status(400).json({ error: 'Notes are required' });
 
     const activePrompt = db.prepare('SELECT * FROM prompt_versions WHERE is_active = 1').get();
     const systemPrompt = activePrompt ? activePrompt.text : 'You are an ABA treatment plan generator.';
 
-    // Extract client name from notes
+    // Extract client name from notes or clientInfo
     let clientName = 'Unknown';
-    const nameMatch = notes.match(/(?:client|name)\s*:\s*([^\n,]+)/i);
-    if (nameMatch) {
-      clientName = nameMatch[1].trim();
+    if (clientInfo && clientInfo.client_full_name) {
+      clientName = clientInfo.client_full_name;
+    } else {
+      const nameMatch = notes.match(/(?:client|name)\s*:\s*([^\n,]+)/i);
+      if (nameMatch) clientName = nameMatch[1].trim();
+    }
+
+    // Build user message — prepend verified client info if provided
+    let userMessage;
+    if (clientInfo && Object.keys(clientInfo).length > 0) {
+      const formattedInfo = formatClientInfoForPrompt(clientInfo);
+      userMessage = `${formattedInfo}\n=== ORIGINAL BCBA NOTES ===\n${notes}\n\nIMPORTANT: Generate the COMPLETE treatment plan. Do not leave any section blank, do not use placeholders, and do not skip any section. Every section must be fully written out from beginning to end.`;
+    } else {
+      userMessage = `${notes}\n\nIMPORTANT: Generate the COMPLETE treatment plan. Do not leave any section blank, do not use placeholders, and do not skip any section. Every section must be fully written out from beginning to end.`;
     }
 
     // Stream the response to prevent Railway's 60s timeout from cutting off long generations
@@ -134,7 +341,7 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
       model: 'claude-opus-4-6',
       max_tokens: 16000,
       system: systemPrompt,
-      messages: [{ role: 'user', content: `${notes}\n\nIMPORTANT: Generate the COMPLETE treatment plan. Do not leave any section blank, do not use placeholders, and do not skip any section. Every section must be fully written out from beginning to end.` }],
+      messages: [{ role: 'user', content: userMessage }],
     });
 
     const keepAlive = setInterval(() => res.write(': ping\n\n'), 20000);
@@ -149,7 +356,7 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
 
       // Try to extract client name from generated plan text
       const planNameMatch = planText.match(/Participant Name[:\s]+([^\n\r]+)/i);
-      if (planNameMatch) clientName = planNameMatch[1].trim();
+      if (planNameMatch && clientName === 'Unknown') clientName = planNameMatch[1].trim();
 
       const planInsert = db.prepare(
         'INSERT INTO plan_history (user_id, client_name, original_notes) VALUES (?, ?, ?)'
@@ -159,6 +366,12 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
       db.prepare(
         'INSERT INTO plan_revisions (plan_id, revision_number, text, feedback) VALUES (?, ?, ?, ?)'
       ).run(planId, 0, planText, 'Initial generation');
+
+      // Save client info if provided
+      if (clientInfo && Object.keys(clientInfo).length > 0) {
+        db.prepare('INSERT OR REPLACE INTO client_info (plan_id, data, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)')
+          .run(planId, JSON.stringify(clientInfo));
+      }
 
       res.write(`data: ${JSON.stringify({ type: 'done', plan_id: planId, client_name: clientName })}\n\n`);
       res.end();
