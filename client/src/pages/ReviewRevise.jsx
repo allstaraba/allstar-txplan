@@ -327,33 +327,49 @@ export default function ReviewRevise({ currentPlan, setCurrentPlan, injectedText
     const userMsg = input.trim();
     if (!userMsg || sending) return;
 
-    // Clear input immediately and keep focus
     setInput('');
     setError('');
     setSending(true);
-
-    // Add user message to chat right away
     setMessages(prev => [...prev, { role: 'user', text: userMsg }]);
 
-    try {
-      const data = await revisePlan(currentPlan.plan_id, userMsg);
+    // Build a streaming revision directly into the revisions list so the
+    // left panel updates in real-time as Claude types
+    const streamingRevId = Date.now();
+    let streamingText = '';
 
-      // Reload all revisions and jump to the new one
+    // Add a placeholder revision so the dropdown + left panel shows live text
+    const pendingRev = { id: streamingRevId, revision_number: '…', feedback: userMsg, text: '' };
+    setRevisions(prev => {
+      const next = [...prev, pendingRev];
+      setSelectedRevIdx(next.length - 1);
+      return next;
+    });
+
+    try {
+      const data = await revisePlan(currentPlan.plan_id, userMsg, (chunk) => {
+        streamingText += chunk;
+        setRevisions(prev => prev.map(r =>
+          r.id === streamingRevId ? { ...r, text: streamingText } : r
+        ));
+      });
+
+      // Replace placeholder with the real saved revision
       const updatedRevisions = await getPlanRevisions(currentPlan.plan_id);
       setRevisions(updatedRevisions);
       setSelectedRevIdx(updatedRevisions.length - 1);
 
-      // Add a concise assistant confirmation (not the full plan text)
       setMessages(prev => [
         ...prev,
-        { role: 'assistant', text: `Done — revision ${data.revision_number} saved. The plan on the left has been updated.` },
+        { role: 'assistant', text: `Done — revision ${data.revision_number} saved.` },
       ]);
     } catch (err) {
+      // Remove the failed streaming placeholder
+      setRevisions(prev => prev.filter(r => r.id !== streamingRevId));
+      setSelectedRevIdx(prev => Math.max(0, prev - 1));
       setError(err.message);
       setMessages(prev => [...prev, { role: 'assistant', text: `Error: ${err.message}` }]);
     } finally {
       setSending(false);
-      // Focus is restored via the useEffect above
     }
   };
 

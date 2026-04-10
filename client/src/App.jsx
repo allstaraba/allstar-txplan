@@ -188,8 +188,24 @@ function Layout({ user, onLogout, currentPlan, setCurrentPlan, injectedText, set
 export default function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [currentPlan, setCurrentPlan] = useState(null);
   const [injectedText, setInjectedText] = useState('');
+
+  // Persist currentPlan in localStorage so it survives page refreshes
+  const [currentPlan, setCurrentPlanState] = useState(() => {
+    try {
+      const saved = localStorage.getItem('allstar_current_plan');
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+  });
+
+  const setCurrentPlan = (plan) => {
+    setCurrentPlanState(plan);
+    if (plan) {
+      localStorage.setItem('allstar_current_plan', JSON.stringify(plan));
+    } else {
+      localStorage.removeItem('allstar_current_plan');
+    }
+  };
 
   useEffect(() => {
     const token = localStorage.getItem('allstar_token');

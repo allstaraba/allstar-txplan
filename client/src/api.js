@@ -58,15 +58,41 @@ export async function generatePlan(notes) {
   return data;
 }
 
-export async function revisePlan(plan_id, feedback) {
+export async function revisePlan(plan_id, feedback, onChunk) {
   const res = await fetch(`${BASE_URL}/api/revise`, {
     method: 'POST',
     headers: authHeaders(),
     body: JSON.stringify({ plan_id, feedback }),
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to revise plan');
-  return data;
+  if (!res.ok) {
+    const data = await res.json();
+    throw new Error(data.error || 'Failed to revise plan');
+  }
+  // Handle SSE streaming response
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let revision_number = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop(); // keep incomplete line
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      try {
+        const evt = JSON.parse(line.slice(6));
+        if (evt.type === 'chunk' && onChunk) onChunk(evt.text);
+        if (evt.type === 'done') revision_number = evt.revision_number;
+        if (evt.type === 'error') throw new Error(evt.error);
+      } catch (e) {
+        if (e.message !== 'Failed to revise plan') throw e;
+      }
+    }
+  }
+  return { revision_number };
 }
 
 export async function getPlanRevisions(plan_id) {

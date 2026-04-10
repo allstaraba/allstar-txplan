@@ -171,7 +171,6 @@ app.post('/api/revise', authMiddleware, async (req, res) => {
     const plan = db.prepare('SELECT * FROM plan_history WHERE id = ?').get(plan_id);
     if (!plan) return res.status(404).json({ error: 'Plan not found' });
 
-    // Get ALL revisions in order to reconstruct the full conversation history
     const allRevisions = db.prepare(
       'SELECT * FROM plan_revisions WHERE plan_id = ? ORDER BY revision_number ASC'
     ).all(plan_id);
@@ -180,11 +179,9 @@ app.post('/api/revise', authMiddleware, async (req, res) => {
     const activePrompt = db.prepare('SELECT * FROM prompt_versions WHERE is_active = 1').get();
     const systemPrompt = activePrompt ? activePrompt.text : 'You are an ABA treatment plan generator.';
 
-    // Build the full conversation so Claude has complete context of every prior turn:
-    // user: original notes → assistant: initial plan → user: feedback1 → assistant: rev1 → ...
     const messages = [
       { role: 'user', content: plan.original_notes },
-      { role: 'assistant', content: allRevisions[0].text }, // initial generated plan
+      { role: 'assistant', content: allRevisions[0].text },
     ];
     for (let i = 1; i < allRevisions.length; i++) {
       messages.push({ role: 'user', content: allRevisions[i].feedback });
@@ -192,21 +189,44 @@ app.post('/api/revise', authMiddleware, async (req, res) => {
     }
     messages.push({ role: 'user', content: feedback });
 
-    const response = await anthropic.messages.create({
+    // Stream the response to prevent Railway's request timeout from cutting off long generations
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('X-Accel-Buffering', 'no');
+
+    let revisedText = '';
+    const stream = anthropic.messages.stream({
       model: 'claude-opus-4-6',
       max_tokens: 16000,
       system: systemPrompt,
       messages,
     });
 
-    const revisedText = response.content[0].text;
-    const newRevisionNumber = allRevisions[allRevisions.length - 1].revision_number + 1;
+    // Send periodic keep-alive comments so the connection stays open
+    const keepAlive = setInterval(() => res.write(': ping\n\n'), 20000);
 
-    db.prepare(
-      'INSERT INTO plan_revisions (plan_id, revision_number, text, feedback) VALUES (?, ?, ?, ?)'
-    ).run(plan_id, newRevisionNumber, revisedText, feedback);
+    stream.on('text', (chunk) => {
+      revisedText += chunk;
+      res.write(`data: ${JSON.stringify({ type: 'chunk', text: chunk })}\n\n`);
+    });
 
-    res.json({ text: revisedText, revision_number: newRevisionNumber });
+    stream.on('finalMessage', async () => {
+      clearInterval(keepAlive);
+      const newRevisionNumber = allRevisions[allRevisions.length - 1].revision_number + 1;
+      db.prepare(
+        'INSERT INTO plan_revisions (plan_id, revision_number, text, feedback) VALUES (?, ?, ?, ?)'
+      ).run(plan_id, newRevisionNumber, revisedText, feedback);
+      res.write(`data: ${JSON.stringify({ type: 'done', revision_number: newRevisionNumber })}\n\n`);
+      res.end();
+    });
+
+    stream.on('error', (err) => {
+      clearInterval(keepAlive);
+      console.error('Revise stream error:', err);
+      res.write(`data: ${JSON.stringify({ type: 'error', error: err.message })}\n\n`);
+      res.end();
+    });
+
   } catch (err) {
     console.error('Revise error:', err);
     res.status(500).json({ error: err.message });
