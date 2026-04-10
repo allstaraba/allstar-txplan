@@ -1,13 +1,12 @@
 import React, { useState, useRef } from 'react';
-import { uploadFile, extractClientInfo } from '../api.js';
+import { uploadFile } from '../api.js';
 
-export default function GeneratePlan({ onExtractionComplete, isGenerating }) {
+export default function GeneratePlan({ onGenerate, isGenerating }) {
   const [notes, setNotes] = useState('');
   // uploadedFiles: [{ name, text }]
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [uploadingName, setUploadingName] = useState('');
-  const [extracting, setExtracting] = useState(false);
   const [error, setError] = useState('');
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef(null);
@@ -51,7 +50,7 @@ export default function GeneratePlan({ onExtractionComplete, isGenerating }) {
   const handleDragOver = (e) => { e.preventDefault(); setDragOver(true); };
   const handleDragLeave = () => setDragOver(false);
 
-  const handleGenerate = async () => {
+  const handleGenerate = () => {
     // Combine uploaded file texts with separators, then append manual notes
     const parts = uploadedFiles.map(f => `--- ${f.name} ---\n${f.text}`);
     if (notes.trim()) parts.push(`--- Additional Notes ---\n${notes.trim()}`);
@@ -62,17 +61,10 @@ export default function GeneratePlan({ onExtractionComplete, isGenerating }) {
       return;
     }
     setError('');
-    setExtracting(true);
-    try {
-      const data = await extractClientInfo(combined);
-      onExtractionComplete(combined, data.found);
-    } catch (err) {
-      setError(err.message || 'Failed to analyze notes. Please try again.');
-      setExtracting(false);
-    }
+    onGenerate(combined);
   };
 
-  const disabled = isGenerating || uploading || extracting;
+  const disabled = isGenerating || uploading;
 
   return (
     <div style={{ padding: '32px', maxWidth: '900px', margin: '0 auto' }}>
@@ -225,14 +217,14 @@ export default function GeneratePlan({ onExtractionComplete, isGenerating }) {
           transition: 'background 0.15s',
         }}
       >
-        {(isGenerating || extracting) ? (
+        {isGenerating ? (
           <>
             <span style={{
               display: 'inline-block', width: '16px', height: '16px',
               border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff',
               borderRadius: '50%', animation: 'spin 0.7s linear infinite',
             }} />
-            {extracting ? 'Reviewing notes… please wait' : 'Generating… you can navigate away safely'}
+            Generating… you can navigate away safely
           </>
         ) : 'Generate Treatment Plan'}
       </button>

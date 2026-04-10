@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, NavLink, useNavigate } from 'react-router-dom';
 import Login from './pages/Login.jsx';
 import GeneratePlan from './pages/GeneratePlan.jsx';
-import ClientInfoReview from './pages/ClientInfoReview.jsx';
 import ReviewRevise from './pages/ReviewRevise.jsx';
 import EditTemplate from './pages/EditTemplate.jsx';
 import VersionHistory from './pages/VersionHistory.jsx';
@@ -119,7 +118,6 @@ function Layout({ user, onLogout, currentPlan, setCurrentPlan, injectedText, set
   // generatingPlan tracks an in-progress generation so navigation doesn't kill it
   // { text: string, status: 'running' | 'error', error: string | null }
   const [generatingPlan, setGeneratingPlan] = useState(null);
-  const [pendingReview, setPendingReview] = useState(null);
 
   const handleLogout = async () => {
     await logout();
@@ -128,22 +126,17 @@ function Layout({ user, onLogout, currentPlan, setCurrentPlan, injectedText, set
     navigate('/login');
   };
 
-  const handleExtractionComplete = (notes, found) => {
-    setPendingReview({ notes, found });
-    navigate('/client-info-review');
-  };
-
   // Start generation at Layout level so it survives page navigation
-  const startGeneration = async (notes, clientInfo) => {
+  const startGeneration = async (notes) => {
     setCurrentPlan(null);
-    setGeneratingPlan({ text: '', status: 'running', section: 1, total: 4, label: 'Client Info, Narrative & Assessments', error: null });
+    setGeneratingPlan({ text: '', status: 'running', section: 1, total: 7, label: 'Client Info, Narrative & Assessments', error: null });
     navigate('/review');
 
     let accumulated = '';
     try {
       const data = await generatePlan(
         notes,
-        clientInfo,
+        {},
         (chunk) => {
           accumulated += chunk;
           setGeneratingPlan(prev => ({ ...prev, text: accumulated }));
@@ -250,8 +243,7 @@ function Layout({ user, onLogout, currentPlan, setCurrentPlan, injectedText, set
       </div>
       <main style={styles.content}>
         <Routes>
-          <Route path="/generate" element={<GeneratePlan onExtractionComplete={handleExtractionComplete} isGenerating={!!generatingPlan && generatingPlan.status === 'running'} />} />
-          <Route path="/client-info-review" element={<ClientInfoReview pendingReview={pendingReview} onStartGeneration={startGeneration} />} />
+          <Route path="/generate" element={<GeneratePlan onGenerate={startGeneration} isGenerating={!!generatingPlan && generatingPlan.status === 'running'} />} />
           <Route path="/review" element={<ReviewRevise currentPlan={currentPlan} setCurrentPlan={setCurrentPlan} injectedText={injectedText} setInjectedText={setInjectedText} generatingPlan={generatingPlan} />} />
           <Route path="/clients" element={<ClientRecords />} />
           <Route path="/clients/:id" element={<ClientProfile currentPlan={currentPlan} setCurrentPlan={setCurrentPlan} injectedText={injectedText} setInjectedText={setInjectedText} />} />

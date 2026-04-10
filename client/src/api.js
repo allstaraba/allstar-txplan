@@ -344,17 +344,6 @@ export async function sendChatMessage(plan_id, message, onChunk) {
   }
 }
 
-export async function extractClientInfo(notes) {
-  const res = await apiFetch(`${BASE_URL}/api/extract-client-info`, {
-    method: 'POST',
-    headers: authHeaders(),
-    body: JSON.stringify({ notes }),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to extract client info');
-  return data; // { found: {...} }
-}
-
 export async function getClientInfo(plan_id) {
   const res = await apiFetch(`${BASE_URL}/api/client-info/${plan_id}`, { headers: authHeaders() });
   const data = await res.json();
