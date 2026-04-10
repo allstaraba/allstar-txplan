@@ -309,7 +309,7 @@ function formatClientInfoForPrompt(clientInfo) {
 const GENERATION_SECTIONS = [
   {
     number: 1,
-    label: 'Client Info, Narrative & Assessments',
+    label: 'Client Info, Narrative & Assessments (sections 1–14)',
     instruction: `Generate ONLY sections 1 through 14 of the ABA treatment plan, in this exact order:
 1. "ABA Treatment Plan" title header
 2. ☐ Review checkbox: "☐ I reviewed the ABA treatment plan requirements before submitting this report."
@@ -326,20 +326,21 @@ const GENERATION_SECTIONS = [
 13. Goal Objective Summary table (columns: Total Goals, Mastered, In-Progress, On Hold, Discontinued, New)
 14. Response to Treatment / Authorization Summary (write "N/A — Initial Treatment Plan" for initial plans)
 
-STOP after section 14. Do NOT write skill acquisition goals, BIPs, behavior reduction, parent training, generalization, fading, discharge, crisis, recommendations, CPT codes, provider info, or consent.`,
+Be thorough and comprehensive. Write full paragraphs — do not abbreviate. STOP after section 14. Do NOT write skill acquisition goals, BIPs, behavior reduction, parent training, generalization, fading, discharge, crisis, recommendations, CPT codes, provider info, or consent.`,
   },
   {
     number: 2,
-    label: 'Skill Acquisition Goals & Behavior Intervention Plans',
-    instruction: `The treatment plan sections 1–14 have already been written above. Continue the plan — do not repeat anything already written.
+    label: 'Skill Acquisition Goals (section 15)',
+    instruction: `Sections 1–14 have already been written above. Continue the plan — do not repeat anything already written.
 
-Generate ONLY sections 15 and 16:
+Generate ONLY section 15:
 
 15. Skill Acquisition Goals — organized by domain with bold sub-headers:
     • Language/Communication Goals
     • Social Goals
     • Adaptive/Self-Care Goals
-    Generate 25–40 goals total. Use this EXACT format for EVERY goal:
+    Generate 25–40 goals total. Be thorough — write every goal in full, do not abbreviate or skip any. Use this EXACT format for EVERY goal:
+
       Medical Necessity Rationale: Core Deficit of ASD Addressed:
       A. [criterion A bullet]
       B. [criterion B bullet]
@@ -350,24 +351,44 @@ Generate ONLY sections 15 and 16:
       Projected Mastery: [date ~6 months out]
       Progress Data: N/A
 
-16. Behavior Intervention Plans — organized by FUNCTION (not topography). Include only the functions relevant to this client:
-    • Social Negative Reinforcement (escape-maintained behaviors)
-    • Social Positive Reinforcement (access-maintained behaviors)
-    • Automatic Positive Reinforcement (sensory/automatically-maintained behaviors)
-    Each BIP must include: Date, Behavior Assessment, Target Behavior (list all topographies), Operational Definition, Quantitative Baseline Data, Hypothesized Function, Functionally Equivalent Replacement Behaviors (reference specific goal numbers from section 15), Antecedent Interventions (detailed with sub-headers), Consequence Interventions (detailed with sub-headers), De-escalation Procedures (use the standard de-escalation protocol verbatim).
-
-STOP after section 16. Do NOT write behavior reduction, parent training, generalization, fading, discharge, crisis, or any later sections.`,
+Write all 25–40 goals completely. Do not truncate, do not summarize, do not write "continued in next section." STOP after the last skill acquisition goal. Do NOT write BIPs, behavior reduction goals, parent training, generalization, or any later sections.`,
   },
   {
     number: 3,
-    label: 'Behavior Reduction, Parent Training, Generalization & Fading',
-    instruction: `Sections 1–16 of the treatment plan have been written above. Continue — do not repeat anything.
+    label: 'BIPs, Behavior Reduction & Parent Training (sections 16–18)',
+    instruction: `Sections 1–15 of the treatment plan have been written above. Continue — do not repeat anything.
 
-Generate ONLY sections 17 through 21:
+Generate ONLY sections 16, 17, and 18:
 
-17. Behavior Reduction Goals — one goal per target behavior, using the exact same goal format (Medical Necessity Rationale, Goal Statement, Baseline, Date of Introduction, Projected Mastery, Progress Data)
+16. Behavior Intervention Plans — one complete BIP per hypothesized FUNCTION (not per topography). Include only the functions that apply to this client. Possible function categories:
+    • Social Negative Reinforcement (escape-maintained behaviors)
+    • Social Positive Reinforcement (attention/access-maintained behaviors)
+    • Automatic Positive Reinforcement (sensory/automatically-maintained behaviors)
+
+    Each BIP must include ALL of the following subsections written in full — do not abbreviate or skip any:
+    - Date
+    - Behavior Assessment (ABC)
+    - Target Behavior (list all topographies that fall under this function)
+    - Operational Definition (bullet format, one bullet per topography)
+    - Quantitative Baseline Data
+    - Hypothesized Function
+    - Functionally Equivalent Replacement Behaviors (reference specific goal numbers from section 15 by number)
+    - Antecedent Interventions (detailed prose with bold sub-headers for each strategy)
+    - Consequence Interventions (detailed prose with bold sub-headers for each strategy)
+    - De-escalation Procedures (use the standard de-escalation protocol verbatim from your instructions)
+
+17. Behavior Reduction Goals — one goal per target behavior using the exact same goal format (Medical Necessity Rationale, criterion bullets, Goal Statement, Baseline, Date of Introduction, Projected Mastery, Progress Data)
 
 18. Parent or Caregiver Training — at least 2 goals using the standard parent training boilerplate language exactly as specified in your instructions
+
+Write every section completely. STOP after the last parent training goal. Do NOT write generalization, fading, discharge, crisis, or any later sections.`,
+  },
+  {
+    number: 4,
+    label: 'Generalization, Fading, Crisis, CPT Codes & Consent (sections 19–25)',
+    instruction: `Sections 1–18 of the treatment plan have been written above. Now write the final sections — do not repeat anything.
+
+Generate ONLY sections 19 through 25:
 
 19. Generalization Plan — use the exact 6-step generalization protocol from your instructions, verbatim. Follow with Data Collection Standard Language verbatim.
 
@@ -375,16 +396,7 @@ Generate ONLY sections 17 through 21:
 
 21. Transition and Fading Plan — include both fading plan boilerplate introduction paragraphs verbatim, then all 4 phases using the exact phase structure. Each phase's opening sentence MUST embed mastery, maintenance, and generalization criteria. Reference specific skill acquisition goal numbers from section 15 in each phase. End with Discharge Criteria using the exact standard list from your instructions.
 
-STOP after the Discharge Criteria. Do NOT write the crisis plan, recommendations, CPT codes, provider info, or consent.`,
-  },
-  {
-    number: 4,
-    label: 'Crisis Plan, Recommendations & Consent',
-    instruction: `Sections 1–21 of the treatment plan have been written above. Now write the final sections — do not repeat anything.
-
-Generate ONLY sections 22 through 25:
-
-22. Crisis Plan — Emergency contacts table with columns (Emergency/Crisis Type | Date of Implementation | Protocol | Contact Plan | Notes) + individualized crisis protocol table for clients with SIB, aggression, elopement, or safety behaviors + Post-Crisis Procedures section. If the client has no significant safety behaviors, write "At this time, the client does not require an individualized crisis plan."
+22. Crisis Plan — Emergency contacts table (Emergency/Crisis Type | Date of Implementation | Protocol | Contact Plan | Notes) + individualized crisis protocol table for clients with SIB, aggression, elopement, or safety behaviors + Post-Crisis Procedures. If the client has no significant safety behaviors, write "At this time, the client does not require an individualized crisis plan."
 
 23. Recommendations for ABA Services — write the medical necessity boilerplate paragraph verbatim, then format CPT codes as a TABLE with exactly these four columns: CPT Code | Number of Hours Requested | Total Units | Place of Service. Calculate Total Units as hours/week × 26 weeks × 4 units/hour and show the calculation inline (e.g. "2,600 (25 hrs/wk × 26 wks × 4)"). Include rows for 97151, 97153, 97155-GT, and 97156-GT/U2. Then include the Anticipated Schedule.
 
@@ -453,7 +465,7 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
       await new Promise((resolve, reject) => {
         const stream = anthropic.messages.stream({
           model: 'claude-opus-4-6',
-          max_tokens: 8000,
+          max_tokens: 16000,
           system: systemPrompt,
           messages,
         });
