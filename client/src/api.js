@@ -19,6 +19,18 @@ function authHeadersNoContentType() {
   };
 }
 
+// Central fetch wrapper — auto-logout on 401
+async function apiFetch(url, options = {}) {
+  const res = await fetch(url, options);
+  if (res.status === 401) {
+    localStorage.removeItem('allstar_token');
+    localStorage.removeItem('allstar_current_plan');
+    window.location.href = '/login';
+    throw new Error('Session expired. Please log in again.');
+  }
+  return res;
+}
+
 export async function login(username, password) {
   const res = await fetch(`${BASE_URL}/api/login`, {
     method: 'POST',
@@ -39,7 +51,7 @@ export async function logout() {
 }
 
 export async function getMe() {
-  const res = await fetch(`${BASE_URL}/api/me`, {
+  const res = await apiFetch(`${BASE_URL}/api/me`, {
     headers: authHeaders(),
   });
   const data = await res.json();
@@ -96,11 +108,11 @@ export async function revisePlan(plan_id, feedback, onChunk) {
 }
 
 export async function getPlanRevisions(plan_id) {
-  const res = await fetch(`${BASE_URL}/api/plan/${plan_id}/revisions`, {
+  const res = await apiFetch(`${BASE_URL}/api/plan/${plan_id}/revisions`, {
     headers: authHeaders(),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to get revisions');
+  if (!res.ok) throw new Error(data.error || `Failed to get revisions (${res.status})`);
   return data;
 }
 
@@ -191,7 +203,7 @@ export function getExportUrl(plan_id, revision_number) {
 }
 
 export async function getPlans() {
-  const res = await fetch(`${BASE_URL}/api/plans`, { headers: authHeaders() });
+  const res = await apiFetch(`${BASE_URL}/api/plans`, { headers: authHeaders() });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'Failed to get plans');
   return data;

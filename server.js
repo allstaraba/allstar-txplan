@@ -41,16 +41,11 @@ function authMiddleware(req, res, next) {
   const token = authHeader.split(' ')[1];
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    // Check token is in sessions table
-    const session = db.prepare('SELECT * FROM sessions WHERE token = ?').get(token);
-    if (!session) {
-      return res.status(401).json({ error: 'Invalid or expired session' });
-    }
     req.user = decoded;
     req.token = token;
     next();
   } catch (err) {
-    return res.status(401).json({ error: 'Invalid token' });
+    return res.status(401).json({ error: 'Invalid or expired token' });
   }
 }
 
