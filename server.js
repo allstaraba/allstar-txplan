@@ -649,6 +649,17 @@ app.post('/api/clients/:id/documents/:doc_id/extract', authMiddleware, async (re
   }
 });
 
+// ---- TEMP: DB restore endpoint (remove after migration) ----
+app.post('/api/admin/restore-db', authMiddleware, (req, res) => {
+  if (req.user.role !== 'Admin') return res.status(403).json({ error: 'Admin only' });
+  const { data } = req.body;
+  if (!data) return res.status(400).json({ error: 'No data' });
+  const buf = Buffer.from(data, 'base64');
+  const dbPath = path.join(DATA_DIR, 'allstar.db');
+  fs.writeFileSync(dbPath, buf);
+  res.json({ ok: true, size: buf.length });
+});
+
 // ---- SERVE REACT APP ----
 
 app.get('*', (req, res) => {
