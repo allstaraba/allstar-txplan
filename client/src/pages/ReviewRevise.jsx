@@ -346,19 +346,43 @@ export default function ReviewRevise({ currentPlan, setCurrentPlan, injectedText
       .replace(/\[(SECTION|TABLE|\/TABLE|GOAL|\/GOAL|BIP|\/BIP|FADING_PHASE|\/FADING_PHASE|CRISIS_ROW|\/CRISIS_ROW):[^\]]*\]/g, '')
       .replace(/^\n{3,}/gm, '\n\n').trim();
 
+    const sec = generatingPlan.section || 1;
+    const total = generatingPlan.total || 4;
+    const pct = Math.round(((sec - 1) / total) * 100);
+
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
-        <div style={{ background: '#fff', borderBottom: '1px solid #e2e8f0', padding: '11px 24px', display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
-          <span style={{ display: 'inline-block', width: '14px', height: '14px', border: '2px solid #bfdbfe', borderTopColor: '#2563eb', borderRadius: '50%', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
-          <span style={{ fontWeight: '600', fontSize: '15px', color: '#0f172a' }}>Generating treatment plan…</span>
-          <span style={{ fontSize: '13px', color: '#64748b' }}>You can navigate away and come back — it will keep running.</span>
-          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        <div style={{ background: '#fff', borderBottom: '1px solid #e2e8f0', padding: '12px 24px', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+            <span style={{ display: 'inline-block', width: '14px', height: '14px', border: '2px solid #bfdbfe', borderTopColor: '#2563eb', borderRadius: '50%', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
+            <span style={{ fontWeight: '700', fontSize: '15px', color: '#0f172a' }}>
+              Generating section {sec} of {total}
+            </span>
+            <span style={{ fontSize: '13px', color: '#64748b' }}>— {generatingPlan.label}</span>
+            <span style={{ marginLeft: 'auto', fontSize: '12px', color: '#94a3b8' }}>You can navigate away safely</span>
+          </div>
+          {/* Section progress bar */}
+          <div style={{ height: '4px', background: '#f1f5f9', borderRadius: '2px', overflow: 'hidden' }}>
+            <div style={{
+              height: '100%', width: `${pct}%`,
+              background: 'linear-gradient(90deg, #2563eb, #60a5fa)',
+              borderRadius: '2px', transition: 'width 0.5s ease',
+            }} />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
+            {['Client Info & Assessments', 'Goals & BIPs', 'Behavior & Fading', 'Crisis & Consent'].map((lbl, i) => (
+              <span key={i} style={{ fontSize: '10px', color: i < sec ? '#2563eb' : '#cbd5e1', fontWeight: i + 1 === sec ? '600' : '400' }}>
+                {i + 1}. {lbl}
+              </span>
+            ))}
+          </div>
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
           {liveText
             ? renderPlanText(liveText)
             : <span style={{ color: '#94a3b8', fontSize: '14px' }}>Waiting for Claude…</span>}
         </div>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     );
   }

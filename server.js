@@ -305,88 +305,204 @@ function formatClientInfoForPrompt(clientInfo) {
   return lines.join('\n');
 }
 
+// The 4 sequential generation prompts — each builds on the previous sections as context
+const GENERATION_SECTIONS = [
+  {
+    number: 1,
+    label: 'Client Info, Narrative & Assessments',
+    instruction: `Generate ONLY sections 1 through 14 of the ABA treatment plan, in this exact order:
+1. "ABA Treatment Plan" title header
+2. ☐ Review checkbox: "☐ I reviewed the ABA treatment plan requirements before submitting this report."
+3. Client Information table (Name, DOB, Assessment Date, Reassessment Date, Guardian Contact)
+4. Biopsychosocial Information: Current Family Structure table, Medications table, Medical History table including Birth History
+5. History of ABA Services table
+6. Other Mental Health Services table and Other Services table
+7. Coordination of Care section with coordination language and provider table
+8. Major Life Changes table
+9. Narrative section: Direct Observation table (Date, Start Time, End Time, Location, Individuals Present) + full Clinical Narrative written as flowing prose with domain sub-headers: Communication, Social, Adaptive/Safety Skills, Challenging Behaviors
+10. Strengths, Challenges & Severity Level — four complete domain boxes (Language/Communication, Social Skills, Adaptive/Self-Care, Challenging Behaviors), each with a Strengths paragraph, Challenges paragraph, and Severity: ☐ Mild ☐ Moderate ☐ Severe
+11. Standardized Assessment — Vineland-3 boilerplate introduction + ABC and Domain Score Summary table + Subdomain Score Summary table + Maladaptive Behavior Score Summary table
+12. Criterion-Referenced Assessment — VB-MAPP or ABLLS-R boilerplate introduction + score narrative
+13. Goal Objective Summary table (columns: Total Goals, Mastered, In-Progress, On Hold, Discontinued, New)
+14. Response to Treatment / Authorization Summary (write "N/A — Initial Treatment Plan" for initial plans)
+
+STOP after section 14. Do NOT write skill acquisition goals, BIPs, behavior reduction, parent training, generalization, fading, discharge, crisis, recommendations, CPT codes, provider info, or consent.`,
+  },
+  {
+    number: 2,
+    label: 'Skill Acquisition Goals & Behavior Intervention Plans',
+    instruction: `The treatment plan sections 1–14 have already been written above. Continue the plan — do not repeat anything already written.
+
+Generate ONLY sections 15 and 16:
+
+15. Skill Acquisition Goals — organized by domain with bold sub-headers:
+    • Language/Communication Goals
+    • Social Goals
+    • Adaptive/Self-Care Goals
+    Generate 25–40 goals total. Use this EXACT format for EVERY goal:
+      Medical Necessity Rationale: Core Deficit of ASD Addressed:
+      A. [criterion A bullet]
+      B. [criterion B bullet]
+      C. [criterion C bullet if applicable]
+      [Number]. Goal Statement: [include FERB prefix if applicable] When [condition], [client name] will [behavior] in [X]% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.
+      Baseline: [data] on [date]
+      Date of Introduction: [date]
+      Projected Mastery: [date ~6 months out]
+      Progress Data: N/A
+
+16. Behavior Intervention Plans — organized by FUNCTION (not topography). Include only the functions relevant to this client:
+    • Social Negative Reinforcement (escape-maintained behaviors)
+    • Social Positive Reinforcement (access-maintained behaviors)
+    • Automatic Positive Reinforcement (sensory/automatically-maintained behaviors)
+    Each BIP must include: Date, Behavior Assessment, Target Behavior (list all topographies), Operational Definition, Quantitative Baseline Data, Hypothesized Function, Functionally Equivalent Replacement Behaviors (reference specific goal numbers from section 15), Antecedent Interventions (detailed with sub-headers), Consequence Interventions (detailed with sub-headers), De-escalation Procedures (use the standard de-escalation protocol verbatim).
+
+STOP after section 16. Do NOT write behavior reduction, parent training, generalization, fading, discharge, crisis, or any later sections.`,
+  },
+  {
+    number: 3,
+    label: 'Behavior Reduction, Parent Training, Generalization & Fading',
+    instruction: `Sections 1–16 of the treatment plan have been written above. Continue — do not repeat anything.
+
+Generate ONLY sections 17 through 21:
+
+17. Behavior Reduction Goals — one goal per target behavior, using the exact same goal format (Medical Necessity Rationale, Goal Statement, Baseline, Date of Introduction, Projected Mastery, Progress Data)
+
+18. Parent or Caregiver Training — at least 2 goals using the standard parent training boilerplate language exactly as specified in your instructions
+
+19. Generalization Plan — use the exact 6-step generalization protocol from your instructions, verbatim. Follow with Data Collection Standard Language verbatim.
+
+20. Maintenance Protocol — use the exact maintenance schedule from your instructions (Daily → Weekly → Semi-monthly → Monthly → Bi-monthly → Semi-annually), verbatim.
+
+21. Transition and Fading Plan — include both fading plan boilerplate introduction paragraphs verbatim, then all 4 phases using the exact phase structure. Each phase's opening sentence MUST embed mastery, maintenance, and generalization criteria. Reference specific skill acquisition goal numbers from section 15 in each phase. End with Discharge Criteria using the exact standard list from your instructions.
+
+STOP after the Discharge Criteria. Do NOT write the crisis plan, recommendations, CPT codes, provider info, or consent.`,
+  },
+  {
+    number: 4,
+    label: 'Crisis Plan, Recommendations & Consent',
+    instruction: `Sections 1–21 of the treatment plan have been written above. Now write the final sections — do not repeat anything.
+
+Generate ONLY sections 22 through 25:
+
+22. Crisis Plan — Emergency contacts table with columns (Emergency/Crisis Type | Date of Implementation | Protocol | Contact Plan | Notes) + individualized crisis protocol table for clients with SIB, aggression, elopement, or safety behaviors + Post-Crisis Procedures section. If the client has no significant safety behaviors, write "At this time, the client does not require an individualized crisis plan."
+
+23. Recommendations for ABA Services — write the medical necessity boilerplate paragraph verbatim, then format CPT codes as a TABLE with exactly these four columns: CPT Code | Number of Hours Requested | Total Units | Place of Service. Calculate Total Units as hours/week × 26 weeks × 4 units/hour and show the calculation inline (e.g. "2,600 (25 hrs/wk × 26 wks × 4)"). Include rows for 97151, 97153, 97155-GT, and 97156-GT/U2. Then include the Anticipated Schedule.
+
+24. Provider Information table (Provider Name, Credentials, Signature, Date, NPI) + Attestation using this exact text: "I hereby attest that I have individually reviewed the listed items and confirm they are true and correct." + Clinical Reviewer section with signature line.
+
+25. Consent — use ONLY this exact text: "I have read the goals and behavior intervention plan as outlined in this report. I have been provided with the opportunity to ask any questions, my questions have been answered, and with this knowledge, I voluntarily consent to this treatment plan." Followed by EXACTLY these three signature lines and nothing else:
+    Client Signature: ______________________________ Date: ______________
+    Parent/Caregiver Signature: ____________________ Date: ______________
+    Date: ______________
+
+This is the end of the treatment plan. No additional text after the consent section.`,
+  },
+];
+
 app.post('/api/generate', authMiddleware, async (req, res) => {
+  const keepAlive = setInterval(() => res.write(': ping\n\n'), 20000);
+
   try {
     const { notes, clientInfo } = req.body;
-    if (!notes) return res.status(400).json({ error: 'Notes are required' });
+    if (!notes) {
+      clearInterval(keepAlive);
+      return res.status(400).json({ error: 'Notes are required' });
+    }
 
     const activePrompt = db.prepare('SELECT * FROM prompt_versions WHERE is_active = 1').get();
     const systemPrompt = activePrompt ? activePrompt.text : 'You are an ABA treatment plan generator.';
 
-    // Extract client name from notes or clientInfo
+    // Client name
     let clientName = 'Unknown';
-    if (clientInfo && clientInfo.client_full_name) {
+    if (clientInfo?.client_full_name) {
       clientName = clientInfo.client_full_name;
     } else {
       const nameMatch = notes.match(/(?:client|name)\s*:\s*([^\n,]+)/i);
       if (nameMatch) clientName = nameMatch[1].trim();
     }
 
-    // Build user message — prepend verified client info if provided
-    let userMessage;
-    if (clientInfo && Object.keys(clientInfo).length > 0) {
-      const formattedInfo = formatClientInfoForPrompt(clientInfo);
-      userMessage = `${formattedInfo}\n=== ORIGINAL BCBA NOTES ===\n${notes}\n\nIMPORTANT: Generate the COMPLETE treatment plan. Do not leave any section blank, do not use placeholders, and do not skip any section. Every section must be fully written out from beginning to end.`;
-    } else {
-      userMessage = `${notes}\n\nIMPORTANT: Generate the COMPLETE treatment plan. Do not leave any section blank, do not use placeholders, and do not skip any section. Every section must be fully written out from beginning to end.`;
-    }
+    // Base user message (verified client info + original notes)
+    const baseMessage = clientInfo && Object.keys(clientInfo).length > 0
+      ? `${formatClientInfoForPrompt(clientInfo)}\n=== ORIGINAL BCBA NOTES ===\n${notes}`
+      : notes;
 
-    // Stream the response to prevent Railway's 60s timeout from cutting off long generations
+    // Set up SSE
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('X-Accel-Buffering', 'no');
 
-    let planText = '';
-    const stream = anthropic.messages.stream({
-      model: 'claude-opus-4-6',
-      max_tokens: 16000,
-      system: systemPrompt,
-      messages: [{ role: 'user', content: userMessage }],
-    });
+    const send = (obj) => res.write(`data: ${JSON.stringify(obj)}\n\n`);
 
-    const keepAlive = setInterval(() => res.write(': ping\n\n'), 20000);
+    let fullPlanText = '';
 
-    stream.on('text', (chunk) => {
-      planText += chunk;
-      res.write(`data: ${JSON.stringify({ type: 'chunk', text: chunk })}\n\n`);
-    });
+    // Run 4 sequential generation calls
+    for (const sec of GENERATION_SECTIONS) {
+      send({ type: 'progress', section: sec.number, total: GENERATION_SECTIONS.length, label: sec.label });
 
-    stream.on('finalMessage', () => {
-      clearInterval(keepAlive);
+      // Build messages: for calls 2-4, pass accumulated text as prior assistant turn
+      const messages = fullPlanText
+        ? [
+            { role: 'user', content: baseMessage },
+            { role: 'assistant', content: fullPlanText },
+            { role: 'user', content: sec.instruction },
+          ]
+        : [{ role: 'user', content: `${baseMessage}\n\n${sec.instruction}` }];
 
-      // Try to extract client name from generated plan text
-      const planNameMatch = planText.match(/Participant Name[:\s]+([^\n\r]+)/i);
-      if (planNameMatch && clientName === 'Unknown') clientName = planNameMatch[1].trim();
+      let sectionText = '';
 
-      const planInsert = db.prepare(
-        'INSERT INTO plan_history (user_id, client_name, original_notes) VALUES (?, ?, ?)'
-      ).run(req.user.id, clientName, notes);
-      const planId = planInsert.lastInsertRowid;
+      await new Promise((resolve, reject) => {
+        const stream = anthropic.messages.stream({
+          model: 'claude-opus-4-6',
+          max_tokens: 8000,
+          system: systemPrompt,
+          messages,
+        });
 
-      db.prepare(
-        'INSERT INTO plan_revisions (plan_id, revision_number, text, feedback) VALUES (?, ?, ?, ?)'
-      ).run(planId, 0, planText, 'Initial generation');
+        stream.on('text', (chunk) => {
+          sectionText += chunk;
+          send({ type: 'chunk', text: chunk });
+        });
 
-      // Save client info if provided
-      if (clientInfo && Object.keys(clientInfo).length > 0) {
-        db.prepare('INSERT OR REPLACE INTO client_info (plan_id, data, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)')
-          .run(planId, JSON.stringify(clientInfo));
-      }
+        stream.on('finalMessage', () => {
+          fullPlanText += (fullPlanText ? '\n\n' : '') + sectionText;
+          resolve();
+        });
 
-      res.write(`data: ${JSON.stringify({ type: 'done', plan_id: planId, client_name: clientName })}\n\n`);
-      res.end();
-    });
+        stream.on('error', reject);
+      });
+    }
 
-    stream.on('error', (err) => {
-      clearInterval(keepAlive);
-      console.error('Generate stream error:', err);
-      res.write(`data: ${JSON.stringify({ type: 'error', error: err.message })}\n\n`);
-      res.end();
-    });
+    clearInterval(keepAlive);
+
+    // Try to refine client name from generated text
+    const planNameMatch = fullPlanText.match(/Participant Name[:\s]+([^\n\r]+)/i);
+    if (planNameMatch && clientName === 'Unknown') clientName = planNameMatch[1].trim();
+
+    // Save to DB
+    const planInsert = db.prepare(
+      'INSERT INTO plan_history (user_id, client_name, original_notes) VALUES (?, ?, ?)'
+    ).run(req.user.id, clientName, notes);
+    const planId = planInsert.lastInsertRowid;
+
+    db.prepare(
+      'INSERT INTO plan_revisions (plan_id, revision_number, text, feedback) VALUES (?, ?, ?, ?)'
+    ).run(planId, 0, fullPlanText, 'Initial generation');
+
+    if (clientInfo && Object.keys(clientInfo).length > 0) {
+      db.prepare('INSERT OR REPLACE INTO client_info (plan_id, data, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)')
+        .run(planId, JSON.stringify(clientInfo));
+    }
+
+    send({ type: 'done', plan_id: planId, client_name: clientName });
+    res.end();
 
   } catch (err) {
+    clearInterval(keepAlive);
     console.error('Generate error:', err);
-    res.status(500).json({ error: err.message });
+    try {
+      res.write(`data: ${JSON.stringify({ type: 'error', error: err.message })}\n\n`);
+      res.end();
+    } catch {}
   }
 });
 

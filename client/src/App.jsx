@@ -136,19 +136,26 @@ function Layout({ user, onLogout, currentPlan, setCurrentPlan, injectedText, set
   // Start generation at Layout level so it survives page navigation
   const startGeneration = async (notes, clientInfo) => {
     setCurrentPlan(null);
-    setGeneratingPlan({ text: '', status: 'running', error: null });
+    setGeneratingPlan({ text: '', status: 'running', section: 1, total: 4, label: 'Client Info, Narrative & Assessments', error: null });
     navigate('/review');
 
     let accumulated = '';
     try {
-      const data = await generatePlan(notes, clientInfo, (chunk) => {
-        accumulated += chunk;
-        setGeneratingPlan({ text: accumulated, status: 'running', error: null });
-      });
+      const data = await generatePlan(
+        notes,
+        clientInfo,
+        (chunk) => {
+          accumulated += chunk;
+          setGeneratingPlan(prev => ({ ...prev, text: accumulated }));
+        },
+        ({ section, total, label }) => {
+          setGeneratingPlan(prev => ({ ...prev, section, total, label }));
+        }
+      );
       setCurrentPlan({ plan_id: data.plan_id, text: accumulated, client_name: data.client_name });
       setGeneratingPlan(null);
     } catch (err) {
-      setGeneratingPlan({ text: accumulated, status: 'error', error: err.message });
+      setGeneratingPlan(prev => ({ ...prev, status: 'error', error: err.message }));
     }
   };
 
@@ -199,16 +206,29 @@ function Layout({ user, onLogout, currentPlan, setCurrentPlan, injectedText, set
             cursor: 'pointer',
           }} onClick={() => navigate('/review')}>
             {generatingPlan.status === 'running' ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{
-                  display: 'inline-block', width: '10px', height: '10px',
-                  border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#60a5fa',
-                  borderRadius: '50%', animation: 'spin 0.8s linear infinite', flexShrink: 0,
-                }} />
-                <span style={{ fontSize: '12px', color: '#93c5fd', fontWeight: '500', lineHeight: 1.3 }}>
-                  Generating plan…<br />
-                  <span style={{ fontWeight: '400', color: '#60a5fa' }}>Click to watch progress</span>
-                </span>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                  <span style={{
+                    display: 'inline-block', width: '10px', height: '10px',
+                    border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#60a5fa',
+                    borderRadius: '50%', animation: 'spin 0.8s linear infinite', flexShrink: 0,
+                  }} />
+                  <span style={{ fontSize: '12px', color: '#93c5fd', fontWeight: '600' }}>
+                    Section {generatingPlan.section} of {generatingPlan.total}
+                  </span>
+                </div>
+                {/* Progress bar */}
+                <div style={{ height: '3px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', marginBottom: '6px' }}>
+                  <div style={{
+                    height: '100%',
+                    width: `${((generatingPlan.section - 1) / generatingPlan.total) * 100}%`,
+                    background: '#60a5fa', borderRadius: '2px', transition: 'width 0.4s ease',
+                  }} />
+                </div>
+                <div style={{ fontSize: '11px', color: '#60a5fa', lineHeight: 1.3 }}>
+                  {generatingPlan.label}<br />
+                  <span style={{ color: '#93c5fd', opacity: 0.7 }}>Click to watch progress</span>
+                </div>
               </div>
             ) : (
               <div style={{ fontSize: '12px', color: '#fca5a5' }}>

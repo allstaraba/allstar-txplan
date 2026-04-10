@@ -59,7 +59,7 @@ export async function getMe() {
   return data;
 }
 
-export async function generatePlan(notes, clientInfo, onChunk) {
+export async function generatePlan(notes, clientInfo, onChunk, onProgress) {
   const res = await fetch(`${BASE_URL}/api/generate`, {
     method: 'POST',
     headers: authHeaders(),
@@ -87,6 +87,7 @@ export async function generatePlan(notes, clientInfo, onChunk) {
       let evt;
       try { evt = JSON.parse(jsonStr); } catch { continue; }
       if (evt.type === 'chunk' && onChunk) onChunk(evt.text);
+      if (evt.type === 'progress' && onProgress) onProgress({ section: evt.section, total: evt.total, label: evt.label });
       if (evt.type === 'done') result = { plan_id: evt.plan_id, client_name: evt.client_name };
       if (evt.type === 'error') throw new Error(evt.error || 'Generation failed');
     }
