@@ -1,16 +1,13 @@
 import React, { useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { uploadFile, generatePlan } from '../api.js';
+import { uploadFile } from '../api.js';
 
-export default function GeneratePlan({ setCurrentPlan }) {
+export default function GeneratePlan({ onStartGeneration, isGenerating }) {
   const [notes, setNotes] = useState('');
   const [fileName, setFileName] = useState('');
-  const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef(null);
-  const navigate = useNavigate();
 
   const acceptedExts = ['.pdf', '.docx', '.txt', '.md', '.rtf', '.zip'];
 
@@ -47,25 +44,13 @@ export default function GeneratePlan({ setCurrentPlan }) {
 
   const handleDragLeave = () => setDragOver(false);
 
-  const handleGenerate = async () => {
+  const handleGenerate = () => {
     if (!notes.trim()) {
       setError('Please enter or upload notes before generating.');
       return;
     }
-    setLoading(true);
     setError('');
-    let accumulated = '';
-    try {
-      const data = await generatePlan(notes, (chunk) => {
-        accumulated += chunk;
-      });
-      setCurrentPlan({ plan_id: data.plan_id, text: accumulated, client_name: data.client_name });
-      navigate('/review');
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+    onStartGeneration(notes);
   };
 
   return (
@@ -165,42 +150,36 @@ export default function GeneratePlan({ setCurrentPlan }) {
 
       <button
         onClick={handleGenerate}
-        disabled={loading || uploading}
+        disabled={isGenerating || uploading}
         style={{
           marginTop: '20px',
           padding: '13px 32px',
-          background: loading || uploading ? '#93c5fd' : '#2563eb',
+          background: isGenerating || uploading ? '#93c5fd' : '#2563eb',
           border: 'none',
           borderRadius: '8px',
           color: '#fff',
           fontSize: '15px',
           fontWeight: '600',
-          cursor: loading || uploading ? 'not-allowed' : 'pointer',
+          cursor: isGenerating || uploading ? 'not-allowed' : 'pointer',
           display: 'flex',
           alignItems: 'center',
           gap: '10px',
           transition: 'background 0.15s',
         }}
       >
-        {loading ? (
+        {isGenerating ? (
           <>
             <span style={{
-              display: 'inline-block',
-              width: '16px',
-              height: '16px',
-              border: '2px solid rgba(255,255,255,0.4)',
-              borderTopColor: '#fff',
-              borderRadius: '50%',
-              animation: 'spin 0.7s linear infinite',
+              display: 'inline-block', width: '16px', height: '16px',
+              border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff',
+              borderRadius: '50%', animation: 'spin 0.7s linear infinite',
             }} />
-            Generating treatment plan... This may take 1-2 minutes.
+            Generating… you can navigate away safely
           </>
         ) : 'Generate Treatment Plan'}
       </button>
 
-      <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-      `}</style>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }

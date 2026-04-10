@@ -288,7 +288,7 @@ const EXAMPLE_PROMPTS = [
   "Phase 1 fading should include toileting",
 ];
 
-export default function ReviewRevise({ currentPlan, setCurrentPlan, injectedText, setInjectedText }) {
+export default function ReviewRevise({ currentPlan, setCurrentPlan, injectedText, setInjectedText, generatingPlan }) {
   const [revisions, setRevisions] = useState([]);
   const [selectedRevIdx, setSelectedRevIdx] = useState(0);
   // Chat messages: [{role: 'user'|'assistant', content: '...'}]
@@ -339,6 +339,29 @@ export default function ReviewRevise({ currentPlan, setCurrentPlan, injectedText
   useEffect(() => {
     if (!sending && !regenerating) inputRef.current?.focus();
   }, [sending, regenerating]);
+
+  // While a new plan is being generated, show a live streaming view
+  if (!currentPlan && generatingPlan) {
+    const liveText = (generatingPlan.text || '')
+      .replace(/\[(SECTION|TABLE|\/TABLE|GOAL|\/GOAL|BIP|\/BIP|FADING_PHASE|\/FADING_PHASE|CRISIS_ROW|\/CRISIS_ROW):[^\]]*\]/g, '')
+      .replace(/^\n{3,}/gm, '\n\n').trim();
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+        <div style={{ background: '#fff', borderBottom: '1px solid #e2e8f0', padding: '11px 24px', display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+          <span style={{ display: 'inline-block', width: '14px', height: '14px', border: '2px solid #bfdbfe', borderTopColor: '#2563eb', borderRadius: '50%', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
+          <span style={{ fontWeight: '600', fontSize: '15px', color: '#0f172a' }}>Generating treatment plan…</span>
+          <span style={{ fontSize: '13px', color: '#64748b' }}>You can navigate away and come back — it will keep running.</span>
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
+          {liveText
+            ? renderPlanText(liveText)
+            : <span style={{ color: '#94a3b8', fontSize: '14px' }}>Waiting for Claude…</span>}
+        </div>
+      </div>
+    );
+  }
 
   if (!currentPlan) {
     return (
