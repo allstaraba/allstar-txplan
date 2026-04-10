@@ -18,8 +18,10 @@ const db = require('./db');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'allstar-aba-secret-2026';
+const CLAUDE_MODEL = process.env.CLAUDE_MODEL || 'claude-opus-4-6';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+console.log(`[startup] Using model: ${CLAUDE_MODEL}`);
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true }));
@@ -455,7 +457,7 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
       let sectionText = '';
       return new Promise((resolve, reject) => {
         const stream = anthropic.messages.stream({
-          model: 'claude-opus-4-6',
+          model: CLAUDE_MODEL,
           max_tokens: 32768,
           system: systemPrompt,
           messages,
@@ -626,7 +628,7 @@ app.post('/api/revise', authMiddleware, async (req, res) => {
     console.log(`[revise] plan_id=${plan_id} input: ${msgChars.toLocaleString()} chars (~${Math.round(msgChars/4).toLocaleString()} tokens)`);
 
     const stream = anthropic.messages.stream({
-      model: 'claude-opus-4-6',
+      model: CLAUDE_MODEL,
       max_tokens: 32768,
       system: systemPrompt,
       messages,
@@ -1177,7 +1179,7 @@ app.post('/api/chat/:plan_id', authMiddleware, async (req, res) => {
     const conversationSystemPrompt = `${systemPrompt}\n\n---\nYou are in CONVERSATION MODE helping a BCBA refine a treatment plan. Respond conversationally and concisely. When the user asks for changes, describe what you would change and confirm. Do NOT output the entire treatment plan. Address only the specific request. The user can click "Regenerate Full Plan" when ready to apply all changes at once.`;
 
     const stream = anthropic.messages.stream({
-      model: 'claude-opus-4-6',
+      model: CLAUDE_MODEL,
       max_tokens: 2000,
       system: conversationSystemPrompt,
       messages,
@@ -1248,7 +1250,7 @@ app.post('/api/chat/:plan_id/regenerate', authMiddleware, async (req, res) => {
     console.log(`[regenerate] plan_id=${req.params.plan_id} input: ${userContent.length.toLocaleString()} chars (~${Math.round(userContent.length/4).toLocaleString()} tokens)`);
 
     const stream = anthropic.messages.stream({
-      model: 'claude-opus-4-6',
+      model: CLAUDE_MODEL,
       max_tokens: 32768,
       system: systemPrompt,
       messages: [{ role: 'user', content: userContent }],
