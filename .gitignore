@@ -1,0 +1,9 @@
+node_modules/
+client/node_modules/
+client/dist/
+.env
+*.db
+*.db-shm
+*.db-wal
+uploads/
+reference-plan.docx
