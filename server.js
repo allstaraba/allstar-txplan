@@ -187,7 +187,10 @@ app.post('/api/revise', authMiddleware, async (req, res) => {
       messages.push({ role: 'user', content: allRevisions[i].feedback });
       messages.push({ role: 'assistant', content: allRevisions[i].text });
     }
-    messages.push({ role: 'user', content: feedback });
+    messages.push({
+      role: 'user',
+      content: `${feedback}\n\nIMPORTANT: Return the complete, full treatment plan with this change incorporated. Do not summarize or return only the changed section — output the entire plan from beginning to end, exactly as it should appear, with all original sections preserved and only the requested change made.`,
+    });
 
     // Stream the response to prevent Railway's request timeout from cutting off long generations
     res.setHeader('Content-Type', 'text/event-stream');
