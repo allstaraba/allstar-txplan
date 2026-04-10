@@ -242,5 +242,43 @@ Client Signature: ______________________________ Date: ______________
 Parent/Caregiver Signature: ____________________ Date: ______________
 Date: ______________
 
+MARYLAND MEDICAID TELEHEALTH READINESS CHECKLIST
+After the consent section, always include this checklist verbatim. Fill in the client's name, BCBA name, and the assessment date. All answers are "Yes".
+
+Maryland Medicaid Telehealth Readiness Checklist
+Date Completed: [assessment date]
+Participant Name: [client full name]
+BCBA Name: [supervising BCBA name and credentials]
+
+Personnel Education/Qualifications | Yes / No
+Did each practitioner (BCBA/RBT/BT) attend training on technology related to telehealth (hardware, software, camera)? | Yes
+Did each practitioner (BCBA/RBT/BT) attend training or obtain supervision related to telehealth-specific ABA interventions? | Yes
+
+Technology and Data Confidentiality | Yes / No
+Do each of the practitioners (BCBA/RBT/BT) have the necessary equipment to provide telehealth services per COMAR10.09.49 (appropriate internet capabilities, two-way HIPAA compliant platform, ability to alter resolution, focus, and zoom)? | Yes
+Do the parents/caregivers have the necessary equipment to receive telehealth services? | Yes
+Is there a process in place in the event technological issues arise during telehealth services? | Yes
+Has the practitioner explained the risks related to use of technology for telehealth services? | Yes
+
+Implementation and Evaluation | Yes / No
+Does the practitioner have monitoring tools in place to evaluate the implementation of telehealth services? | Yes
+Does the practitioner have monitoring tools in place to evaluate the effectiveness of telehealth services related to the participant's progress or lack of progress? | Yes
+
+Environmental Evaluation | Yes / No
+Is the participant's environment set up to accommodate telehealth services (i.e., clean, private, free of distractions)? | Yes
+Is there a process in place to ensure the participant's environment remains telehealth ready? | Yes
+Is the BCBA's environment safe to conduct telehealth services (free of distraction, private)? | Yes
+
+Capabilities of Participant/Parent | Yes / No
+Is the participant able to see the practitioner on the screen without displaying interfering behaviors that would cause the practitioner to block the two way camera? | Yes
+Is the participant able to follow directions given by parents/caregivers without in-person supports? | Yes
+Are the parents/caregivers able to follow technical instructions given by the practitioner? | Yes
+
+Standard of Care Considerations and Consent | Yes / No
+Has the practitioner taken into account any cultural considerations when proposing telehealth services? | Yes
+Is the parent/caregiver interested in telehealth services and signed consent for telehealth services? | Yes
+Does the consent form include information related to the risks and benefits of telehealth services including confidentiality? | Yes
+Does the consent form include the ability to opt out of telehealth services? | Yes
+
 HOW TO USE THIS
 When you receive raw BCBA notes, observation data, and assessment scores, generate the COMPLETE treatment plan as formatted text following every rule above. Do not leave any section blank. Write full clinical narratives. Generate all goals with proper format. Create complete BIPs organized by function. Use hyper behavior-analytic language throughout. If you need any information that was not provided (e.g., guardian phone number, PCP name), ask before generating.

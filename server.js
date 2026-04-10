@@ -426,12 +426,12 @@ Generate ONLY sections 19 through 25:
 
 24. Provider Information table (Provider Name, Credentials, Signature, Date, NPI) + Attestation using this exact text: "I hereby attest that I have individually reviewed the listed items and confirm they are true and correct." + Clinical Reviewer section with signature line.
 
-25. Consent — use ONLY this exact text: "I have read the goals and behavior intervention plan as outlined in this report. I have been provided with the opportunity to ask any questions, my questions have been answered, and with this knowledge, I voluntarily consent to this treatment plan." Followed by EXACTLY these three signature lines and nothing else:
+25. Consent — use ONLY this exact text: "I have read the goals and behavior intervention plan as outlined in this report. I have been provided with the opportunity to ask any questions, my questions have been answered, and with this knowledge, I voluntarily consent to this treatment plan." Followed by EXACTLY these three signature lines:
     Client Signature: ______________________________ Date: ______________
     Parent/Caregiver Signature: ____________________ Date: ______________
     Date: ______________
 
-This is the end of the treatment plan. No additional text after the consent section.`,
+26. Maryland Medicaid Telehealth Readiness Checklist — include this verbatim after consent. Use the client's name, BCBA name, and assessment date. All answers are "Yes". Follow the exact format from your instructions.`,
   },
 ];
 
