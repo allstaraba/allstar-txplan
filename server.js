@@ -553,25 +553,28 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
         .run(planId, JSON.stringify(clientInfo));
     }
 
-    // Auto-generate clarifying questions and post them as the first chat message
-    try {
-      const clarifyMsg = await anthropic.messages.create({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 1000,
-        messages: [{
-          role: 'user',
-          content: `You are an ABA treatment plan assistant. A complete treatment plan was just generated from the BCBA notes below. Any missing information was filled with bracketed placeholders like [PHONE NUMBER] or [TO BE DETERMINED].\n\nReview the notes and identify what specific information is missing or unclear that would improve the plan. Ask targeted clarifying questions in a friendly, clinical tone — 3 to 7 questions max. Be specific (e.g., "What is the 97153 hours per week you want to request?" not "Are there any missing hours?"). Do not ask about things that are clearly present in the notes.\n\nBCBA Notes:\n${notes.slice(0, 8000)}`
-        }]
-      });
-      const clarifyText = clarifyMsg.content[0].text;
-      db.prepare('INSERT INTO chat_messages (plan_id, role, content) VALUES (?, ?, ?)').run(planId, 'assistant', clarifyText);
-      console.log(`[generate] Posted clarifying questions to chat for plan_id=${planId}`);
-    } catch (e) {
-      console.log('[generate] Could not generate clarifying questions:', e.message);
-    }
-
+    // Close the SSE connection immediately so the client isn't left waiting
     send({ type: 'done', plan_id: planId, client_name: clientName });
     res.end();
+
+    // Generate clarifying questions in the background AFTER the response is closed
+    setImmediate(async () => {
+      try {
+        const clarifyMsg = await anthropic.messages.create({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 1000,
+          messages: [{
+            role: 'user',
+            content: `You are an ABA treatment plan assistant. A complete treatment plan was just generated from the BCBA notes below. Any missing information was filled with bracketed placeholders like [PHONE NUMBER] or [TO BE DETERMINED].\n\nReview the notes and identify what specific information is missing or unclear that would improve the plan. Ask targeted clarifying questions in a friendly, clinical tone — 3 to 7 questions max. Be specific (e.g., "What is the 97153 hours per week you want to request?" not "Are there any missing hours?"). Do not ask about things that are clearly present in the notes.\n\nBCBA Notes:\n${notes.slice(0, 8000)}`
+          }]
+        });
+        const clarifyText = clarifyMsg.content[0].text;
+        db.prepare('INSERT INTO chat_messages (plan_id, role, content) VALUES (?, ?, ?)').run(planId, 'assistant', clarifyText);
+        console.log(`[generate] Posted clarifying questions to chat for plan_id=${planId}`);
+      } catch (e) {
+        console.log('[generate] Could not generate clarifying questions:', e.message);
+      }
+    });
 
   } catch (err) {
     clearInterval(keepAlive);
