@@ -500,19 +500,18 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
       fullPlanText += (fullPlanText ? '\n\n' : '') + text;
     }
 
-    // Sections 3, 4, 5: BIPs run in parallel — they share the same context and are independent
+    // Sections 3, 4, 5: BIPs run sequentially with shared context
     const bipSections = GENERATION_SECTIONS.filter(s => s.number >= 3 && s.number <= 5);
-    send({ type: 'progress', section: 3, total: 7, label: 'Behavior Intervention Plans (parallel)' });
-    console.log('[generate] Starting BIP sections 3, 4, 5 in parallel');
     const bipContextParts = [];
     if (behaviorSummary) bipContextParts.push(`=== CHALLENGING BEHAVIORS & BASELINE DATA (from clinical observation) ===\n${behaviorSummary}`);
     if (goalList) bipContextParts.push(`=== SKILL ACQUISITION GOALS — use these goal numbers for all FERB references ===\n${goalList}`);
     const bipContext = bipContextParts.join('\n\n');
 
-    const bipTexts = await Promise.all(bipSections.map(sec => runSection(sec, bipContext)));
-    bipTexts.forEach(text => {
+    for (const sec of bipSections) {
+      send({ type: 'progress', section: sec.number, total: sec.total, label: sec.label });
+      const text = await runSection(sec, bipContext);
       fullPlanText += '\n\n' + text;
-    });
+    }
     console.log(`[generate] BIPs complete. Total so far: ${fullPlanText.length} chars`);
 
     // Sections 6 & 7: sequential after BIPs
