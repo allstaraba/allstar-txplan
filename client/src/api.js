@@ -66,8 +66,9 @@ export async function generatePlan(notes, onChunk) {
     body: JSON.stringify({ notes }),
   });
   if (!res.ok) {
-    const data = await res.json();
-    throw new Error(data.error || 'Failed to generate plan');
+    let errMsg = 'Failed to generate plan';
+    try { const d = await res.json(); errMsg = d.error || errMsg; } catch {}
+    throw new Error(errMsg);
   }
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -81,14 +82,13 @@ export async function generatePlan(notes, onChunk) {
     buffer = lines.pop();
     for (const line of lines) {
       if (!line.startsWith('data: ')) continue;
-      try {
-        const evt = JSON.parse(line.slice(6));
-        if (evt.type === 'chunk' && onChunk) onChunk(evt.text);
-        if (evt.type === 'done') result = { plan_id: evt.plan_id, client_name: evt.client_name };
-        if (evt.type === 'error') throw new Error(evt.error);
-      } catch (e) {
-        if (e.message && !e.message.startsWith('Failed to')) throw e;
-      }
+      const jsonStr = line.slice(6).trim();
+      if (!jsonStr) continue;
+      let evt;
+      try { evt = JSON.parse(jsonStr); } catch { continue; }
+      if (evt.type === 'chunk' && onChunk) onChunk(evt.text);
+      if (evt.type === 'done') result = { plan_id: evt.plan_id, client_name: evt.client_name };
+      if (evt.type === 'error') throw new Error(evt.error || 'Generation failed');
     }
   }
   if (!result) throw new Error('Failed to generate plan');
@@ -102,31 +102,29 @@ export async function revisePlan(plan_id, feedback, onChunk) {
     body: JSON.stringify({ plan_id, feedback }),
   });
   if (!res.ok) {
-    const data = await res.json();
-    throw new Error(data.error || 'Failed to revise plan');
+    let errMsg = 'Failed to revise plan';
+    try { const d = await res.json(); errMsg = d.error || errMsg; } catch {}
+    throw new Error(errMsg);
   }
-  // Handle SSE streaming response
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
   let revision_number = null;
-
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
     const lines = buffer.split('\n');
-    buffer = lines.pop(); // keep incomplete line
+    buffer = lines.pop();
     for (const line of lines) {
       if (!line.startsWith('data: ')) continue;
-      try {
-        const evt = JSON.parse(line.slice(6));
-        if (evt.type === 'chunk' && onChunk) onChunk(evt.text);
-        if (evt.type === 'done') revision_number = evt.revision_number;
-        if (evt.type === 'error') throw new Error(evt.error);
-      } catch (e) {
-        if (e.message !== 'Failed to revise plan') throw e;
-      }
+      const jsonStr = line.slice(6).trim();
+      if (!jsonStr) continue;
+      let evt;
+      try { evt = JSON.parse(jsonStr); } catch { continue; }
+      if (evt.type === 'chunk' && onChunk) onChunk(evt.text);
+      if (evt.type === 'done') revision_number = evt.revision_number;
+      if (evt.type === 'error') throw new Error(evt.error || 'Revision failed');
     }
   }
   return { revision_number };
@@ -335,13 +333,12 @@ export async function sendChatMessage(plan_id, message, onChunk) {
     buffer = lines.pop();
     for (const line of lines) {
       if (!line.startsWith('data: ')) continue;
-      try {
-        const evt = JSON.parse(line.slice(6));
-        if (evt.type === 'chunk' && onChunk) onChunk(evt.text);
-        if (evt.type === 'error') throw new Error(evt.error);
-      } catch (e) {
-        if (e.message && !e.message.startsWith('Failed to')) throw e;
-      }
+      const jsonStr = line.slice(6).trim();
+      if (!jsonStr) continue;
+      let evt;
+      try { evt = JSON.parse(jsonStr); } catch { continue; }
+      if (evt.type === 'chunk' && onChunk) onChunk(evt.text);
+      if (evt.type === 'error') throw new Error(evt.error || 'Chat failed');
     }
   }
 }
@@ -353,8 +350,9 @@ export async function regeneratePlan(plan_id, onChunk) {
     headers: authHeaders(),
   });
   if (!res.ok) {
-    const data = await res.json();
-    throw new Error(data.error || 'Failed to regenerate plan');
+    let errMsg = 'Failed to regenerate plan';
+    try { const d = await res.json(); errMsg = d.error || errMsg; } catch {}
+    throw new Error(errMsg);
   }
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -368,14 +366,13 @@ export async function regeneratePlan(plan_id, onChunk) {
     buffer = lines.pop();
     for (const line of lines) {
       if (!line.startsWith('data: ')) continue;
-      try {
-        const evt = JSON.parse(line.slice(6));
-        if (evt.type === 'chunk' && onChunk) onChunk(evt.text);
-        if (evt.type === 'done') revision_number = evt.revision_number;
-        if (evt.type === 'error') throw new Error(evt.error);
-      } catch (e) {
-        if (e.message && !e.message.startsWith('Failed to')) throw e;
-      }
+      const jsonStr = line.slice(6).trim();
+      if (!jsonStr) continue;
+      let evt;
+      try { evt = JSON.parse(jsonStr); } catch { continue; }
+      if (evt.type === 'chunk' && onChunk) onChunk(evt.text);
+      if (evt.type === 'done') revision_number = evt.revision_number;
+      if (evt.type === 'error') throw new Error(evt.error || 'Regeneration failed');
     }
   }
   return { revision_number };
