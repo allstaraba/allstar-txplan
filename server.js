@@ -669,24 +669,6 @@ app.post('/api/clients/:id/documents/:doc_id/extract', authMiddleware, async (re
   }
 });
 
-// ---- TEMP: Import plans ----
-app.post('/api/admin/import-plans', authMiddleware, (req, res) => {
-  if (req.user.role !== 'Admin') return res.status(403).json({ error: 'Admin only' });
-  const { plans } = req.body;
-  let imported = 0;
-  for (const entry of plans) {
-    const p = entry.plan;
-    const r = db.prepare('INSERT INTO plan_history (user_id, client_name, original_notes, created_at, status, notes) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(1, p.client_name||'', p.original_notes||'', p.created_at, p.status||'Draft', p.notes||'');
-    for (const rev of entry.revisions) {
-      db.prepare('INSERT INTO plan_revisions (plan_id, revision_number, text, feedback, created_at) VALUES (?, ?, ?, ?, ?)')
-        .run(r.lastInsertRowid, rev.revision_number, rev.text, rev.feedback||'', rev.created_at);
-    }
-    imported++;
-  }
-  res.json({ ok: true, imported });
-});
-
 // ---- SERVE REACT APP ----
 
 app.get('*', (req, res) => {
