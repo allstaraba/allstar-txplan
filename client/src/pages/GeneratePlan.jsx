@@ -3,8 +3,10 @@ import { uploadFile, extractClientInfo } from '../api.js';
 
 export default function GeneratePlan({ onExtractionComplete, isGenerating }) {
   const [notes, setNotes] = useState('');
-  const [fileName, setFileName] = useState('');
+  // uploadedFiles: [{ name, text }]
+  const [uploadedFiles, setUploadedFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
+  const [uploadingName, setUploadingName] = useState('');
   const [extracting, setExtracting] = useState(false);
   const [error, setError] = useState('');
   const [dragOver, setDragOver] = useState(false);
@@ -12,54 +14,65 @@ export default function GeneratePlan({ onExtractionComplete, isGenerating }) {
 
   const acceptedExts = ['.pdf', '.docx', '.txt', '.md', '.rtf', '.zip'];
 
-  const handleFile = async (file) => {
-    const ext = '.' + file.name.split('.').pop().toLowerCase();
-    if (!acceptedExts.includes(ext)) {
-      setError(`Unsupported file type. Accepted: ${acceptedExts.join(', ')}`);
-      return;
+  const handleFiles = async (files) => {
+    for (const file of Array.from(files)) {
+      const ext = '.' + file.name.split('.').pop().toLowerCase();
+      if (!acceptedExts.includes(ext)) {
+        setError(`Unsupported file type: ${file.name}. Accepted: ${acceptedExts.join(', ')}`);
+        continue;
+      }
+      setUploading(true);
+      setUploadingName(file.name);
+      setError('');
+      try {
+        const data = await uploadFile(file);
+        setUploadedFiles(prev => [...prev, { name: file.name, text: data.text }]);
+      } catch (err) {
+        setError(`Failed to upload ${file.name}: ${err.message}`);
+      } finally {
+        setUploading(false);
+        setUploadingName('');
+      }
     }
-    setUploading(true);
-    setError('');
-    setFileName(file.name);
-    try {
-      const data = await uploadFile(file);
-      setNotes(data.text);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setUploading(false);
-    }
+    // Reset input so selecting the same file again triggers onChange
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const removeFile = (index) => {
+    setUploadedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleDrop = (e) => {
     e.preventDefault();
     setDragOver(false);
-    const file = e.dataTransfer.files[0];
-    if (file) handleFile(file);
+    if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
   };
 
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    setDragOver(true);
-  };
-
+  const handleDragOver = (e) => { e.preventDefault(); setDragOver(true); };
   const handleDragLeave = () => setDragOver(false);
 
   const handleGenerate = async () => {
-    if (!notes.trim()) {
-      setError('Please enter or upload notes before generating.');
+    // Combine uploaded file texts with separators, then append manual notes
+    const parts = uploadedFiles.map(f => `--- ${f.name} ---\n${f.text}`);
+    if (notes.trim()) parts.push(`--- Additional Notes ---\n${notes.trim()}`);
+    const combined = parts.join('\n\n');
+
+    if (!combined.trim()) {
+      setError('Please upload a file or paste notes before generating.');
       return;
     }
     setError('');
     setExtracting(true);
     try {
-      const data = await extractClientInfo(notes);
-      onExtractionComplete(notes, data.found);
+      const data = await extractClientInfo(combined);
+      onExtractionComplete(combined, data.found);
     } catch (err) {
       setError(err.message || 'Failed to analyze notes. Please try again.');
       setExtracting(false);
     }
   };
+
+  const disabled = isGenerating || uploading || extracting;
 
   return (
     <div style={{ padding: '32px', maxWidth: '900px', margin: '0 auto' }}>
@@ -67,7 +80,7 @@ export default function GeneratePlan({ onExtractionComplete, isGenerating }) {
         Generate Treatment Plan
       </h1>
       <p style={{ color: '#64748b', fontSize: '14px', marginBottom: '32px' }}>
-        Upload a file or paste BCBA intake notes to generate a complete ABA treatment plan.
+        Upload one or more files and/or paste BCBA intake notes to generate a complete ABA treatment plan.
       </p>
 
       {/* Drop Zone */}
@@ -79,53 +92,90 @@ export default function GeneratePlan({ onExtractionComplete, isGenerating }) {
         style={{
           border: `2px dashed ${dragOver ? '#2563eb' : '#cbd5e1'}`,
           borderRadius: '12px',
-          padding: '40px 24px',
+          padding: '32px 24px',
           textAlign: 'center',
           background: dragOver ? '#eff6ff' : '#f8fafc',
           cursor: 'pointer',
           transition: 'all 0.15s',
-          marginBottom: '20px',
+          marginBottom: uploadedFiles.length ? '12px' : '20px',
         }}
       >
         <input
           ref={fileInputRef}
           type="file"
+          multiple
           accept={acceptedExts.join(',')}
           style={{ display: 'none' }}
-          onChange={e => { if (e.target.files[0]) handleFile(e.target.files[0]); }}
+          onChange={e => { if (e.target.files.length) handleFiles(e.target.files); }}
         />
         {uploading ? (
           <div style={{ color: '#2563eb' }}>
-            <div style={{ fontSize: '28px', marginBottom: '8px' }}>⏳</div>
-            <div style={{ fontSize: '14px' }}>Extracting text...</div>
-          </div>
-        ) : fileName ? (
-          <div>
-            <div style={{ fontSize: '28px', marginBottom: '8px' }}>📄</div>
-            <div style={{ fontSize: '14px', fontWeight: '600', color: '#0f172a' }}>{fileName}</div>
-            <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>Click to replace</div>
+            <div style={{ fontSize: '24px', marginBottom: '8px' }}>⏳</div>
+            <div style={{ fontSize: '14px' }}>Uploading {uploadingName}…</div>
           </div>
         ) : (
           <div>
-            <div style={{ fontSize: '36px', marginBottom: '12px' }}>☁</div>
+            <div style={{ fontSize: '32px', marginBottom: '10px' }}>☁</div>
             <div style={{ fontSize: '15px', fontWeight: '600', color: '#374151', marginBottom: '4px' }}>
-              Drop a file here or click to browse
+              Drop files here or click to add more
             </div>
             <div style={{ fontSize: '13px', color: '#94a3b8' }}>
-              Supports: {acceptedExts.join(', ')}
+              Supports: {acceptedExts.join(', ')} · Multiple files allowed
             </div>
           </div>
         )}
       </div>
 
+      {/* Uploaded file list */}
+      {uploadedFiles.length > 0 && (
+        <div style={{ marginBottom: '20px' }}>
+          {uploadedFiles.map((f, i) => (
+            <div key={i} style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              padding: '8px 12px',
+              background: '#f0fdf4',
+              border: '1px solid #bbf7d0',
+              borderRadius: '8px',
+              marginBottom: '6px',
+            }}>
+              <span style={{ fontSize: '16px' }}>📄</span>
+              <span style={{ flex: 1, fontSize: '13px', fontWeight: '500', color: '#0f172a' }}>{f.name}</span>
+              <span style={{ fontSize: '12px', color: '#64748b' }}>
+                {Math.round(f.text.length / 1000)}k chars
+              </span>
+              <button
+                onClick={(e) => { e.stopPropagation(); removeFile(i); }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: '#94a3b8',
+                  fontSize: '16px',
+                  lineHeight: 1,
+                  padding: '2px 4px',
+                  borderRadius: '4px',
+                }}
+                title="Remove file"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Notes Textarea */}
       <textarea
         value={notes}
         onChange={e => setNotes(e.target.value)}
-        placeholder="Paste BCBA intake notes here, or drop a file above..."
+        placeholder={uploadedFiles.length
+          ? 'Paste any additional notes here (optional — will be combined with uploaded files)…'
+          : 'Paste BCBA intake notes here, or drop a file above…'}
         style={{
           width: '100%',
-          minHeight: '280px',
+          minHeight: '220px',
           padding: '16px',
           border: '1.5px solid #e2e8f0',
           borderRadius: '10px',
@@ -158,17 +208,17 @@ export default function GeneratePlan({ onExtractionComplete, isGenerating }) {
 
       <button
         onClick={handleGenerate}
-        disabled={isGenerating || uploading || extracting}
+        disabled={disabled}
         style={{
           marginTop: '20px',
           padding: '13px 32px',
-          background: isGenerating || uploading || extracting ? '#93c5fd' : '#2563eb',
+          background: disabled ? '#93c5fd' : '#2563eb',
           border: 'none',
           borderRadius: '8px',
           color: '#fff',
           fontSize: '15px',
           fontWeight: '600',
-          cursor: isGenerating || uploading || extracting ? 'not-allowed' : 'pointer',
+          cursor: disabled ? 'not-allowed' : 'pointer',
           display: 'flex',
           alignItems: 'center',
           gap: '10px',
