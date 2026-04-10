@@ -80,6 +80,17 @@ if (!promptExists) {
 // Add new columns and tables for Client Records feature
 try { db.exec("ALTER TABLE plan_history ADD COLUMN status TEXT DEFAULT 'Draft'"); } catch(e) {}
 try { db.exec("ALTER TABLE plan_history ADD COLUMN notes TEXT DEFAULT ''"); } catch(e) {}
+
+// Chat messages for conversational revision
+db.exec(`CREATE TABLE IF NOT EXISTS chat_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  plan_id INTEGER NOT NULL,
+  role TEXT NOT NULL CHECK(role IN ('user', 'assistant')),
+  content TEXT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (plan_id) REFERENCES plan_history(id)
+)`);
+
 db.exec(`CREATE TABLE IF NOT EXISTS client_documents (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   plan_id INTEGER NOT NULL,

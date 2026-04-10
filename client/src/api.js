@@ -280,3 +280,78 @@ export async function extractDocumentText(id, docId) {
   if (!res.ok) throw new Error(data.error || 'Extract failed');
   return data;
 }
+
+export async function getChatHistory(plan_id) {
+  const res = await apiFetch(`${BASE_URL}/api/chat/${plan_id}`, { headers: authHeaders() });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to get chat history');
+  return data;
+}
+
+// Sends a conversational message; Claude replies without regenerating the full plan
+export async function sendChatMessage(plan_id, message, onChunk) {
+  const res = await fetch(`${BASE_URL}/api/chat/${plan_id}`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ message }),
+  });
+  if (!res.ok) {
+    const data = await res.json();
+    throw new Error(data.error || 'Failed to send message');
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop();
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      try {
+        const evt = JSON.parse(line.slice(6));
+        if (evt.type === 'chunk' && onChunk) onChunk(evt.text);
+        if (evt.type === 'error') throw new Error(evt.error);
+      } catch (e) {
+        if (e.message && !e.message.startsWith('Failed to')) throw e;
+      }
+    }
+  }
+}
+
+// Regenerates the full plan incorporating all chat feedback (SSE streaming)
+export async function regeneratePlan(plan_id, onChunk) {
+  const res = await fetch(`${BASE_URL}/api/chat/${plan_id}/regenerate`, {
+    method: 'POST',
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    const data = await res.json();
+    throw new Error(data.error || 'Failed to regenerate plan');
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let revision_number = null;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop();
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      try {
+        const evt = JSON.parse(line.slice(6));
+        if (evt.type === 'chunk' && onChunk) onChunk(evt.text);
+        if (evt.type === 'done') revision_number = evt.revision_number;
+        if (evt.type === 'error') throw new Error(evt.error);
+      } catch (e) {
+        if (e.message && !e.message.startsWith('Failed to')) throw e;
+      }
+    }
+  }
+  return { revision_number };
+}

@@ -667,17 +667,176 @@ app.post('/api/clients/:id/documents/:doc_id/extract', authMiddleware, async (re
   }
 });
 
-// ---- TEMP: Delete corrupt short revisions ----
-app.post('/api/admin/clean-revisions', authMiddleware, (req, res) => {
-  if (req.user.role !== 'Admin') return res.status(403).json({ error: 'Admin only' });
-  // Delete revisions shorter than 10000 chars that are NOT revision 0
-  const bad = db.prepare(
-    "SELECT id, plan_id, revision_number, length(text) as len FROM plan_revisions WHERE revision_number > 0 AND length(text) < 10000"
-  ).all();
-  for (const r of bad) {
-    db.prepare('DELETE FROM plan_revisions WHERE id = ?').run(r.id);
+// ---- CHAT ROUTES (conversational revision) ----
+
+// GET /api/chat/:plan_id — return all chat messages for a plan
+app.get('/api/chat/:plan_id', authMiddleware, (req, res) => {
+  try {
+    const messages = db.prepare(
+      'SELECT * FROM chat_messages WHERE plan_id = ? ORDER BY created_at ASC'
+    ).all(req.params.plan_id);
+    res.json(messages);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-  res.json({ deleted: bad.length, revisions: bad.map(r => ({ id: r.id, plan_id: r.plan_id, rev: r.revision_number, len: r.len })) });
+});
+
+// POST /api/chat/:plan_id — send a conversational message, Claude replies without regenerating the full plan
+app.post('/api/chat/:plan_id', authMiddleware, async (req, res) => {
+  try {
+    const { message } = req.body;
+    if (!message) return res.status(400).json({ error: 'message is required' });
+
+    const plan = db.prepare('SELECT * FROM plan_history WHERE id = ?').get(req.params.plan_id);
+    if (!plan) return res.status(404).json({ error: 'Plan not found' });
+
+    const latestRevision = db.prepare(
+      'SELECT * FROM plan_revisions WHERE plan_id = ? ORDER BY revision_number DESC LIMIT 1'
+    ).get(req.params.plan_id);
+    if (!latestRevision) return res.status(404).json({ error: 'No plan revision found' });
+
+    const activePrompt = db.prepare('SELECT * FROM prompt_versions WHERE is_active = 1').get();
+    const systemPrompt = activePrompt ? activePrompt.text : 'You are an ABA treatment plan generator.';
+
+    // Load prior chat messages
+    const priorMessages = db.prepare(
+      'SELECT role, content FROM chat_messages WHERE plan_id = ? ORDER BY created_at ASC'
+    ).all(req.params.plan_id);
+
+    // Build conversation: context injection + prior chat + new message
+    const messages = [
+      {
+        role: 'user',
+        content: `Here is the current treatment plan for ${plan.client_name || 'this client'}:\n\n${latestRevision.text}\n\nOriginal client notes:\n${plan.original_notes}`,
+      },
+      {
+        role: 'assistant',
+        content: `I've reviewed the treatment plan for ${plan.client_name || 'this client'}. What changes would you like to make?`,
+      },
+      ...priorMessages.map(m => ({ role: m.role, content: m.content })),
+      { role: 'user', content: message },
+    ];
+
+    // Save the user message
+    db.prepare('INSERT INTO chat_messages (plan_id, role, content) VALUES (?, ?, ?)').run(
+      req.params.plan_id, 'user', message
+    );
+
+    // Stream conversational reply
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('X-Accel-Buffering', 'no');
+
+    let replyText = '';
+    const conversationSystemPrompt = `${systemPrompt}\n\n---\nYou are in CONVERSATION MODE helping a BCBA refine a treatment plan. Respond conversationally and concisely. When the user asks for changes, describe what you would change and confirm. Do NOT output the entire treatment plan. Address only the specific request. The user can click "Regenerate Full Plan" when ready to apply all changes at once.`;
+
+    const stream = anthropic.messages.stream({
+      model: 'claude-opus-4-6',
+      max_tokens: 2000,
+      system: conversationSystemPrompt,
+      messages,
+    });
+
+    const keepAlive = setInterval(() => res.write(': ping\n\n'), 20000);
+
+    stream.on('text', (chunk) => {
+      replyText += chunk;
+      res.write(`data: ${JSON.stringify({ type: 'chunk', text: chunk })}\n\n`);
+    });
+
+    stream.on('finalMessage', () => {
+      clearInterval(keepAlive);
+      // Save assistant reply
+      db.prepare('INSERT INTO chat_messages (plan_id, role, content) VALUES (?, ?, ?)').run(
+        req.params.plan_id, 'assistant', replyText
+      );
+      res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);
+      res.end();
+    });
+
+    stream.on('error', (err) => {
+      clearInterval(keepAlive);
+      console.error('Chat stream error:', err);
+      res.write(`data: ${JSON.stringify({ type: 'error', error: err.message })}\n\n`);
+      res.end();
+    });
+
+  } catch (err) {
+    console.error('Chat error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/chat/:plan_id/regenerate — regenerate the full plan incorporating all chat feedback
+app.post('/api/chat/:plan_id/regenerate', authMiddleware, async (req, res) => {
+  try {
+    const plan = db.prepare('SELECT * FROM plan_history WHERE id = ?').get(req.params.plan_id);
+    if (!plan) return res.status(404).json({ error: 'Plan not found' });
+
+    const allRevisions = db.prepare(
+      'SELECT * FROM plan_revisions WHERE plan_id = ? ORDER BY revision_number ASC'
+    ).all(req.params.plan_id);
+    if (!allRevisions.length) return res.status(404).json({ error: 'No revisions found' });
+
+    const activePrompt = db.prepare('SELECT * FROM prompt_versions WHERE is_active = 1').get();
+    const systemPrompt = activePrompt ? activePrompt.text : 'You are an ABA treatment plan generator.';
+
+    // Collect all user chat messages as the feedback list
+    const userChatMessages = db.prepare(
+      "SELECT content FROM chat_messages WHERE plan_id = ? AND role = 'user' ORDER BY created_at ASC"
+    ).all(req.params.plan_id);
+
+    const feedbackList = userChatMessages.map((m, i) => `${i + 1}. ${m.content}`).join('\n');
+    const latestRevision = allRevisions[allRevisions.length - 1];
+
+    const userContent = feedbackList
+      ? `${plan.original_notes}\n\nThe BCBA has requested the following changes during our conversation:\n${feedbackList}\n\nPlease regenerate the COMPLETE treatment plan incorporating ALL of these changes. Do not leave any section blank, do not use placeholders — output the entire plan from beginning to end with every requested change applied.`
+      : `${plan.original_notes}\n\nIMPORTANT: Generate the COMPLETE treatment plan. Do not leave any section blank, do not use placeholders, and do not skip any section.`;
+
+    // Stream the full plan
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('X-Accel-Buffering', 'no');
+
+    let revisedText = '';
+    const stream = anthropic.messages.stream({
+      model: 'claude-opus-4-6',
+      max_tokens: 16000,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userContent }],
+    });
+
+    const keepAlive = setInterval(() => res.write(': ping\n\n'), 20000);
+
+    stream.on('text', (chunk) => {
+      revisedText += chunk;
+      res.write(`data: ${JSON.stringify({ type: 'chunk', text: chunk })}\n\n`);
+    });
+
+    stream.on('finalMessage', () => {
+      clearInterval(keepAlive);
+      const newRevisionNumber = latestRevision.revision_number + 1;
+      const feedbackSummary = userChatMessages.length > 0
+        ? `Chat regeneration: ${userChatMessages.length} change(s) applied`
+        : 'Full regeneration';
+      db.prepare(
+        'INSERT INTO plan_revisions (plan_id, revision_number, text, feedback) VALUES (?, ?, ?, ?)'
+      ).run(req.params.plan_id, newRevisionNumber, revisedText, feedbackSummary);
+      res.write(`data: ${JSON.stringify({ type: 'done', revision_number: newRevisionNumber })}\n\n`);
+      res.end();
+    });
+
+    stream.on('error', (err) => {
+      clearInterval(keepAlive);
+      console.error('Regenerate stream error:', err);
+      res.write(`data: ${JSON.stringify({ type: 'error', error: err.message })}\n\n`);
+      res.end();
+    });
+
+  } catch (err) {
+    console.error('Regenerate error:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ---- SERVE REACT APP ----
