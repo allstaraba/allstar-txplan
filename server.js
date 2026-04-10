@@ -669,6 +669,19 @@ app.post('/api/clients/:id/documents/:doc_id/extract', authMiddleware, async (re
   }
 });
 
+// ---- TEMP: Delete corrupt short revisions ----
+app.post('/api/admin/clean-revisions', authMiddleware, (req, res) => {
+  if (req.user.role !== 'Admin') return res.status(403).json({ error: 'Admin only' });
+  // Delete revisions shorter than 10000 chars that are NOT revision 0
+  const bad = db.prepare(
+    "SELECT id, plan_id, revision_number, length(text) as len FROM plan_revisions WHERE revision_number > 0 AND length(text) < 10000"
+  ).all();
+  for (const r of bad) {
+    db.prepare('DELETE FROM plan_revisions WHERE id = ?').run(r.id);
+  }
+  res.json({ deleted: bad.length, revisions: bad.map(r => ({ id: r.id, plan_id: r.plan_id, rev: r.revision_number, len: r.len })) });
+});
+
 // ---- SERVE REACT APP ----
 
 app.get('*', (req, res) => {
