@@ -597,9 +597,12 @@ app.post('/api/revise', authMiddleware, async (req, res) => {
     res.setHeader('X-Accel-Buffering', 'no');
 
     let revisedText = '';
+    const msgChars = messages.reduce((sum, m) => sum + (typeof m.content === 'string' ? m.content.length : 0), 0);
+    console.log(`[revise] plan_id=${plan_id} input: ${msgChars.toLocaleString()} chars (~${Math.round(msgChars/4).toLocaleString()} tokens)`);
+
     const stream = anthropic.messages.stream({
       model: 'claude-opus-4-6',
-      max_tokens: 16000,
+      max_tokens: 32768,
       system: systemPrompt,
       messages,
     });
@@ -612,12 +615,14 @@ app.post('/api/revise', authMiddleware, async (req, res) => {
       res.write(`data: ${JSON.stringify({ type: 'chunk', text: chunk })}\n\n`);
     });
 
-    stream.on('finalMessage', async () => {
+    stream.on('finalMessage', async (msg) => {
       clearInterval(keepAlive);
       const newRevisionNumber = allRevisions[allRevisions.length - 1].revision_number + 1;
+      console.log(`[revise] done. stop_reason=${msg.stop_reason} output=${revisedText.length.toLocaleString()} chars (${revisedText.split('\n').length} lines)`);
       db.prepare(
         'INSERT INTO plan_revisions (plan_id, revision_number, text, feedback) VALUES (?, ?, ?, ?)'
       ).run(plan_id, newRevisionNumber, revisedText, feedback);
+      console.log(`[revise] saved revision ${newRevisionNumber} for plan_id=${plan_id}`);
       res.write(`data: ${JSON.stringify({ type: 'done', revision_number: newRevisionNumber })}\n\n`);
       res.end();
     });
@@ -1206,9 +1211,11 @@ app.post('/api/chat/:plan_id/regenerate', authMiddleware, async (req, res) => {
     res.setHeader('X-Accel-Buffering', 'no');
 
     let revisedText = '';
+    console.log(`[regenerate] plan_id=${req.params.plan_id} input: ${userContent.length.toLocaleString()} chars (~${Math.round(userContent.length/4).toLocaleString()} tokens)`);
+
     const stream = anthropic.messages.stream({
       model: 'claude-opus-4-6',
-      max_tokens: 16000,
+      max_tokens: 32768,
       system: systemPrompt,
       messages: [{ role: 'user', content: userContent }],
     });
@@ -1220,15 +1227,17 @@ app.post('/api/chat/:plan_id/regenerate', authMiddleware, async (req, res) => {
       res.write(`data: ${JSON.stringify({ type: 'chunk', text: chunk })}\n\n`);
     });
 
-    stream.on('finalMessage', () => {
+    stream.on('finalMessage', (msg) => {
       clearInterval(keepAlive);
       const newRevisionNumber = latestRevision.revision_number + 1;
       const feedbackSummary = userChatMessages.length > 0
         ? `Chat regeneration: ${userChatMessages.length} change(s) applied`
         : 'Full regeneration';
+      console.log(`[regenerate] done. stop_reason=${msg.stop_reason} output=${revisedText.length.toLocaleString()} chars (${revisedText.split('\n').length} lines)`);
       db.prepare(
         'INSERT INTO plan_revisions (plan_id, revision_number, text, feedback) VALUES (?, ?, ?, ?)'
       ).run(req.params.plan_id, newRevisionNumber, revisedText, feedbackSummary);
+      console.log(`[regenerate] saved revision ${newRevisionNumber} for plan_id=${req.params.plan_id}`);
       res.write(`data: ${JSON.stringify({ type: 'done', revision_number: newRevisionNumber })}\n\n`);
       res.end();
     });
