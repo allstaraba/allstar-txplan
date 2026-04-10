@@ -65,7 +65,7 @@ if (!adminExists) {
   db.prepare('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)').run('bcba', bcbaHash, 'BCBA');
 }
 
-// Seed system prompt
+// Seed system prompt (first run only)
 const promptExists = db.prepare('SELECT id FROM prompt_versions WHERE id = 1').get();
 if (!promptExists) {
   let systemPromptText = 'System prompt will be loaded here';
@@ -75,6 +75,20 @@ if (!promptExists) {
   }
   db.prepare('INSERT INTO prompt_versions (text, label, is_active) VALUES (?, ?, 1)')
     .run(systemPromptText, 'Initial System Prompt');
+}
+
+// Migration: update active prompt with latest system-prompt.txt if the file is newer than the DB entry
+// Controlled by a version marker so it only runs once per new file version
+const SYSTEM_PROMPT_VERSION = 'v2-attestation-consent-2026-04-10';
+const migrationDone = db.prepare("SELECT id FROM prompt_versions WHERE label = ?").get(SYSTEM_PROMPT_VERSION);
+if (!migrationDone) {
+  const systemPromptPath = path.join(__dirname, 'system-prompt.txt');
+  if (fs.existsSync(systemPromptPath)) {
+    const newText = fs.readFileSync(systemPromptPath, 'utf8');
+    db.prepare('UPDATE prompt_versions SET is_active = 0').run();
+    db.prepare('INSERT INTO prompt_versions (text, label, is_active) VALUES (?, ?, 1)')
+      .run(newText, SYSTEM_PROMPT_VERSION);
+  }
 }
 
 // Add new columns and tables for Client Records feature
