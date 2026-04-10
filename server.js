@@ -305,10 +305,12 @@ function formatClientInfoForPrompt(clientInfo) {
   return lines.join('\n');
 }
 
-// The 4 sequential generation prompts — each builds on the previous sections as context
+// The sequential generation prompts — each builds on the previous sections as context.
+// Split into 5 calls so BIPs get their own dedicated 32k-token call and never get cut off.
 const GENERATION_SECTIONS = [
   {
     number: 1,
+    total: 5,
     label: 'Client Info, Narrative & Assessments (sections 1–14)',
     instruction: `Generate ONLY sections 1 through 14 of the ABA treatment plan, in this exact order:
 1. "ABA Treatment Plan" title header
@@ -330,6 +332,7 @@ Be thorough and comprehensive. Write full paragraphs — do not abbreviate. STOP
   },
   {
     number: 2,
+    total: 5,
     label: 'Skill Acquisition Goals (section 15)',
     instruction: `Sections 1–14 have already been written above. Continue the plan — do not repeat anything already written.
 
@@ -355,36 +358,57 @@ Write all 25–40 goals completely. Do not truncate, do not summarize, do not wr
   },
   {
     number: 3,
-    label: 'BIPs, Behavior Reduction & Parent Training (sections 16–18)',
+    total: 5,
+    label: 'Behavior Intervention Plans (section 16)',
     instruction: `Sections 1–15 of the treatment plan have been written above. Continue — do not repeat anything.
 
-Generate ONLY sections 16, 17, and 18:
+Generate ONLY section 16:
 
-16. Behavior Intervention Plans — one complete BIP per hypothesized FUNCTION (not per topography). Include only the functions that apply to this client. Possible function categories:
+16. Behavior Intervention Plans — write one complete BIP per hypothesized FUNCTION (not per topography). Include only the functions relevant to this client. Possible function categories:
     • Social Negative Reinforcement (escape-maintained behaviors)
     • Social Positive Reinforcement (attention/access-maintained behaviors)
     • Automatic Positive Reinforcement (sensory/automatically-maintained behaviors)
 
-    Each BIP must include ALL of the following subsections written in full — do not abbreviate or skip any:
+    Each BIP must include ALL of the following subsections written in full — do not abbreviate, skip, or shorten any subsection:
     - Date
     - Behavior Assessment (ABC)
     - Target Behavior (list all topographies that fall under this function)
-    - Operational Definition (bullet format, one bullet per topography)
+    - Operational Definition (bullet format, one detailed bullet per topography with precise measurable language)
     - Quantitative Baseline Data
     - Hypothesized Function
-    - Functionally Equivalent Replacement Behaviors (reference specific goal numbers from section 15 by number)
-    - Antecedent Interventions (detailed prose with bold sub-headers for each strategy)
-    - Consequence Interventions (detailed prose with bold sub-headers for each strategy)
+    - Functionally Equivalent Replacement Behaviors (reference the specific goal numbers from section 15 by number)
+    - Antecedent Interventions (detailed prose, multiple strategies each with a bold sub-header)
+    - Consequence Interventions (detailed prose, multiple strategies each with a bold sub-header)
     - De-escalation Procedures (use the standard de-escalation protocol verbatim from your instructions)
 
-17. Behavior Reduction Goals — one goal per target behavior using the exact same goal format (Medical Necessity Rationale, criterion bullets, Goal Statement, Baseline, Date of Introduction, Projected Mastery, Progress Data)
-
-18. Parent or Caregiver Training — at least 2 goals using the standard parent training boilerplate language exactly as specified in your instructions
-
-Write every section completely. STOP after the last parent training goal. Do NOT write generalization, fading, discharge, crisis, or any later sections.`,
+Write every BIP completely from start to finish before moving to the next. STOP after the last BIP's De-escalation Procedures. Do NOT write behavior reduction goals, parent training, generalization, or any later sections.`,
   },
   {
     number: 4,
+    total: 5,
+    label: 'Behavior Reduction Goals & Parent Training (sections 17–18)',
+    instruction: `Sections 1–16 of the treatment plan have been written above. Continue — do not repeat anything.
+
+Generate ONLY sections 17 and 18:
+
+17. Behavior Reduction Goals — write one goal per target behavior using the exact same goal format used in section 15:
+      Medical Necessity Rationale: Core Deficit of ASD Addressed:
+      A. [criterion A bullet]
+      B. [criterion B bullet]
+      C. [criterion C bullet if applicable]
+      [Number]. Goal Statement: When [condition], [client name] will [reduction criterion] across 5 consecutive sessions, in two settings, and in the presence of two people.
+      Baseline: [data] on [date]
+      Date of Introduction: [date]
+      Projected Mastery: [date ~6 months out]
+      Progress Data: N/A
+
+18. Parent or Caregiver Training — write at least 2 goals using the standard parent training boilerplate language exactly as specified in your instructions.
+
+Write every goal completely. STOP after the last parent training goal. Do NOT write generalization, fading, discharge, crisis, or any later sections.`,
+  },
+  {
+    number: 5,
+    total: 5,
     label: 'Generalization, Fading, Crisis, CPT Codes & Consent (sections 19–25)',
     instruction: `Sections 1–18 of the treatment plan have been written above. Now write the final sections — do not repeat anything.
 
@@ -447,11 +471,13 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
 
     let fullPlanText = '';
 
-    // Run 4 sequential generation calls
+    // Run sequential generation calls — one per GENERATION_SECTIONS entry
     for (const sec of GENERATION_SECTIONS) {
-      send({ type: 'progress', section: sec.number, total: GENERATION_SECTIONS.length, label: sec.label });
+      console.log(`[generate] Starting section ${sec.number} of ${sec.total}: ${sec.label}`);
+      send({ type: 'progress', section: sec.number, total: sec.total, label: sec.label });
 
-      // Build messages: for calls 2-4, pass accumulated text as prior assistant turn
+      // Build messages: for calls 2+, pass all accumulated text as prior assistant turn
+      // so goal numbers and context stay consistent across calls
       const messages = fullPlanText
         ? [
             { role: 'user', content: baseMessage },
@@ -459,6 +485,8 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
             { role: 'user', content: sec.instruction },
           ]
         : [{ role: 'user', content: `${baseMessage}\n\n${sec.instruction}` }];
+
+      console.log(`[generate] Section ${sec.number} input: ~${Math.round(JSON.stringify(messages).length / 4)} tokens (estimated)`);
 
       let sectionText = '';
 
@@ -475,14 +503,20 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
           send({ type: 'chunk', text: chunk });
         });
 
-        stream.on('finalMessage', () => {
+        stream.on('finalMessage', (msg) => {
           fullPlanText += (fullPlanText ? '\n\n' : '') + sectionText;
+          console.log(`[generate] Section ${sec.number} complete. Output length: ${sectionText.length} chars. Stop reason: ${msg.stop_reason}. Total accumulated: ${fullPlanText.length} chars`);
           resolve();
         });
 
-        stream.on('error', reject);
+        stream.on('error', (err) => {
+          console.error(`[generate] Section ${sec.number} stream error:`, err);
+          reject(err);
+        });
       });
     }
+
+    console.log(`[generate] All ${GENERATION_SECTIONS.length} sections complete. Total plan length: ${fullPlanText.length} chars`);
 
     clearInterval(keepAlive);
 
