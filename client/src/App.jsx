@@ -235,7 +235,7 @@ function Layout({ user, onLogout, currentPlan, setCurrentPlan, injectedText, set
   };
 
   // Start generation at Layout level so it survives page navigation
-  const startGeneration = async (notes) => {
+  const startGeneration = async (notes, uploadedFileIds = []) => {
     const genId = ++genCounterRef.current;
     const initEntry = { text: '', status: 'running', section: 1, total: 4, label: 'Client Info & Narrative', error: null, clientName: '' };
     setGeneratingPlans(prev => new Map(prev).set(genId, initEntry));
@@ -257,7 +257,8 @@ function Layout({ user, onLogout, currentPlan, setCurrentPlan, injectedText, set
         ({ section, total, label }) => {
           updateGen(genId, prev => ({ ...prev, section, total, label }));
         },
-        controller.signal
+        controller.signal,
+        uploadedFileIds
       );
       // Fetch from DB to get the boilerplate-injected text (markers replaced)
       let planText = accumulated;
@@ -442,7 +443,7 @@ function Layout({ user, onLogout, currentPlan, setCurrentPlan, injectedText, set
           <Route path="/generate" element={<GeneratePlan onGenerate={startGeneration} isGenerating={generatingPlans.size > 0} />} />
           <Route path="/review" element={<ReviewRevise user={user} currentPlan={currentPlan} setCurrentPlan={setCurrentPlan} injectedText={injectedText} setInjectedText={setInjectedText} generatingPlan={activeGenId != null ? generatingPlans.get(activeGenId) ?? null : null} onRegeneratingChange={(active, clientName = '') => { if (active) setRegenJob({ clientName, chars: 0 }); else setRegenJob(null); }} onRegenChunk={(text) => setRegenJob(prev => prev ? { ...prev, chars: prev.chars + text.length } : prev)} />} />
           <Route path="/clients" element={<ClientRecords />} />
-          <Route path="/clients/:id" element={<ClientProfile currentPlan={currentPlan} setCurrentPlan={setCurrentPlan} injectedText={injectedText} setInjectedText={setInjectedText} />} />
+          <Route path="/clients/:id" element={<ClientProfile currentPlan={currentPlan} setCurrentPlan={setCurrentPlan} injectedText={injectedText} setInjectedText={setInjectedText} onRegeneratingChange={(active, clientName = '') => { if (active) setRegenJob({ clientName, chars: 0 }); else setRegenJob(null); }} onRegenChunk={(text) => setRegenJob(prev => prev ? { ...prev, chars: prev.chars + text.length } : prev)} />} />
           <Route path="/plans" element={<PlanHistory setCurrentPlan={setCurrentPlan} />} />
           <Route path="/template" element={<EditTemplate user={user} />} />
           <Route path="/history" element={<VersionHistory />} />

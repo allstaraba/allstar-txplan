@@ -3,7 +3,7 @@ import { uploadFile } from '../api.js';
 
 export default function GeneratePlan({ onGenerate, isGenerating }) {
   const [notes, setNotes] = useState('');
-  // uploadedFiles: [{ name, text }]
+  // uploadedFiles: [{ name, text, fileId, fileSize, fileType }]
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [uploadingName, setUploadingName] = useState('');
@@ -25,7 +25,7 @@ export default function GeneratePlan({ onGenerate, isGenerating }) {
       setError('');
       try {
         const data = await uploadFile(file);
-        setUploadedFiles(prev => [...prev, { name: file.name, text: data.text }]);
+        setUploadedFiles(prev => [...prev, { name: file.name, text: data.text, fileId: data.fileId, fileSize: data.fileSize, fileType: data.fileType }]);
       } catch (err) {
         setError(`Failed to upload ${file.name}: ${err.message}`);
       } finally {
@@ -61,7 +61,10 @@ export default function GeneratePlan({ onGenerate, isGenerating }) {
       return;
     }
     setError('');
-    onGenerate(combined);
+    const fileIds = uploadedFiles
+      .filter(f => f.fileId)
+      .map(f => ({ fileId: f.fileId, originalName: f.name, fileSize: f.fileSize, fileType: f.fileType }));
+    onGenerate(combined, fileIds);
   };
 
   const disabled = isGenerating || uploading;
