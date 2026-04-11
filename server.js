@@ -583,13 +583,6 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
     // Extract goal list for BIP FERB references
     const goalList = extractGoalNumbers(s3aText, s3bText);
 
-    // Count actual goals by matching goal number pattern in S3A + S3B
-    const goalCount = (s3aText + '\n' + s3bText)
-      .split('\n')
-      .filter(line => /^\s*\|?\s*\d+\.\s+Goal Statement:/i.test(line))
-      .length;
-    console.log(`[generate] Goal count for summary table: ${goalCount}`);
-
     // ── Step 4: S3C ‖ S3D — BIPs and final sections in parallel ──────────
     send({ type: 'progress', section: 4, total: 4, label: 'BIPs & Final Sections (parallel)' });
     setJob(userId, { section: 4, label: 'BIPs & Final Sections (parallel)' });
@@ -602,6 +595,13 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
       callWithRetry(GEN.S3D.id, buildMessages(GEN.S3D, s1s2Context)),
     ]);
     console.log(`[generate] S3C+S3D complete. S3C=${s3cText.length} chars, S3D=${s3dText.length} chars`);
+
+    // Count goals across all goal sections (S3A + S3B + S3C) after all are complete
+    const goalCount = (s3aText + '\n' + s3bText + '\n' + s3cText)
+      .split('\n')
+      .filter(line => /^\s*\|?\s*\d+\.\s+Goal Statement:/i.test(line))
+      .length;
+    console.log(`[generate] Goal count for summary table: ${goalCount}`);
 
     // ── Step 5: concatenate in document order ─────────────────────────────
     fullPlanText = [s1Text, s2Text, s3aText, s3bText, s3cText, s3dText]
