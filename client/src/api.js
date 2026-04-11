@@ -64,11 +64,11 @@ export async function getGenerationStatus() {
   return res.json();
 }
 
-export async function generatePlan(notes, clientInfo, onChunk, onProgress, signal) {
+export async function generatePlan(notes, clientInfo, onChunk, onProgress, signal, uploadedFileIds) {
   const res = await fetch(`${BASE_URL}/api/generate`, {
     method: 'POST',
     headers: authHeaders(),
-    body: JSON.stringify({ notes, clientInfo }),
+    body: JSON.stringify({ notes, clientInfo, uploadedFileIds }),
     signal,
   });
   if (!res.ok) {

@@ -45,7 +45,9 @@ app.use(express.static(path.join(__dirname, 'client', 'dist')));
 // Uploads directory (use DATA_DIR for Railway volume persistence)
 const DATA_DIR = process.env.DATA_DIR || __dirname;
 const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
+const TEMP_UPLOADS_DIR = path.join(DATA_DIR, 'uploads', 'temp');
 fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+fs.mkdirSync(TEMP_UPLOADS_DIR, { recursive: true });
 app.use('/uploads', express.static(UPLOADS_DIR));
 
 // Auth middleware
@@ -436,7 +438,7 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
   const keepAlive = setInterval(() => { try { res.write(': ping\n\n'); } catch {} }, 20000);
 
   try {
-    const { notes, clientInfo } = req.body;
+    const { notes, clientInfo, uploadedFileIds } = req.body;
     if (!notes) {
       clearInterval(keepAlive);
       return res.status(400).json({ error: 'Notes are required' });
@@ -641,6 +643,31 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
     if (clientInfo && Object.keys(clientInfo).length > 0) {
       db.prepare('INSERT OR REPLACE INTO client_info (plan_id, data, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)')
         .run(planId, JSON.stringify(clientInfo));
+    }
+
+    // Move any temp-uploaded files into the client's permanent document store
+    if (Array.isArray(uploadedFileIds) && uploadedFileIds.length > 0) {
+      const clientDir = path.join(UPLOADS_DIR, 'clients', String(planId));
+      fs.mkdirSync(clientDir, { recursive: true });
+      for (const f of uploadedFileIds) {
+        try {
+          // Temp files are named: <fileId>_<safeName>
+          const tempFiles = fs.readdirSync(TEMP_UPLOADS_DIR).filter(n => n.startsWith(f.fileId + '_'));
+          if (tempFiles.length === 0) continue;
+          const tempFilename = tempFiles[0];
+          const destFilename = `${Date.now()}_${tempFilename.slice(f.fileId.length + 1)}`;
+          fs.renameSync(
+            path.join(TEMP_UPLOADS_DIR, tempFilename),
+            path.join(clientDir, destFilename)
+          );
+          const ext = path.extname(f.originalName).toLowerCase();
+          db.prepare(
+            'INSERT INTO client_documents (plan_id, filename, original_name, file_type, file_size, uploaded_by) VALUES (?,?,?,?,?,?)'
+          ).run(planId, destFilename, f.originalName, ext || f.fileType, f.fileSize || 0, req.user.id);
+        } catch (e) {
+          console.error(`[generate] Failed to save temp file ${f.fileId}:`, e.message);
+        }
+      }
     }
 
     // Keep done event small — client fetches injected text from /api/plans/:id
@@ -917,7 +944,13 @@ app.post('/api/upload', authMiddleware, upload.single('file'), async (req, res) 
       return res.status(400).json({ error: 'Unsupported file type' });
     }
 
-    res.json({ text: extractedText });
+    // Save file to temp dir so it can be attached to the client record after generation
+    const fileId = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const safeName = originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const tempFilename = `${fileId}_${safeName}`;
+    fs.writeFileSync(path.join(TEMP_UPLOADS_DIR, tempFilename), buffer);
+
+    res.json({ text: extractedText, fileId, originalName: originalname, fileSize: buffer.length, fileType: ext || mimetype });
   } catch (err) {
     console.error('Upload error:', err);
     res.status(500).json({ error: err.message });
