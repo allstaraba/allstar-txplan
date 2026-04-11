@@ -103,10 +103,21 @@ Standard of Care Considerations and Consent:
  * @param {string} assessmentDate - The assessment date
  * @returns {string} - Plan text with all markers replaced
  */
-function injectBoilerplate(text, clientName = '', bcbaName = '[BCBA NAME]', assessmentDate = '[DATE]') {
+function buildGoalSummaryTable(goalCount) {
+  const n = goalCount || 0;
+  return `| Total # of goals: | ${n} |
+| Total # of goals mastered: | N/A |
+| Total # of goals in-progress: | N/A |
+| Total # of goals on hold: | N/A |
+| Total # of goals discontinued: | N/A |
+| Total # of new goals: | ${n} |`;
+}
+
+function injectBoilerplate(text, clientName = '', bcbaName = '[BCBA NAME]', assessmentDate = '[DATE]', goalCount = 0) {
   const clientPossessive = clientName ? `${clientName}'s` : "The client's";
 
   return text
+    .replace(/\[GOAL_SUMMARY_TABLE\]/g, buildGoalSummaryTable(goalCount))
     .replace(/\[STANDARD_DEESCALATION_PROTOCOL\]/g, DEESCALATION)
     .replace(/\[STANDARD_GENERALIZATION_STEPS\]/g, GENERALIZATION_STEPS)
     .replace(/\[STANDARD_MAINTENANCE_STEPS\]/g, MAINTENANCE_STEPS)
