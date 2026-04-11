@@ -126,4 +126,15 @@ db.exec(`CREATE TABLE IF NOT EXISTS client_documents (
   FOREIGN KEY (uploaded_by) REFERENCES users(id)
 )`);
 
+db.exec(`CREATE TABLE IF NOT EXISTS activity_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER,
+  username TEXT,
+  action TEXT NOT NULL,
+  target_type TEXT,
+  target_id INTEGER,
+  details TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+)`);
+
 module.exports = db;

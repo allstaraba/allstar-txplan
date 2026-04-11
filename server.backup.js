@@ -61,32 +61,8 @@ function adminMiddleware(req, res, next) {
   next();
 }
 
-// Activity logger
-function logActivity(userId, username, action, targetType = null, targetId = null, details = null) {
-  try {
-    db.prepare(
-      'INSERT INTO activity_log (user_id, username, action, target_type, target_id, details) VALUES (?, ?, ?, ?, ?, ?)'
-    ).run(userId, username, action, targetType, targetId, details);
-  } catch (e) {
-    console.error('[activity_log] Failed to log:', e.message);
-  }
-}
-
 // Multer memory storage
 const upload = multer({ storage: multer.memoryStorage() });
-
-// Multer for logo uploads (PNG/JPG only, 5 MB max)
-const uploadLogo = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    if (['image/png', 'image/jpeg', 'image/jpg'].includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only PNG and JPG images are accepted'));
-    }
-  },
-});
 
 // ---- AUTH ROUTES ----
 
@@ -578,7 +554,6 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
     // Keep done event small — client fetches injected text from /api/plans/:id
     send({ type: 'done', plan_id: planId, client_name: clientName });
     res.end();
-    logActivity(req.user.id, req.user.username, 'generated_plan', 'plan', planId, clientName);
 
     // Generate clarifying questions in the background AFTER the response is closed
     setImmediate(async () => {
@@ -672,7 +647,6 @@ app.post('/api/revise', authMiddleware, async (req, res) => {
         'INSERT INTO plan_revisions (plan_id, revision_number, text, feedback) VALUES (?, ?, ?, ?)'
       ).run(plan_id, newRevisionNumber, revisedText, feedback);
       console.log(`[revise] saved revision ${newRevisionNumber} for plan_id=${plan_id}`);
-      logActivity(req.user.id, req.user.username, 'revised_plan', 'plan', Number(plan_id), feedback.slice(0, 200));
       res.write(`data: ${JSON.stringify({ type: 'done', revision_number: newRevisionNumber })}\n\n`);
       res.end();
     });
@@ -764,7 +738,6 @@ app.post('/api/plans/:id/duplicate', authMiddleware, async (req, res) => {
       ).run(newPlanId, 0, latestRevision.text, 'Duplicated from plan #' + original.id);
     }
 
-    logActivity(req.user.id, req.user.username, 'duplicated_plan', 'plan', newPlanId, `original plan ${req.params.id}`);
     res.json({ plan_id: newPlanId, client_name: `${original.client_name} (Copy)` });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -861,7 +834,7 @@ app.get('/api/prompt', authMiddleware, (req, res) => {
   }
 });
 
-app.put('/api/prompt', authMiddleware, adminMiddleware, (req, res) => {
+app.put('/api/prompt', authMiddleware, (req, res) => {
   try {
     const { text, label } = req.body;
     if (!text || !label) return res.status(400).json({ error: 'text and label are required' });
@@ -872,7 +845,6 @@ app.put('/api/prompt', authMiddleware, adminMiddleware, (req, res) => {
     ).run(text, label);
 
     const newPrompt = db.prepare('SELECT * FROM prompt_versions WHERE id = ?').get(result.lastInsertRowid);
-    logActivity(req.user.id, req.user.username, 'edited_prompt', 'prompt', newPrompt.id, label);
     res.json(newPrompt);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -888,7 +860,7 @@ app.get('/api/prompt/history', authMiddleware, (req, res) => {
   }
 });
 
-app.post('/api/prompt/restore/:id', authMiddleware, adminMiddleware, (req, res) => {
+app.post('/api/prompt/restore/:id', authMiddleware, (req, res) => {
   try {
     const { id } = req.params;
     const prompt = db.prepare('SELECT * FROM prompt_versions WHERE id = ?').get(id);
@@ -896,7 +868,7 @@ app.post('/api/prompt/restore/:id', authMiddleware, adminMiddleware, (req, res) 
 
     db.prepare('UPDATE prompt_versions SET is_active = 0').run();
     db.prepare('UPDATE prompt_versions SET is_active = 1 WHERE id = ?').run(id);
-    logActivity(req.user.id, req.user.username, 'restored_prompt', 'prompt', Number(id), `version ${id}`);
+
     res.json({ message: 'Prompt restored', id });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -932,7 +904,6 @@ app.post('/api/users', authMiddleware, adminMiddleware, async (req, res) => {
     ).run(username, hash, role);
 
     const newUser = db.prepare('SELECT id, username, role, created_at FROM users WHERE id = ?').get(result.lastInsertRowid);
-    logActivity(req.user.id, req.user.username, 'created_user', 'user', newUser.id, username);
     res.status(201).json(newUser);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -945,48 +916,12 @@ app.delete('/api/users/:id', authMiddleware, adminMiddleware, (req, res) => {
     if (parseInt(id) === req.user.id) {
       return res.status(400).json({ error: 'Cannot delete yourself' });
     }
-    const user = db.prepare('SELECT id, username FROM users WHERE id = ?').get(id);
+    const user = db.prepare('SELECT id FROM users WHERE id = ?').get(id);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     db.prepare('DELETE FROM sessions WHERE user_id = ?').run(id);
     db.prepare('DELETE FROM users WHERE id = ?').run(id);
-    logActivity(req.user.id, req.user.username, 'deleted_user', 'user', Number(id), user.username);
     res.json({ message: 'User deleted' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ---- LOGO ROUTES ----
-
-const LOGO_PATH = path.join(DATA_DIR, 'company-logo.png');
-
-// POST /api/settings/logo — upload / replace logo (auth required)
-app.post('/api/settings/logo', authMiddleware, uploadLogo.single('logo'), (req, res) => {
-  try {
-    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-    fs.writeFileSync(LOGO_PATH, req.file.buffer);
-    logActivity(req.user.id, req.user.username, 'uploaded_logo', 'settings', null, null);
-    res.json({ ok: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// GET /api/settings/logo — serve the logo (no auth required)
-app.get('/api/settings/logo', (req, res) => {
-  if (!fs.existsSync(LOGO_PATH)) return res.status(404).json({ error: 'No logo uploaded' });
-  res.setHeader('Content-Type', 'image/png');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.sendFile(LOGO_PATH);
-});
-
-// DELETE /api/settings/logo — remove the logo (auth + admin required)
-app.delete('/api/settings/logo', authMiddleware, adminMiddleware, (req, res) => {
-  try {
-    if (fs.existsSync(LOGO_PATH)) fs.unlinkSync(LOGO_PATH);
-    logActivity(req.user.id, req.user.username, 'deleted_logo', 'settings', null, null);
-    res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1006,8 +941,7 @@ app.get('/api/export/:plan_id/:revision_number', authMiddleware, async (req, res
     if (!revision) return res.status(404).json({ error: 'Revision not found' });
 
     console.log(`[export] plan_id=${plan_id} rev=${revision_number} text_length=${revision.text.length} chars (${revision.text.split('\n').length} lines)`);
-    const logoBuffer = fs.existsSync(LOGO_PATH) ? fs.readFileSync(LOGO_PATH) : null;
-    const doc = buildDocx(revision.text, plan.client_name, logoBuffer);
+    const doc = buildDocx(revision.text, plan.client_name);
     const buffer = await Packer.toBuffer(doc);
     console.log(`[export] docx buffer size: ${buffer.length} bytes`);
     const safeName = (plan.client_name || 'treatment-plan').replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, '-');
@@ -1015,7 +949,6 @@ app.get('/api/export/:plan_id/:revision_number', authMiddleware, async (req, res
 
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    logActivity(req.user.id, req.user.username, 'exported_plan', 'plan', Number(plan_id), `revision ${revision_number}`);
     res.send(buffer);
   } catch (err) {
     console.error('Export error:', err);
@@ -1094,13 +1027,11 @@ app.put('/api/clients/:id/notes', authMiddleware, (req, res) => {
 // DELETE /api/clients/:id
 app.delete('/api/clients/:id', authMiddleware, (req, res) => {
   try {
-    const planRecord = db.prepare('SELECT client_name FROM plan_history WHERE id=?').get(req.params.id);
     const uploadDir = path.join(UPLOADS_DIR, 'clients', req.params.id);
     if (fs.existsSync(uploadDir)) fs.rmSync(uploadDir, { recursive: true, force: true });
     db.prepare('DELETE FROM client_documents WHERE plan_id=?').run(req.params.id);
     db.prepare('DELETE FROM plan_revisions WHERE plan_id=?').run(req.params.id);
     db.prepare('DELETE FROM plan_history WHERE id=?').run(req.params.id);
-    logActivity(req.user.id, req.user.username, 'deleted_plan', 'plan', Number(req.params.id), planRecord?.client_name || null);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1340,7 +1271,6 @@ app.post('/api/chat/:plan_id/regenerate', authMiddleware, async (req, res) => {
         'INSERT INTO plan_revisions (plan_id, revision_number, text, feedback) VALUES (?, ?, ?, ?)'
       ).run(req.params.plan_id, newRevisionNumber, revisedText, feedbackSummary);
       console.log(`[regenerate] saved revision ${newRevisionNumber} for plan_id=${req.params.plan_id}`);
-      logActivity(req.user.id, req.user.username, 'regenerated_plan', 'plan', Number(req.params.plan_id), 'Chat regeneration');
       res.write(`data: ${JSON.stringify({ type: 'done', revision_number: newRevisionNumber })}\n\n`);
       res.end();
     });
@@ -1354,19 +1284,6 @@ app.post('/api/chat/:plan_id/regenerate', authMiddleware, async (req, res) => {
 
   } catch (err) {
     console.error('Regenerate error:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ---- ACTIVITY LOG ----
-
-app.get('/api/activity-log', authMiddleware, adminMiddleware, (req, res) => {
-  try {
-    const entries = db.prepare(
-      'SELECT * FROM activity_log ORDER BY created_at DESC LIMIT 200'
-    ).all();
-    res.json(entries);
-  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });

@@ -9,6 +9,7 @@ import ManageUsers from './pages/ManageUsers.jsx';
 import PlanHistory from './pages/PlanHistory.jsx';
 import ClientRecords from './pages/ClientRecords.jsx';
 import ClientProfile from './pages/ClientProfile.jsx';
+import ActivityLog from './pages/ActivityLog.jsx';
 import { getMe, logout, generatePlan, getPlan } from './api.js';
 
 const styles = {
@@ -184,9 +185,12 @@ function Layout({ user, onLogout, currentPlan, setCurrentPlan, injectedText, set
     { to: '/review', icon: '◈', label: 'Review & Revise' },
     { to: '/clients', icon: '◎', label: 'Client Records' },
     { to: '/plans', icon: '☰', label: 'Plan History' },
-    { to: '/template', icon: '⊞', label: 'Edit Template' },
+    ...(user.role === 'Admin' ? [{ to: '/template', icon: '⊞', label: 'Edit Template' }] : []),
     { to: '/history', icon: '◷', label: 'Version History' },
-    ...(user.role === 'Admin' ? [{ to: '/users', icon: '◉', label: 'Manage Users' }] : []),
+    ...(user.role === 'Admin' ? [
+      { to: '/users', icon: '◉', label: 'Manage Users' },
+      { to: '/activity', icon: '◑', label: 'Activity Log' },
+    ] : []),
   ];
 
   return (
@@ -291,9 +295,10 @@ function Layout({ user, onLogout, currentPlan, setCurrentPlan, injectedText, set
           <Route path="/clients" element={<ClientRecords />} />
           <Route path="/clients/:id" element={<ClientProfile currentPlan={currentPlan} setCurrentPlan={setCurrentPlan} injectedText={injectedText} setInjectedText={setInjectedText} />} />
           <Route path="/plans" element={<PlanHistory setCurrentPlan={setCurrentPlan} />} />
-          <Route path="/template" element={<EditTemplate />} />
+          <Route path="/template" element={<EditTemplate user={user} />} />
           <Route path="/history" element={<VersionHistory />} />
           {user.role === 'Admin' && <Route path="/users" element={<ManageUsers user={user} />} />}
+          {user.role === 'Admin' && <Route path="/activity" element={<ActivityLog />} />}
           <Route path="*" element={<Navigate to="/generate" replace />} />
         </Routes>
       </main>
