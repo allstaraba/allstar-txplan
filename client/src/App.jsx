@@ -442,7 +442,7 @@ function Layout({ user, onLogout, currentPlan, setCurrentPlan, injectedText, set
           <Route path="/generate" element={<GeneratePlan onGenerate={startGeneration} isGenerating={generatingPlans.size > 0} />} />
           <Route path="/review" element={<ReviewRevise user={user} currentPlan={currentPlan} setCurrentPlan={setCurrentPlan} injectedText={injectedText} setInjectedText={setInjectedText} generatingPlan={activeGenId != null ? generatingPlans.get(activeGenId) ?? null : null} onRegeneratingChange={(active, clientName = '') => { if (active) setRegenJob({ clientName, chars: 0 }); else setRegenJob(null); }} onRegenChunk={(text) => setRegenJob(prev => prev ? { ...prev, chars: prev.chars + text.length } : prev)} />} />
           <Route path="/clients" element={<ClientRecords />} />
-          <Route path="/clients/:id" element={<ClientProfile currentPlan={currentPlan} setCurrentPlan={setCurrentPlan} injectedText={injectedText} setInjectedText={setInjectedText} />} />
+          <Route path="/clients/:id" element={<ClientProfile currentPlan={currentPlan} setCurrentPlan={setCurrentPlan} injectedText={injectedText} setInjectedText={setInjectedText} onRegeneratingChange={(active, clientName = '') => { if (active) setRegenJob({ clientName, chars: 0 }); else setRegenJob(null); }} onRegenChunk={(text) => setRegenJob(prev => prev ? { ...prev, chars: prev.chars + text.length } : prev)} />} />
           <Route path="/plans" element={<PlanHistory setCurrentPlan={setCurrentPlan} />} />
           <Route path="/template" element={<EditTemplate user={user} />} />
           <Route path="/history" element={<VersionHistory />} />

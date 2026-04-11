@@ -56,7 +56,7 @@ function StatusBadge({ status, onClick }) {
   );
 }
 
-export default function ClientProfile({ currentPlan, setCurrentPlan, injectedText, setInjectedText }) {
+export default function ClientProfile({ currentPlan, setCurrentPlan, injectedText, setInjectedText, onRegeneratingChange, onRegenChunk }) {
   const { id } = useParams();
   const navigate = useNavigate();
   const [client, setClient] = useState(null);
@@ -259,6 +259,8 @@ export default function ClientProfile({ currentPlan, setCurrentPlan, injectedTex
             setCurrentPlan={setCurrentPlan}
             injectedText={injectedText}
             setInjectedText={setInjectedText}
+            onRegeneratingChange={onRegeneratingChange}
+            onRegenChunk={onRegenChunk}
           />
         ) : (
           <div style={{ flex: 1, overflowY: 'auto', padding: '24px 28px' }}>
