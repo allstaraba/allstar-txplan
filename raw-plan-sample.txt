@@ -1,0 +1,665 @@
+
+
+# ABA Treatment Plan
+
+☐ I reviewed the ABA treatment plan requirements before submitting this report.
+
+## Client Information
+
+| **Field** | **Details** |
+|-----------|-------------|
+| **Client Name** | Brandon Sterling |
+| **Date of Birth** | 03/05/2019 |
+| **Age at Assessment** | 7 years, 1 month |
+| **Assessment Date** | 04/06/2026 |
+| **Reassessment Date** | 10/06/2026 |
+| **Guardian Name** | Cassandra Barone (Mother) |
+| **Guardian Contact** | (410) 202-9893 / c.barone1089@gmail.com |
+| **Emergency Contact** | Lisa Barone, (443) 493-1089 |
+| **Insurance** | Maryland Medicaid |
+| **Diagnosis** | Autism Spectrum Disorder (F84.0) |
+| **Diagnosing Provider** | Dr. Ansari |
+
+## Biopsychosocial Information
+
+### Current Family Structure
+
+| **Relationship** | **Name** | **Age** | **Lives in Home** | **Contact** |
+|------------------|----------|---------|-------------------|-------------|
+| Mother | Cassandra Barone | — | Yes | (410) 202-9893 |
+| Father | — | — | Yes | — |
+| Maternal Grandmother | Lisa Barone | — | No | (443) 493-1089 |
+
+Per caregiver report on 04/06/2026, Brandon resides in a two-parent household with his mother and father. His maternal grandmother, Lisa Barone, serves as the emergency contact and is actively involved in Brandon's care. No siblings were reported. The family environment is described as supportive with both parents actively engaged in Brandon's daily routines and therapeutic services. Both maternal and paternal family histories are notable for autism spectrum disorder per caregiver report.
+
+### Medications
+
+| **Medication** | **Dosage** | **Frequency** | **Prescribing Provider** | **Purpose** |
+|----------------|------------|---------------|--------------------------|-------------|
+| None reported | N/A | N/A | N/A | N/A |
+
+Per caregiver report on 04/06/2026, Brandon is not currently prescribed any medications. The treatment team will continue to monitor and coordinate with Brandon's primary care provider regarding any changes to his medication status throughout the authorization period.
+
+### Medical History
+
+| **Category** | **Details** |
+|--------------|-------------|
+| **Primary Care Provider** | Dr. Ansari, (410) 742-2255 |
+| **ASD Diagnosis Date** | Per referral documentation |
+| **Known Allergies** | None reported |
+| **Medical Concerns** | Speech and language delays, Autism Spectrum Disorder |
+| **Dietary Restrictions** | None reported |
+| **Surgical History** | Dental surgeries, December 2025 |
+| **Emergency Room History** | None reported |
+| **Sensory Concerns** | Hypersensitivity to auditory stimuli, rough textures, and certain clothing materials |
+| **Vision/Hearing** | No reported concerns; last screening per well-child visit |
+| **Seizure History** | None reported |
+
+Per caregiver report on 04/06/2026, Brandon's medical history is significant for a diagnosis of Autism Spectrum Disorder with accompanying speech and language delays. He underwent dental surgeries in December 2025 and recovered without complications. No food allergies or dietary restrictions were reported. Brandon demonstrates sensory hypersensitivities across auditory, tactile, and proprioceptive modalities that interfere with engagement in daily living routines and structured learning activities. No history of seizures, hospitalizations, or emergency room visits was reported.
+
+### Birth History
+
+| **Category** | **Details** |
+|--------------|-------------|
+| **Pregnancy Complications** | Maternal hypertension during pregnancy |
+| **Gestational Age** | 39 weeks |
+| **Delivery Method** | Cesarean section |
+| **Birth Weight** | Per medical records |
+| **NICU Stay** | None reported |
+| **Developmental Milestones** | Significant delays in speech/language milestones per caregiver report |
+| **Family Mental Health History** | Both maternal and paternal family histories positive for autism spectrum disorder |
+
+Per caregiver report on 04/06/2026, Brandon was born via cesarean section at 39 weeks gestational age. The pregnancy was complicated by maternal hypertension. No neonatal intensive care unit stay was required. Brandon's developmental trajectory was notable for significant delays in speech and language milestones. Both the maternal and paternal sides of the family have reported histories of autism spectrum disorder, indicating a potential genetic predisposition. Brandon's caregiver reported that he began receiving speech and occupational therapy services following the emergence of developmental concerns.
+
+### School Placement
+
+| **School/Program** | **Grade** | **Classification** | **Schedule** | **Hours/Week** | **Primary Contact** |
+|--------------------|-----------|---------------------|--------------|----------------|---------------------|
+| Pinehurst Elementary (Public School) | Kindergarten | Special Education Services | Monday – Friday, 8:00 AM – 2:00 PM | 30 hours/week | Joe Mannan, (410) 677-5810 |
+
+Per caregiver report on 04/06/2026, Brandon is currently enrolled in a kindergarten program at Pinehurst Elementary, a public school in his local school district. He attends school Monday through Friday from 8:00 AM to 2:00 PM for a total of 30 hours per week. Brandon receives special education services through an Individualized Education Program (IEP). His primary school contact is Joe Mannan, who can be reached at (410) 677-5810. The treatment team will coordinate with Brandon's educational team to ensure consistency of intervention strategies across home and school environments and to avoid duplication of services.
+
+## History of ABA Services
+
+| **Provider** | **Dates of Service** | **Hours/Week** | **Setting** | **Reason for Discontinuation** |
+|--------------|---------------------|----------------|-------------|-------------------------------|
+| None | N/A | N/A | N/A | Brandon has no prior history of ABA services |
+
+Per caregiver report on 04/06/2026, Brandon has never previously received applied behavior analysis (ABA) services. This initial assessment represents his first contact with ABA intervention. Given the absence of prior ABA treatment history and the severity of his current skill deficits and challenging behaviors, intensive programming is warranted to establish foundational repertoires across communication, social, adaptive, and behavioral domains.
+
+## Other Mental Health Services
+
+| **Service** | **Provider** | **Frequency** | **Duration** | **Status** |
+|-------------|--------------|---------------|--------------|------------|
+| None reported | N/A | N/A | N/A | N/A |
+
+Per caregiver report on 04/06/2026, Brandon is not currently receiving any mental health services outside of the therapeutic services described below.
+
+## Other Services
+
+| **Service** | **Provider** | **Frequency** | **Duration** | **Setting** | **Status** |
+|-------------|--------------|---------------|--------------|-------------|------------|
+| Speech-Language Therapy | — | 1x/week | 30 minutes | — | Active |
+| Occupational Therapy | — | 1x/week | 30 minutes | — | Active |
+
+Per caregiver report on 04/06/2026, Brandon currently receives speech-language therapy one time per week for 30-minute sessions targeting expressive and receptive language skills. He also receives occupational therapy one time per week for 30-minute sessions targeting fine motor skills and sensory integration. The treatment team will coordinate with these providers to ensure a cohesive, multidisciplinary approach to intervention and to avoid overlap in service delivery while maximizing opportunities for skill generalization across therapeutic contexts.
+
+## Coordination of Care with Other Providers
+
+Coordination of care will involve the deliberate organization of patient care activities between All Star ABA and other members involved in the patient's care to facilitate appropriate health care services. All Star ABA requested consent to coordinate care with all members of the care team, as indicated below. Written consent will be obtained prior to sharing information with other health care providers and all HIPAA regulations will be adhered to at all times.
+
+| **Full Name** | **Role** | **Contact** | **Notes** |
+|---------------|----------|-------------|-----------|
+| Joe Mannan | Teacher / School Contact | (410) 677-5810 | Coordination will occur once per authorization period, likely prior to re-assessment. Coordination will include discussion of problem behavior and progress made, and the behavior plan. The need for more frequent coordination will be continuously assessed and provided as needed. |
+| Dr. Ansari | Primary Care Provider | (410) 742-2255 | Coordination will occur once per authorization period, likely prior to re-assessment. Coordination will include discussion of problem behavior and progress made, and the behavior plan. The need for more frequent coordination will be continuously assessed and provided as needed. |
+| Speech-Language Pathologist | SLP | — | Coordination will occur once per authorization period, likely prior to re-assessment. Coordination will include discussion of communication targets, verbal operant development, and alignment of communication systems across therapeutic settings. The need for more frequent coordination will be continuously assessed and provided as needed. |
+| Occupational Therapist | OT | — | Coordination will occur once per authorization period, likely prior to re-assessment. Coordination will include discussion of sensory integration strategies, fine motor skill targets, and adaptive skill programming to ensure consistency of approach across all treatment settings. The need for more frequent coordination will be continuously assessed and provided as needed. |
+
+## Major Life Changes
+
+| **Date** | **Change** | **Impact on Treatment** |
+|----------|------------|------------------------|
+| December 2025 | Dental surgeries | Brandon underwent dental procedures requiring anesthesia. Per caregiver report, recovery was uneventful. This event may have contributed to heightened oral sensory-seeking behaviors (mouthing) post-surgery. The treatment team will monitor oral sensory behaviors and incorporate oral motor sensory replacement activities as part of the behavior intervention plan. |
+| No additional major life changes reported | — | — |
+
+## Direct Observation
+
+| **Date** | **Start Time** | **End Time** | **Total Duration** | **Location** | **Individuals Present** |
+|----------|----------------|--------------|-------------------|--------------|------------------------|
+| 04/06/2026 | 3:45 PM | 5:45 PM | 2 hours | Client's home | Cassandra Barone (mother), Sajeeta Dhungana (BCBA), Brandon Sterling |
+
+## Clinical Narrative
+
+The following clinical narrative is based on direct observation conducted on 04/06/2026 from 3:45 PM to 5:45 PM in the client's home, as well as structured caregiver interview with Cassandra Barone (mother). All behavioral data referenced below was collected via ABC data collection, frequency counts, and descriptive assessment during the observation period.
+
+### Communication
+
+Brandon demonstrates pervasive and significant deficits in functional communication skills across all verbal operant domains. Per observation on 04/06/2026, Brandon's vocal repertoire is severely limited and characterized primarily by scripting and echolalic vocalizations. He is able to emit contextually appropriate vocalizations including "dada" when referring to his father and "grandma" when referring to his maternal grandmother, suggesting emerging speaker-listener repertoires with familiar individuals in his immediate environment. Brandon demonstrates the ability to spontaneously vocalize short words and phrases from highly preferred songs when motivated by auditory stimuli, indicating that his echoic repertoire is more developed when embedded within preferred musical contexts than when prompted during structured assessment conditions. He was observed to emit the phrase "let's go" in a contextually appropriate manner during a transitional moment, suggesting the presence of an emerging mand repertoire for activities.
+
+However, when systematically probed during structured assessment conditions, Brandon was unable to emit his name or age in response to intraverbal prompts (e.g., "What's your name?" "How old are you?"). He does not demonstrate the ability to mand for basic needs, including requesting food, drink, preferred items, assistance, breaks, or cessation of aversive stimuli using any augmented or unaided communication modality. Brandon is unable to tact common objects, pictures, or environmental stimuli when presented with exemplars during structured probing. He does not demonstrate receptive identification skills when given instructions to select items from a field (e.g., "touch the [item]"). Brandon demonstrates significant deficits in listener responding repertoires, as he was unable to follow one-step motor instructions such as "clap hands," "touch nose," or "wave" during structured assessment. These deficits in foundational verbal behavior repertoires are consistent with his VB-MAPP total score of 6.0 out of 170, placing his overall performance within Level 1 milestones (0-18 months developmental equivalent).
+
+Per caregiver report, Brandon occasionally uses hand leading and physical manipulation of adults' hands to initiate requests for preferred items and activities. This behavior suggests that he has developed rudimentary pre-verbal requesting strategies but has not acquired the vocal, gestural, or augmented manding repertoires necessary for effective functional communication. The absence of a reliable manding repertoire is a significant contributor to the frequency and intensity of his challenging behaviors, as he is unable to appropriately communicate his needs, desires, or distress.
+
+### Social
+
+Brandon exhibits pervasive deficits in social communication and social interaction across multiple contexts that are consistent with the diagnostic criteria for Autism Spectrum Disorder. Per observation on 04/06/2026, Brandon demonstrates severely restricted play repertoires. He engaged in functional play with cause-and-effect toys including shape sorters and ring stackers during the observation period, indicating the presence of foundational object manipulation skills. However, he did not demonstrate functional play with the majority of age-appropriate toys available in the environment and engaged in destructive manipulation of play materials including throwing, banging, and mouthing items in a manner inconsistent with their designed function.
+
+Per caregiver report, Brandon occasionally engages in pretend play with figurines where he manipulates the toys to simulate "talking" or social interaction, indicating emerging symbolic play skills that are below age-level expectations but represent a relative strength in his current repertoire. This emerging pretend play capacity suggests that Brandon may benefit from systematic programming to expand symbolic and imaginative play sequences through modeling, prompting, and reinforcement strategies.
+
+Brandon does not initiate or reciprocate social interactions with peers or adults. He does not orient towards speakers when they emit greetings (e.g., "hello," "hi Brandon") or farewells (e.g., "bye-bye," "see you later") and does not emit reciprocal social responses to these initiations. He does not demonstrate joint attention behaviors, including following a communicative partner's point, gaze, or head turn to attend to a shared referent. Brandon does not maintain appropriate personal boundaries and was observed to take items from others without requesting permission, indicating deficits in understanding social norms related to ownership and personal space.
+
+Brandon did not demonstrate turn-taking behaviors, sharing, or relinquishing preferred items during the observation period. He does not exhibit delay tolerance when access to preferred stimuli is restricted, and attempts to limit access to desired items reliably evoked challenging behaviors including aggression and tantrums. Per caregiver report, Brandon occasionally engages in parallel play activities in close proximity to other children but does not initiate interactive or cooperative play. He does not demonstrate social referencing behaviors and does not look to adults for reassurance, guidance, or emotional cues in novel or ambiguous situations.
+
+### Adaptive/Safety Skills
+
+Brandon demonstrates emerging adaptive functioning skills with significant deficits across multiple self-care and daily living domains requiring systematic intervention. Per caregiver report and observation on 04/06/2026, Brandon has acquired independent feeding skills and is able to eat meals and snacks without adult assistance using utensils. He tolerates dental hygiene routines including tooth brushing with minimal resistance, which is notable given his recent dental surgery history in December 2025.
+
+Brandon demonstrates toilet sitting behaviors and will sit on the toilet when directed. However, he has not acquired independent toileting skills for bowel movements and continues to require pull-up diapers throughout the day. Per caregiver report, urination toileting is partially acquired but inconsistent. This area of adaptive functioning represents a significant self-care deficit relative to chronological age expectations and is a priority target for intervention.
+
+Brandon tolerates dressing routines and demonstrates the ability to put on shoes and socks with minimal physical assistance, indicating emerging self-dressing repertoires. However, he exhibits sensory hypersensitivities to rough textures and certain clothing materials that interfere with the selection and wearing of age-appropriate clothing. Brandon also demonstrates hypersensitivity to auditory stimuli, including loud noises, sudden sounds, and certain environmental auditory input, which evokes distress responses including covering ears, crying, and engaging in self-injurious behaviors.
+
+Brandon was not observed to independently complete multi-step daily living tasks such as cleaning up play materials, washing hands, or organizing personal belongings during the observation period. He does not consistently respond to inhibitory instructions (e.g., "no," "stop," "wait") and requires physical prompting to cease ongoing behaviors when directed. Brandon is unable to remain seated and attend to structured instructional stimuli for durations sufficient to support skill acquisition programming, as he frequently left his seat, walked away from the instructional area, and required redirection to return to task during assessment probes.
+
+Per caregiver report, Brandon does not independently navigate safety-related situations and requires continuous adult supervision to prevent injury to self or others. His inability to consistently follow safety-related instructions (e.g., "stop," "come here," "hold my hand") represents a significant safety concern, particularly in community and school environments.
+
+### Challenging Behaviors
+
+Brandon exhibits multiple topographies of challenging behavior at clinically significant frequencies and intensities that substantially interfere with learning opportunities, social interactions, daily living activities, and safety across all environments. Per observation on 04/06/2026 and detailed caregiver interview, the following challenging behavior topographies were identified and documented:
+
+**Physical Aggression:** During the two-hour observation period, Brandon engaged in physical aggression a total of seven (7) times. Aggression was operationally defined as any instance of making forceful contact with another person's body using his teeth (biting), nails/fingers (scratching), or other body parts. Observed instances included biting the assessor's forearm during a transition from a preferred activity, scratching his mother's hand when a preferred item was removed, and hitting the assessor during presentation of instructional demands. Per caregiver report, physical aggression occurs daily and has resulted in visible injuries to family members including bruising and broken skin from biting episodes. The intensity of aggressive episodes has increased over the past several months per caregiver report.
+
+**Self-Injurious Behavior (SIB):** Brandon engages in self-injurious behaviors including head banging (forcefully contacting his head against hard surfaces including walls, floors, and furniture) and hitting himself (striking his own head, face, or body with open or closed hands). Per caregiver report, SIB occurs multiple times daily and appears to be most frequent during periods of high arousal, sensory overload, and when demands are presented. During the observation period, Brandon was observed to hit his own head with his open palm on two occasions. Per caregiver report, head banging episodes have resulted in visible redness and swelling on prior occasions.
+
+**Mouthing:** Brandon was observed to engage in mouthing behaviors three (3) times during the observation period. Mouthing was operationally defined as any instance of placing non-food objects in his mouth or making sustained contact between objects and his lips, teeth, or tongue. Items mouthed during the observation included a plastic toy, a crayon, and the edge of a blanket. Per caregiver report, mouthing occurs throughout the day across all environments and presents a choking hazard and hygiene concern. This behavior may be related to oral sensory-seeking following his December 2025 dental surgeries.
+
+**Tantrum Behaviors:** Brandon engaged in tantrum behaviors three (3) times during the observation period. Tantrums were operationally defined as any episode lasting 10 seconds or longer involving two or more of the following: crying, screaming, falling to the floor, and/or flailing limbs. Observed tantrums were triggered by demand presentations and denial of access to preferred items. Per caregiver report, tantrums occur multiple times daily and can last from 2 to 20 minutes in duration depending on the triggering antecedent and consequent environmental responses.
+
+**Throwing Objects:** Brandon was observed to throw objects two (2) times during the observation period. Throwing was operationally defined as any instance of propelling an object through the air by releasing it from his hand with force. Items thrown during the observation included a toy car and a crayon. Per caregiver report, throwing occurs daily and has resulted in damage to household items and potential injury to others.
+
+**Spitting:** Brandon engaged in spitting four (4) times during the observation period. Spitting was operationally defined as any instance of expelling saliva from his mouth when not eating or drinking. Spitting was observed to occur during structured assessment probes and during transitions. Per caregiver report, spitting occurs multiple times daily across all environments and is directed both at surfaces and at other people.
+
+**Property Destruction:** Per caregiver report, Brandon engages in property destruction on a daily basis. Property destruction is operationally defined as any instance of damaging, breaking, tearing, or rendering unusable objects or materials in the environment. Per caregiver report, Brandon has broken household items including toys, electronics, and decorative objects. Property destruction is frequently preceded by denial of access to preferred items or presentation of demands.
+
+**Profanity:** Per caregiver report, Brandon emits profanity during periods of behavioral escalation. Profanity is operationally defined as any instance of emitting socially inappropriate words or phrases that are considered offensive in the social community. Per caregiver report, these vocalizations occur primarily during tantrum episodes and periods of high frustration and may represent echolalic scripting from environmental exposure rather than communicative intent.
+
+**Functional Behavior Assessment Summary:** Based on ABC data collected during the observation period and structured caregiver interview, Brandon's challenging behaviors appear to be maintained by multiple reinforcement contingencies:
+
+1. **Social Negative Reinforcement (Escape/Avoidance):** Physical aggression, tantrums, property destruction, and throwing reliably co-occur with the presentation of demands, transitions from preferred to non-preferred activities, and attempts to engage Brandon in structured tasks. These behaviors frequently result in termination or postponement of demands, reduction in task expectations, and removal of aversive stimuli.
+
+2. **Social Positive Reinforcement (Access to Items/Attention):** Physical aggression, tantrums, and grabbing reliably co-occur with denial of access to preferred items, restriction of preferred activities, and periods of reduced adult attention. These behaviors historically result in gaining access to preferred items, resumption of preferred activities, or delivery of adult attention.
+
+3. **Automatic Positive Reinforcement (Sensory):** Self-injurious behaviors (head banging, hitting self), mouthing, and spitting occur across multiple environmental contexts and do not appear to be consistently preceded by social antecedents or followed by social consequences, suggesting that these behaviors produce internally reinforcing sensory stimulation.
+
+## Strengths/Challenges/Severity Level
+
+### Language/Communication
+
+**Strengths:** Brandon demonstrates the ability to emit contextually appropriate vocalizations for familiar people including "dada" and "grandma," indicating the presence of emerging tacting and manding repertoires within familiar social contexts. He demonstrates echoic repertoires when engaging with highly preferred auditory stimuli, as evidenced by his ability to vocalize lyrics from preferred songs when motivated. Brandon demonstrates the ability to spontaneously vocalize short words and phrases from highly preferred songs, suggesting that his vocal apparatus is capable of producing intelligible speech when embedded within motivating contexts. He was observed to emit the multi-word phrase "let's go" in a contextually appropriate manner, indicating an emerging mand for activities. Brandon demonstrates the ability to use hand leading and physical manipulation to initiate requests for preferred items and activities, representing pre-verbal communicative intent.
+
+**Challenges:** Brandon is unable to emit basic personal information including his name and age in response to intraverbal prompts. He demonstrates pervasive deficits in manding for basic needs, preferred items, assistance, breaks, attention, removal of aversive stimuli, and social interaction across all communication modalities. Brandon cannot tact common objects, pictures, or environmental stimuli when systematically probed. He does not demonstrate receptive identification skills and is unable to follow one-step motor instructions. His VB-MAPP total score of 6.0/170 places his verbal behavior repertoire within the 0-18 month developmental range, representing a significant discrepancy from chronological age expectations. The absence of a reliable functional communication system is the primary contributor to the frequency and intensity of his challenging behaviors.
+
+**Severity:** ☐ Mild ☐ Moderate ☑ Severe
+
+### Social Skills
+
+**Strengths:** Brandon demonstrates emerging pretend play skills with figurines per caregiver report, where he manipulates toys to simulate social interaction, indicating foundational symbolic representation abilities. He demonstrates the ability to attend to and manipulate cause-and-effect toys including shape sorters and ring stackers, suggesting an understanding of basic object functions. Brandon occasionally engages in parallel play activities in proximity to other children without immediate behavioral escalation. He demonstrates responsiveness to familiar adults and recognizes familiar people by name, as evidenced by his ability to emit "dada" and "grandma."
+
+**Challenges:** Brandon does not initiate or reciprocate social interactions with peers or adults in any observed context. He demonstrates significant deficits in joint attention, social referencing, and shared affect. Brandon does not respond to social greetings or farewells and does not orient towards speakers during communicative exchanges. He does not demonstrate turn-taking behaviors, sharing, or the ability to relinquish preferred items. Brandon does not maintain appropriate personal boundaries and takes items from others without requesting permission. He exhibits minimal delay tolerance and immediately escalates to challenging behaviors when access to preferred stimuli is restricted. He does not demonstrate empathy or concern for others in distress. These deficits significantly limit his ability to form and maintain social relationships with peers and adults.
+
+**Severity:** ☐ Mild ☐ Moderate ☑ Severe
+
+### Adaptive/Self-Care
+
+**Strengths:** Brandon demonstrates independent feeding skills including the use of utensils without adult assistance. He tolerates dental hygiene routines including tooth brushing. Brandon demonstrates toilet sitting behaviors and shows partial acquisition of urination toileting skills. He is able to put on shoes and socks with minimal physical assistance, indicating emerging self-dressing repertoires. Brandon tolerates dressing routines when preferred clothing materials are used.
+
+**Challenges:** Brandon has not acquired independent toileting skills for bowel movements and continues to require pull-up diapers. He exhibits sensory hypersensitivities to auditory stimuli, rough textures, and certain clothing materials that interfere with daily living activities and limit clothing options. Brandon is unable to independently complete multi-step daily living tasks such as cleaning up, hand washing, or organizing belongings. He does not consistently respond to inhibitory instructions and requires physical prompting to cease ongoing behaviors. Brandon is unable to remain seated and attend to structured instructional stimuli for durations sufficient to support learning. He requires continuous adult supervision due to safety concerns related to his challenging behaviors and does not independently navigate safety-related situations.
+
+**Severity:** ☐ Mild ☐ Moderate ☑ Severe
+
+### Challenging Behaviors
+
+**Strengths:** Brandon demonstrates periods of calm, regulated behavior when engaged with highly preferred activities and familiar routines. He responds to environmental modifications during some periods of dysregulation and can be redirected to preferred activities following brief behavioral episodes. Brandon demonstrates the ability to self-soothe through engagement with auditory stimuli (preferred music) and tactile stimulation with preferred items.
+
+**Challenges:** Brandon engages in multiple topographies of challenging behavior at clinically significant frequencies including self-injury (head banging at 2+ instances during observation; hitting self), aggression (biting, scratching at 7 instances per 2-hour period), property destruction (daily per caregiver report), mouthing (3 instances per 2-hour period), tantrums (3 instances per 2-hour period), throwing (2 instances per 2-hour period), spitting (4 instances per 2-hour period), and profanity (during escalations per caregiver report). These behaviors are maintained by multiple functions including escape, access, and sensory reinforcement. The frequency, intensity, and multi-functionality of these behaviors significantly impede Brandon's ability to participate in learning opportunities, social interactions, daily living activities, and community engagement. His self-injurious behaviors present an immediate safety concern requiring comprehensive crisis planning and intensive intervention.
+
+**Severity:** ☐ Mild ☐ Moderate ☑ Severe
+
+## Standardized Assessment
+
+### Vineland-3 Adaptive Behavior Scales
+
+The Vineland-3 (Sparrow, Cicchetti, & Saulnier, 2016) is a standardized, norm-based measure of adaptive behavior where the patient's adaptive functioning is compared to that of others his or her age. The Vineland-3 yields adaptive behavior composite (ABC) and domain score profiles.
+
+The Vineland-3 Comprehensive Interview Form was administered to Cassandra Barone (mother) on 04/06/2026. Results indicate that Brandon's overall adaptive functioning, as measured by the Adaptive Behavior Composite (ABC), falls within the Low range (Standard Score = 54; 0.1 percentile). This score indicates that Brandon's adaptive functioning is significantly below the mean for same-age peers and reflects pervasive delays across communication, daily living skills, socialization, and motor skill domains.
+
+### ABC and Domain Score Summary
+
+| **Domain** | **Standard Score** | **90% Confidence Interval** | **Percentile Rank** | **Adaptive Level** |
+|------------|-------------------|---------------------------|---------------------|-------------------|
+| **Adaptive Behavior Composite** | **54** | **51–57** | **0.1** | **Low** |
+| Communication | 40 | 35–45 | <0.1 | Low |
+| Daily Living Skills | 50 | 45–55 | <0.1 | Low |
+| Socialization | 56 | 52–60 | 0.2 | Low |
+| Motor Skills | 70 | 64–76 | 2 | Moderately Low |
+
+Brandon's Communication domain score of 40 (Low) reflects significant deficits in receptive, expressive, and written language skills. His Daily Living Skills domain score of 50 (Low) indicates pervasive delays in personal care, domestic functioning, and community navigation. His Socialization domain score of 56 (Low) reflects substantial deficits in interpersonal relationships, play and leisure time, and coping skills. His Motor Skills domain score of 70 (Moderately Low) represents his relative strength area, though still below average expectations for his chronological age.
+
+### Subdomain Score Summary
+
+| **Subdomain** | **v-Scale Score** | **Adaptive Level** | **Age Equivalent** |
+|---------------|-------------------|-------------------|--------------------|
+| Receptive | 1 | Low | < 1 year |
+| Expressive | 4 | Low | < 2 years |
+| Written | 7 | Low | < 3 years |
+| Personal | 4 | Low | < 2 years |
+| Domestic | 7 | Low | < 3 years |
+| Community | 5 | Low | < 2 years |
+| Interpersonal Relationships | 7 | Low | < 3 years |
+| Play and Leisure Time | 7 | Low | < 3 years |
+| Coping Skills | 7 | Low | < 3 years |
+| Gross Motor | 12 | Moderately Low | ~4 years |
+| Fine Motor | 6 | Low | < 2 years |
+
+Brandon's subdomain profile reveals that his most significant area of deficit is in the Receptive Language subdomain (v-Scale Score = 1), indicating severe impairment in his ability to comprehend spoken language, follow instructions, and attend to communicative input. His Expressive Language (v-Scale = 4) and Personal Daily Living Skills (v-Scale = 4) subdomains also represent areas of critical need. His relative strength is in the Gross Motor subdomain (v-Scale = 12), though this score still falls in the Moderately Low range.
+
+### Maladaptive Behavior Score Summary
+
+| **Behavior Index** | **v-Scale Score** | **Level** | **Clinical Significance** |
+|--------------------|-------------------|-----------|--------------------------|
+| Internalizing | 22 | Elevated | Clinically significant |
+| Externalizing | 22 | Elevated | Clinically significant |
+| Maladaptive Behavior Index | — | Elevated | Clinically significant |
+| Critical Items | 14 | — | Notable |
+
+Brandon's Maladaptive Behavior Index scores indicate clinically significant levels of both internalizing (e.g., anxiety, withdrawal, sensory sensitivities) and externalizing (e.g., aggression, tantrums, property destruction) behavior concerns. Both the Internalizing and Externalizing indices received elevated scores of 22, indicating that Brandon's behavioral challenges are significantly above normative expectations for his age group. The Critical Items score of 14 warrants monitoring and indicates the presence of behaviors that may pose safety risks.
+
+## Criterion-Referenced Assessment
+
+### Verbal Behavior Milestones Assessment and Placement Program (VB-MAPP)
+
+The Verbal Behavior Milestones Assessment and Placement Program (VB-MAPP) is a criterion-referenced tool, curriculum guide and skill tracking system that assesses milestones in various social-communication and early academic areas as they relate to typically developing peers. The VB-MAPP is based on B.F. Skinner's (1957) analysis of verbal behavior, established developmental milestones, and research from the field of behavior analysis. The assessment establishes three developmental levels based on typical age of acquisition: Level 1 (0-18 months), Level 2 (18-30 months), and Level 3 (30-48 months).
+
+The VB-MAPP Milestones Assessment was administered on 04/06/2026 by Sajeeta Dhungana, BCBA. Brandon achieved a total Milestones score of **6.0 out of 170 possible points**, placing his performance entirely within Level 1 milestones (0-18 month developmental equivalent). This score represents a significant discrepancy from his chronological age of 7 years 0 months and indicates severe delays across all assessed verbal behavior and related skill domains.
+
+**Level 1 Performance (0-18 months):** Brandon's scores were distributed across Level 1 domains with partial credit obtained in select areas. He demonstrated emerging skills in the following domains:
+
+- **Mand:** Brandon demonstrated the ability to use hand leading and physical manipulation to communicate wants, and emits limited contextually appropriate vocalizations (e.g., "dada," "grandma," "let's go") that function as mands within familiar contexts. He does not yet demonstrate a generalized mand repertoire across multiple items, actions, or communicative partners.
+
+- **Tact:** Brandon demonstrated minimal tacting abilities limited to naming two familiar people. He does not tact common objects, pictures, actions, or environmental stimuli.
+
+- **Listener Responding:** Brandon demonstrated minimal listener responding skills. He did not follow one-step motor instructions or receptively identify items from a field during structured assessment probes.
+
+- **Visual Perceptual/Matching-to-Sample (VP/MTS):** Brandon demonstrated the ability to complete simple matching tasks with cause-and-effect toys (e.g., shape sorters), suggesting emerging visual perceptual discrimination skills.
+
+- **Play:** Brandon demonstrated functional play restricted to cause-and-effect toys and emerging pretend play with figurines per caregiver report.
+
+- **Social:** Brandon demonstrated minimal social skills with emerging responsiveness to familiar adults.
+
+- **Imitation:** Brandon did not demonstrate motor imitation skills during structured assessment probes.
+
+- **Echoic:** Brandon demonstrated echoic responding primarily within the context of preferred songs and scripted vocalizations.
+
+- **Vocal:** Brandon demonstrated vocal play and spontaneous vocalizations primarily in the form of scripting from preferred media.
+
+**Level 2 Performance (18-30 months):** Brandon did not achieve any Level 2 milestones across any assessed domain.
+
+**Level 3 Performance (30-48 months):** Brandon did not achieve any Level 3 milestones across any assessed domain.
+
+**Summary and Clinical Implications:** Brandon's VB-MAPP profile indicates severe and pervasive delays across all verbal behavior and related skill domains, with performance functioning at the 0-18 month developmental level at chronological age 7 years 0 months. His total score of 6.0/170 reflects a need for intensive ABA intervention targeting foundational verbal operants including manding, tacting, listener responding, echoic responding, imitation, matching-to-sample, play, and social skills. Programming should begin at Level 1 targets with systematic advancement as mastery criteria are met. The significant gap between chronological age and developmental functioning underscores the medical necessity for intensive, comprehensive ABA services.
+
+## Goal Objective Summary
+
+| **Category** | **Number** |
+|--------------|------------|
+| **Total Goals** | 44 |
+| **Mastered** | 0 |
+| **In Progress** | 0 |
+| **On Hold** | 0 |
+| **Discontinued** | 0 |
+| **New** | 44 |
+
+## Response to Treatment/Authorization Summary
+
+N/A — This is an initial assessment and treatment plan. Brandon has no prior history of ABA services. Treatment response and authorization summary data will be included in the reassessment report following the initial authorization period.
+
+## Skill Acquisition Goals
+
+### Language/Communication Goals
+
+**Medical Necessity Rationale: Core Deficit of ASD Addressed:**
+A. Persistent deficits in social communication and social interaction.
+● Remediate deficits related to functional manding for preferred items, actions, and activities
+● Remediate deficits related to expressive labeling of environmental stimuli
+● Remediate deficits related to receptive identification and listener responding
+● Remediate deficits related to echoic and vocal imitation repertoires
+● Remediate deficits related to intraverbal responding and personal information
+B. Restricted, repetitive patterns of behavior, interests, or activities
+● Remediate deficits related to restricted vocal repertoire limited to scripting from preferred media
+C. Maladaptive Behavior
+● Remediate deficits related to the absence of a functional communication system as a replacement for challenging behaviors
+
+1. **Goal Statement:** When preferred items are visible but out of reach or access is controlled by an adult, Brandon will emit a mand for the desired item using gestures, vocalizations, picture exchange, or verbal approximations in 80% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.
+
+**Baseline:** 0% independent manding on 04/06/2026 (Brandon uses hand leading and physical manipulation of adults' hands as his primary requesting strategy)
+**Date of Introduction:** 04/28/2026
+**Projected Mastery:** 10/28/2026
+**Progress Data:** N/A
+
+2. **(FERB) Goal Statement:** When experiencing difficulty with a task, encountering an obstacle to completing an activity, or requiring adult assistance, Brandon will mand for "help" using gestures, vocalizations, picture exchange, or verbal approximations in 80% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.
+
+**Baseline:** 0% on 04/06/2026 (Brandon currently engages in aggression, tantrums, and property destruction when encountering task difficulty)
+**Date of Introduction:** 04/28/2026
+**Projected Mastery:** 10/28/2026
+**Progress Data:** N/A
+
+3. **(FERB) Goal Statement:** When desiring cessation of an ongoing activity, removal from an aversive situation, or a pause from demands, Brandon will mand for "break" using gestures, vocalizations, picture exchange, or verbal approximations in 80% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.
+
+**Baseline:** 0% on 04/06/2026 (Brandon currently engages in escape-maintained aggression, tantrums, and throwing when wanting to terminate activities)
+**Date of Introduction:** 04/28/2026
+**Projected Mastery:** 10/28/2026
+**Progress Data:** N/A
+
+4. **Goal Statement:** When presented with 10 common objects (e.g., cup, ball, shoe, spoon, book) in a naturalistic or structured context, Brandon will tact the items using vocalizations or verbal approximations in 80% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.
+
+**Baseline:** 0% for common objects on 04/06/2026 (Brandon tacts "dada" and "grandma" for familiar people only)
+**Date of Introduction:** 04/28/2026
+**Projected Mastery:** 11/28/2026
+**Progress Data:** N/A
+
+5. **Goal Statement:** When given one-step motor instructions containing familiar actions (e.g., "clap hands," "touch nose," "wave," "stomp feet," "stand up"), Brandon will demonstrate listener responding by completing the specified action within 5 seconds of the instruction in 80% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.
+
+**Baseline:** 0% on 04/06/2026 (Brandon did not follow any one-step motor instructions during structured assessment)
+**Date of Introduction:** 04/28/2026
+**Projected Mastery:** 11/28/2026
+**Progress Data:** N/A
+
+6. **Goal Statement:** When presented with an array of 3 familiar objects and given the instruction "touch [item]" or "give me [item]," Brandon will demonstrate receptive identification by selecting the correct item from the array in 80% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.
+
+**Baseline:** 0% on 04/06/2026 (Brandon did not receptively identify any items from an array during structured assessment)
+**Date of Introduction:** 04/28/2026
+**Projected Mastery:** 12/28/2026
+**Progress Data:** N/A
+
+7. **Goal Statement:** When presented with vocal models of 10 familiar words (e.g., "ball," "cup," "eat," "more," "go"), Brandon will demonstrate echoic responding by vocalizing approximations of the target words within 5 seconds of the model in 80% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.
+
+**Baseline:** 10% on 04/06/2026 (Brandon demonstrates echoic responding primarily within the context of preferred songs but not in response to isolated vocal models during structured probes)
+**Date of Introduction:** 04/28/2026
+**Projected Mastery:** 11/28/2026
+**Progress Data:** N/A
+
+8. **Goal Statement:** When asked "What's your name?" by a familiar or unfamiliar adult, Brandon will emit his first name using a vocalization or verbal approximation in 80% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.
+
+**Baseline:** 0% on 04/06/2026 (Brandon did not respond to the intraverbal prompt "What's your name?" during assessment)
+**Date of Introduction:** 05/28/2026
+**Projected Mastery:** 12/28/2026
+**Progress Data:** N/A
+
+9. **Goal Statement:** When asked "How old are you?" by a familiar or unfamiliar adult, Brandon will emit his age using a vocalization, verbal approximation, or gestural response (holding up fingers) in 80% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.
+
+**Baseline:** 0% on 04/06/2026 (Brandon did not respond to the intraverbal prompt "How old are you?" during assessment)
+**Date of Introduction:** 05/28/2026
+**Projected Mastery:** 12/28/2026
+**Progress Data:** N/A
+
+10. **Goal Statement:** When presented with 20 identical objects or pictures, Brandon will match each object/picture to its identical counterpart by placing it on top of or next to the match in 80% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.
+
+**Baseline:** 25% on 04/06/2026 (Brandon demonstrates matching with shape sorter forms only; he does not generalize matching across other object or picture stimuli)
+**Date of Introduction:** 04/28/2026
+**Projected Mastery:** 10/28/2026
+**Progress Data:** N/A
+
+11. **(FERB) Goal Statement:** When desiring attention from adults during periods when adult attention is directed elsewhere, Brandon will mand for attention by approaching the person and using appropriate gestures (e.g., tapping shoulder), vocalizations, or verbal approximations in 80% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.
+
+**Baseline:** 0% on 04/06/2026 (Brandon currently engages in aggression, tantrums, and property destruction to access adult attention)
+**Date of Introduction:** 05/28/2026
+**Projected Mastery:** 11/28/2026
+**Progress Data:** N/A
+
+12. **Goal Statement:** When given two-step instructions (e.g., "get the ball and put it in the box," "pick up the crayon and give it to me"), Brandon will complete both steps of the instruction in the correct sequence within 10 seconds in 80% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.
+
+**Baseline:** 0% on 04/06/2026 (Brandon does not currently follow single-step instructions and has not been assessed on multi-step instructions)
+**Date of Introduction:** 06/28/2026
+**Projected Mastery:** 01/28/2027
+**Progress Data:** N/A
+
+13. **(FERB) Goal Statement:** When desiring removal of an aversive stimulus (e.g., loud noise, uncomfortable clothing, non-preferred food), Brandon will mand for removal using appropriate gestures (e.g., pushing item away, shaking head "no"), vocalizations, or verbal approximations in 80% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.
+
+**Baseline:** 0% on 04/06/2026 (Brandon currently engages in SIB, aggression, and tantrums when exposed to aversive stimuli)
+**Date of Introduction:** 04/28/2026
+**Projected Mastery:** 11/28/2026
+**Progress Data:** N/A
+
+### Social Goals
+
+**Medical Necessity Rationale: Core Deficit of ASD Addressed:**
+A. Persistent deficits in social communication and social interaction.
+● Remediate deficits related to social reciprocity and responsiveness to social initiations
+● Remediate deficits related to joint attention and shared referencing
+● Remediate deficits related to functional and symbolic play repertoires
+● Remediate deficits related to peer interaction and cooperative play
+B. Restricted, repetitive patterns of behavior, interests, or activities
+● Remediate deficits related to restricted play repertoires limited to cause-and-effect toys
+● Remediate deficits related to rigid play patterns and destructive manipulation of materials
+
+14. **Goal Statement:** When presented with age-appropriate toys designed for their intended function (e.g., cars on a track, dolls with accessories, building blocks), Brandon will demonstrate functional play by manipulating at least 10 different toys appropriately for a minimum of 2 minutes each in 80% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.
+
+**Baseline:** 15% on 04/06/2026 (Brandon demonstrates functional play restricted to cause-and-effect toys such as shape sorters and ring stackers; he engages in destructive manipulation of the majority of other play materials)
+**Date of Introduction:** 04/28/2026
+**Projected Mastery:** 11/28/2026
+**Progress Data:** N/A
+
+15. **(FERB) Goal Statement:** When another person is playing with a preferred item or when requested to share, Brandon will demonstrate sharing by relinquishing the item for 10 seconds when requested without engaging in challenging behaviors in 80% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.
+
+**Baseline:** 0% on 04/06/2026 (Brandon does not relinquish preferred items and engages in aggression, grabbing, and tantrums when sharing is requested)
+**Date of Introduction:** 05/28/2026
+**Projected Mastery:** 12/28/2026
+**Progress Data:** N/A
+
+16. **(FERB) Goal Statement:** When participating in turn-taking activities with adults or peers, Brandon will wait for his turn for up to 30 seconds without engaging in challenging behaviors (aggression, tantrums, grabbing) in 80% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.
+
+**Baseline:** 0% on 04/06/2026 (Brandon demonstrates no delay tolerance and immediately escalates to challenging behaviors when access to items is temporarily restricted)
+**Date of Introduction:** 05/28/2026
+**Projected Mastery:** 12/28/2026
+**Progress Data:** N/A
+
+17. **Goal Statement:** When an adult or peer initiates a greeting (e.g., "hello," "hi Brandon," "good morning"), Brandon will orient towards the speaker within 3 seconds and respond appropriately using gestures (e.g., wave) or vocalizations in 80% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.
+
+**Baseline:** 0% on 04/06/2026 (Brandon does not orient towards speakers or respond to greetings in any observed context)
+**Date of Introduction:** 04/28/2026
+**Projected Mastery:** 11/28/2026
+**Progress Data:** N/A
+
+18. **Goal Statement:** When an adult points to an object, person, or event in the environment, Brandon will demonstrate joint attention by following the point and visually attending to the indicated target within 3 seconds in 80% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.
+
+**Baseline:** 0% on 04/06/2026 (Brandon does not demonstrate joint attention behaviors including following points, gaze, or head turns during observation)
+**Date of Introduction:** 05/28/2026
+**Projected Mastery:** 12/28/2026
+**Progress Data:** N/A
+
+19. **Goal Statement:** When engaging in parallel play activities with peers or siblings, Brandon will remain within 3 feet of other children and engage with play materials for at least 5 continuous minutes without engaging in challenging behaviors in 80% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.
+
+**Baseline:** 20% on 04/06/2026 (Brandon occasionally engages in brief parallel play but cannot sustain proximity to peers for extended periods without behavioral escalation)
+**Date of Introduction:** 06/28/2026
+**Projected Mastery:** 01/28/2027
+**Progress Data:** N/A
+
+20. **Goal Statement:** When wanting to take an item that belongs to or is being used by another person, Brandon will request permission before taking the item using appropriate gestures or vocalizations and will wait for a response before accessing the item in 80% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.
+
+**Baseline:** 0% on 04/06/2026 (Brandon takes items from others without requesting permission in all observed instances)
+**Date of Introduction:** 05/28/2026
+**Projected Mastery:** 12/28/2026
+**Progress Data:** N/A
+
+21. **Goal Statement:** When presented with an adult or peer displaying overt signs of distress (e.g., crying, covering face, saying "ow"), Brandon will demonstrate empathy by orienting towards the person, approaching, and/or offering comfort (e.g., patting, handing a tissue, verbal acknowledgment) in 80% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.
+
+**Baseline:** 0% on 04/06/2026 (Brandon does not demonstrate social referencing or empathy responses toward others in distress)
+**Date of Introduction:** 07/28/2026
+**Projected Mastery:** 02/28/2027
+**Progress Data:** N/A
+
+22. **Goal Statement:** When engaged in play activities, Brandon will emit contextually appropriate play sounds and vocalizations (e.g., car "vroom," animal sounds, action sounds) during functional play in 80% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.
+
+**Baseline:** 0% on 04/06/2026 (Brandon does not emit contextually appropriate play sounds during functional play; his vocalizations during play are limited to scripting from preferred media)
+**Date of Introduction:** 06/28/2026
+**Projected Mastery:** 01/28/2027
+**Progress Data:** N/A
+
+### Adaptive/Self-Care Goals
+
+**Medical Necessity Rationale: Core Deficit of ASD Addressed:**
+A. Persistent deficits in social communication and social interaction.
+● Remediate deficits related to functional communication for personal needs and self-advocacy
+● Remediate deficits related to following safety-related instructions
+B. Restricted, repetitive patterns of behavior, interests, or activities
+● Remediate deficits related to sensory hypersensitivities that interfere with daily living activities
+● Remediate deficits related to rigid behavioral patterns during transitions and routines
+C. Maladaptive Behavior
+● Remediate deficits related to independence in self-care routines
+● Remediate deficits related to self-regulation and coping strategies
+● Remediate deficits related to task compliance and seated attention
+
+23. **Goal Statement:** When needing to use the toilet for bowel movements, Brandon will independently initiate the toileting sequence (walk to bathroom, pull down pants, sit on toilet, defecate, wipe, pull up pants, flush, wash hands) and complete the routine in 80% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.
+
+**Baseline:** 0% for bowel movements on 04/06/2026 (Brandon sits on the toilet when directed but has not acquired independent toileting for bowel movements; he continues to require pull-up diapers)
+**Date of Introduction:** 05/28/2026
+**Projected Mastery:** 01/28/2027
+**Progress Data:** N/A
+
+24. **Goal Statement:** When presented with sensory-challenging clothing items (e.g., rough textures, new fabrics, certain materials), Brandon will tolerate wearing the clothing item for 15 minutes without removing it or engaging in challenging behaviors in 80% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.
+
+**Baseline:** 0% on 04/06/2026 (Brandon exhibits distress responses including SIB, tantrums, and attempts to remove clothing when exposed to non-preferred textures)
+**Date of Introduction:** 04/28/2026
+**Projected Mastery:** 11/28/2026
+**Progress Data:** N/A
+
+25. **Goal Statement:** When instructed to clean up toys or materials following an activity, Brandon will independently put away at least 5 items in their designated locations without physical prompting in 80% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.
+
+**Baseline:** 0% on 04/06/2026 (Brandon does not independently clean up materials and requires full physical prompting to participate in clean-up routines)
+**Date of Introduction:** 05/28/2026
+**Projected Mastery:** 12/28/2026
+**Progress Data:** N/A
+
+26. **Goal Statement:** When presented with daily hygiene routines (face washing, hand washing, teeth brushing), Brandon will independently complete 80% of the steps in the task analysis with minimal adult assistance in 80% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.
+
+**Baseline:** 30% on 04/06/2026 (Brandon tolerates teeth brushing with adult assistance; he does not independently complete hand washing or face washing routines)
+**Date of Introduction:** 04/28/2026
+**Projected Mastery:** 10/28/2026
+**Progress Data:** N/A
+
+27. **(FERB) Goal Statement:** When presented with auditory stimuli that typically trigger sensory distress responses (e.g., loud noises, sudden sounds, specific environmental sounds), Brandon will utilize a taught coping strategy (e.g., covering ears with hands, requesting noise-canceling headphones, requesting to leave the area) instead of engaging in challenging behaviors in 80% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.
+
+**Baseline:** 0% on 04/06/2026 (Brandon currently engages in SIB, tantrums, and aggression when exposed to aversive auditory stimuli)
+**Date of Introduction:** 04/28/2026
+**Projected Mastery:** 11/28/2026
+**Progress Data:** N/A
+
+28. **Goal Statement:** When it is time to transition from a preferred activity to a non-preferred activity, Brandon will respond to a transitional warning (verbal, visual, or auditory timer) and complete the transition within 2 minutes without engaging in challenging behaviors in 80% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.
+
+**Baseline:** 0% on 04/06/2026 (Transitions from preferred to non-preferred activities reliably evoke aggression, tantrums, property destruction, and throwing)
+**Date of Introduction:** 04/28/2026
+**Projected Mastery:** 11/28/2026
+**Progress Data:** N/A
+
+29. **Goal Statement:** When seated at a table or desk for structured instructional activities, Brandon will remain seated with his body oriented toward the instructional materials for 5 continuous minutes without leaving his seat or requiring physical redirection in 80% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.
+
+**Baseline:** 0% on 04/06/2026 (Brandon is unable to remain seated and attend to structured instructional stimuli for durations sufficient to support skill acquisition; he frequently leaves his seat and walks away from the instructional area)
+**Date of Introduction:** 04/28/2026
+**Projected Mastery:** 10/28/2026
+**Progress Data:** N/A
+
+30. **Goal Statement:** When given an inhibitory instruction (e.g., "no," "stop," "don't touch"), Brandon will cease the target behavior within 5 seconds and orient toward the instructor in 80% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.
+
+**Baseline:** 0% on 04/06/2026 (Brandon does not consistently respond to inhibitory instructions and requires physical prompting to cease ongoing behaviors)
+**Date of Introduction:** 05/28/2026
+**Projected Mastery:** 12/28/2026
+**Progress Data:** N/A
+
+31. **Goal Statement:** When instructed to complete an age-appropriate structured task (e.g., puzzles, sorting activities, matching activities), Brandon will remain engaged with the task materials for 10 continuous minutes with no more than 2 verbal prompts in 80% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.
+
+**Baseline:** 0% on 04/06/2026 (Brandon does not remain engaged with structured task materials for more than 30 seconds without significant prompting and behavioral escalation)
+**Date of Introduction:** 06/28/2026
+**Projected Mastery:** 01/28/2027
+**Progress Data:** N/A
+
+32. **Goal Statement:** When presented with fine motor activities (e.g., drawing with crayons, cutting with scissors, building with blocks, stringing beads), Brandon will complete the activity demonstrating appropriate tool use and manipulation for a minimum of 5 minutes in 80% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.
+
+**Baseline:** 0% on 04/06/2026 (Brandon engages in destructive manipulation of fine motor materials rather than using them for their intended purpose)
+**Date of Introduction:** 06/28/2026
+**Projected Mastery:** 02/28/2027
+**Progress Data:** N/A
+
+33. **Goal Statement:** When presented with simple motor imitation models without objects (e.g., clap hands, wave, stomp feet, touch head, raise arms), Brandon will imitate the demonstrated action within 5 seconds of the model in 80% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.
+
+**Baseline:** 0% on 04/06/2026 (Brandon did not demonstrate motor imitation skills during structured assessment probes)
+**Date of Introduction:** 04/28/2026
+**Projected Mastery:** 10/28/2026
+**Progress Data:** N/A
+
+34. **Goal Statement:** When presented with motor imitation models with objects (e.g., bang drum, roll ball, push car, stack block, shake maraca), Brandon will imitate the demonstrated action using the presented materials within 5 seconds of the model in 80% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.
+
+**Baseline:** 0% on 04/06/2026 (Brandon did not imitate motor actions with objects during structured assessment)
+**Date of Introduction:** 05/28/2026
+**Projected Mastery:** 11/28/2026
+**Progress Data:** N/A
+
+35. **Goal Statement:** When denied access to a preferred item or activity by an adult, Brandon will accept the denial and transition to an alternative item or activity offered by the adult without engaging in challenging behaviors in 80% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.
+
+**Baseline:** 0% on 04/06/2026 (Denial of access to preferred items reliably evokes aggression, tantrums, property destruction, and spitting)
+**Date of Introduction:** 05/28/2026
+**Projected Mastery:** 12/28/2026
+**Progress Data:** N/A
+
+36. **Goal Statement:** When experiencing strong emotions (e.g., frustration, excitement, sadness, anger), Brandon will identify and tact his emotional state using gestures, pictures, or vocalizations when prompted by an adult in 80% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.
+
+**Baseline:** 0% on 04/06/2026 (Brandon does not identify or label his emotional states and does not demonstrate awareness of his own emotions through any communication modality)
+**Date of Introduction:** 07/28/2026
+**Projected Mastery:** 02/28/2027
+**Progress Data:** N/A
+
+37. **(FERB) Goal Statement:** When desiring privacy, personal space, or alone time, Brandon will mand for "alone time" or "space" using appropriate gestures, vocalizations, or verbal approximations in 80% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.
+
+**Baseline:** 0% on 04/06/2026 (Brandon does not communicate his desire for personal space and instead engages in escape-maintained challenging behaviors)
+**Date of Introduction:** 06/28/2026
+**Projected Mastery:** 01/28/2027
+**Progress Data:** N/A
+
+38. **(FERB) Goal Statement:** When requiring assistance with self-care routines (e.g., dressing, eating, hygiene), Brandon will mand for personal care help using appropriate gestures, vocalizations, or verbal approximations in 80% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.
+
+**Baseline:** 0% on 04/06/2026 (Brandon does not request help with self-care tasks and engages in tantrums and aggression when he is unable to complete self-care routines independently)
+**Date of Introduction:** 05/28/2026
+**Projected Mastery:** 12/28/2026
+**Progress Data:** N/A
+
+## Behavior Intervention Plan(s)
+
+### Behavior Intervention Plan #1: Social Negative Reinforcement (Escape/Avoidance)
+
+| **Field** | **Details** |
+|-----------|-------------|
+| **Date** | 04/06/2026 |
+| **Behavior Assessment Method** | ABC data collection and descriptive functional behavior assessment during 2-hour home observation and structured caregiver interview |
+
+**Target Behaviors:** The following behavior topographies are hypothesized to be maintained by social negative reinforcement through escape from or avoidance of demands, transitions from preferred to non-preferred activities, presentation of non-preferred stimuli, and instructional contexts requiring sustained effort or attention.
+
+● Physical aggression (biting, scratching)
+● Tantrum behaviors (crying, screaming, falling to the floor, flailing limbs)
+● Property destruction (throwing, breaking, tearing, or damaging objects)
+● Throwing objects
+
+**Operational Definition:**
+
+● **Physical Aggression (Escape-Maintained):** Any instance of Brandon making forceful contact with another person's body using his teeth (biting), nails or fingers (scratching), hands (hitting), feet (kicking), or other body parts with sufficient force to potentially cause harm or discomfort, that occurs within 30 seconds of or during the presentation of demands, transitions, or non-preferred instructional activities.
+
+● **Tantrum (Escape-Maintained):** Any episode lasting 10 seconds or longer involving two or more of the following topographies: crying, screaming, falling to the floor, and/or flailing limbs, that occurs within 30 seconds of or during the presentation of demands, transitions, or non-preferred activities.
+
+● **Property Destruction (Escape-Maintained):** Any instance of Brandon throwing, breaking, tearing, bending, or rendering unusable objects or materials in the environment that occurs within 30 seconds of or during demand presentations, transitions, or structured instructional activities.
+
+● **Throwing Objects (Escape-Maintained):** Any instance of Brandon propelling an object through the air by releasing it from his hand with force directed away from his body that occurs within 30 seconds of or during the presentation of demands or transitions.
+
+**Quantitative Baseline Data:**
+Physical aggression: 7 instances during 2-hour observation period on 04/06/2026 (approximately 4-5 instances estimated to be escape-maintained based on ABC data)
+Tantrums: 3 instances during 2-hour observation period on 04/06/2026 (approximately 2 instances estimated to be escape-maintained based on ABC data)
+Property destruction: Reported to occur daily across all environments per caregiver report on 04/06/2026
+Throwing objects: 2 instances during 2-hour observation period on 04/06/2026
+
+**Hypothesized Function:** Social Negative Reinforcement (Escape/Avoidance) —

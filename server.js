@@ -446,7 +446,7 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
             const stream = anthropic.messages.stream({
               model: CLAUDE_MODEL,
               max_tokens: 32768,
-              system: systemPrompt,
+              system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
               messages,
             });
             stream.on('text', (chunk) => {
@@ -652,7 +652,7 @@ app.post('/api/revise', authMiddleware, async (req, res) => {
     const stream = anthropic.messages.stream({
       model: CLAUDE_MODEL,
       max_tokens: 32768,
-      system: systemPrompt,
+      system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
       messages,
     });
 
@@ -1247,7 +1247,7 @@ app.post('/api/chat/:plan_id', authMiddleware, async (req, res) => {
     const stream = anthropic.messages.stream({
       model: CLAUDE_MODEL,
       max_tokens: 2000,
-      system: conversationSystemPrompt,
+      system: [{ type: 'text', text: conversationSystemPrompt, cache_control: { type: 'ephemeral' } }],
       messages,
     });
 
@@ -1318,7 +1318,7 @@ app.post('/api/chat/:plan_id/regenerate', authMiddleware, async (req, res) => {
     const stream = anthropic.messages.stream({
       model: CLAUDE_MODEL,
       max_tokens: 32768,
-      system: systemPrompt,
+      system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content: userContent }],
     });
 

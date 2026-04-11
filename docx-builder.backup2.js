@@ -136,18 +136,13 @@ function cellParas(textOrLines, bold = false) {
 }
 
 // ─── Table builder helper ─────────────────────────────────────────────────────
-// WeakMap stores the original rows array for each Table, used by postProcessTables
-const _tableRows = new WeakMap();
-
 function makeTable(rows, colWidths) {
-  const table = new Table({
+  return new Table({
     rows,
     width: { size: TABLE_W, type: WidthType.DXA },
     columnWidths: colWidths,
     borders: OUTER_BORDERS,
   });
-  _tableRows.set(table, rows);
-  return table;
 }
 
 // ─── Section table: shaded merged header + field:value rows ──────────────────
@@ -803,192 +798,10 @@ function parseMarkdown(text) {
   return out;
 }
 
-// ─── Post-processing helpers ──────────────────────────────────────────────────
-
-// Extract all plain text from a TableRow (all cells, all paragraphs, all runs)
-function rowText(row) {
-  if (!row || !row.root) return '';
-  let text = '';
-  for (const cel of row.root.filter(r => r && r.constructor && r.constructor.name === 'TableCell')) {
-    for (const p of (cel.root || []).filter(r => r && r.constructor && r.constructor.name === 'Paragraph')) {
-      for (const run of (p.root || []).filter(r => r && r.constructor && r.constructor.name === 'TextRun')) {
-        const textNode = (run.root || []).find(r => r && r.constructor && r.constructor.name === 'Text');
-        if (textNode) {
-          const str = (textNode.root || []).find(r => typeof r === 'string');
-          if (str) text += str;
-        }
-      }
-    }
-  }
-  return text.trim();
-}
-
-// Get stored rows for a table
-function getRows(tbl) {
-  return _tableRows.get(tbl) || [];
-}
-
-// Advance index past any Paragraph elements; return index of next non-Paragraph
-function skipParas(arr, from) {
-  let i = from;
-  while (i < arr.length && arr[i] instanceof Paragraph) i++;
-  return i;
-}
-
-// ── Fix 1: Merge Medical Necessity section table + Goal table into one ─────────
-// Detects: Table A whose first row text starts with "Medical Necessity",
-// followed (after gaps) by Table B whose first row text matches a goal pattern.
-function fix1MedNecGoal(arr) {
-  const out = [];
-  let i = 0;
-  while (i < arr.length) {
-    const el = arr[i];
-    if (el instanceof Table) {
-      const rows = getRows(el);
-      const firstText = rows.length ? rowText(rows[0]) : '';
-      if (/^Medical Necessity/i.test(firstText)) {
-        const j = skipParas(arr, i + 1);
-        if (j < arr.length && arr[j] instanceof Table) {
-          const nextRows = getRows(arr[j]);
-          const nextFirstText = nextRows.length ? rowText(nextRows[0]) : '';
-          if (/^\d+\.|^\(FERB\)|^Goal\s+\d+/i.test(nextFirstText)) {
-            out.push(makeTable([...rows, ...nextRows], [COL2_L, COL2_R]));
-            out.push(gap(80));
-            i = j + 1;
-            if (i < arr.length && arr[i] instanceof Paragraph) i++; // skip trailing gap
-            continue;
-          }
-        }
-      }
-    }
-    out.push(el);
-    i++;
-  }
-  return out;
-}
-
-// ── Fix 2: Prepend standalone domain header row into the following table ────────
-// Detects: 1-row Table whose text matches domain names, followed by any table.
-// Inserts that row as row 0 of the following table.
-function fix2DomainHeaders(arr) {
-  const DOMAIN_RE = /communication|social|adaptive|self-care|behavior reduction|parent|caregiver|training/i;
-  const out = [];
-  let i = 0;
-  while (i < arr.length) {
-    const el = arr[i];
-    if (el instanceof Table) {
-      const rows = getRows(el);
-      const firstText = rows.length ? rowText(rows[0]) : '';
-      if (rows.length === 1 && DOMAIN_RE.test(firstText)) {
-        const j = skipParas(arr, i + 1);
-        if (j < arr.length && arr[j] instanceof Table) {
-          const nextRows = getRows(arr[j]);
-          out.push(makeTable([...rows, ...nextRows], [COL2_L, COL2_R]));
-          out.push(gap(80));
-          i = j + 1;
-          if (i < arr.length && arr[i] instanceof Paragraph) i++;
-          continue;
-        }
-      }
-    }
-    out.push(el);
-    i++;
-  }
-  return out;
-}
-
-// ── Fix 3: Merge Post-Crisis bullet rows into a single cell ───────────────────
-// Detects: Table whose row 0 text contains "Post-Crisis" and has 2+ subsequent
-// rows that are each a single bullet. Collapses those bullets into one merged cell.
-function fix3PostCrisis(arr) {
-  const out = [];
-  for (let i = 0; i < arr.length; i++) {
-    const el = arr[i];
-    if (el instanceof Table) {
-      const rows = getRows(el);
-      if (rows.length > 2) {
-        const firstText = rows.length ? rowText(rows[0]) : '';
-        if (/Post.?Crisis/i.test(firstText)) {
-          const bulletRows = [];
-          const headerRows = [rows[0]];
-          for (let ri = 1; ri < rows.length; ri++) {
-            const t = rowText(rows[ri]);
-            if (/^[•\-●]/.test(t)) {
-              bulletRows.push(t.replace(/^[•\-●]\s*/, ''));
-            } else {
-              headerRows.push(rows[ri]);
-            }
-          }
-          if (bulletRows.length > 1) {
-            const bulletParas = bulletRows.map(bt =>
-              new Paragraph({ children: runs('• ' + bt), spacing: { after: 40 } })
-            );
-            const mergedRow = new TableRow({
-              children: [cell(bulletParas, TABLE_W, { colspan: 2 })],
-            });
-            out.push(makeTable([...headerRows, mergedRow], [COL2_L, COL2_R]));
-            continue;
-          }
-        }
-      }
-    }
-    out.push(el);
-  }
-  return out;
-}
-
-// ── Fix 4: Merge Telehealth sub-tables into one continuous table ───────────────
-// Detects: Table containing "Telehealth Readiness Checklist" in any row,
-// then collects all immediately following tables whose first row matches sub-section
-// header names, and merges them all into one table.
-function fix4Telehealth(arr) {
-  const SUB_RE = /Personnel|Technology|Implementation|Environmental|Capabilities|Standard of Care/i;
-  const out = [];
-  let i = 0;
-  while (i < arr.length) {
-    const el = arr[i];
-    if (el instanceof Table) {
-      const rows = getRows(el);
-      const hasTelehealth = rows.some(r => /Telehealth Readiness Checklist/i.test(rowText(r)));
-      if (hasTelehealth) {
-        const allRows = [...rows];
-        let j = i + 1;
-        // Collect consecutive sub-tables, skipping gaps
-        while (true) {
-          j = skipParas(arr, j);
-          if (j >= arr.length || !(arr[j] instanceof Table)) break;
-          const subRows = getRows(arr[j]);
-          const subFirstText = subRows.length ? rowText(subRows[0]) : '';
-          if (!SUB_RE.test(subFirstText)) break;
-          allRows.push(...subRows);
-          j++;
-        }
-        out.push(makeTable(allRows, [COL2_L, COL2_R]));
-        out.push(gap(80));
-        i = j;
-        if (i < arr.length && arr[i] instanceof Paragraph) i++;
-        continue;
-      }
-    }
-    out.push(el);
-    i++;
-  }
-  return out;
-}
-
-// ── Main post-processor — runs all 4 fixes in sequence ────────────────────────
-function postProcessTables(elements) {
-  let arr = fix3PostCrisis(elements);  // Fix 3 first: within-table bullet merge
-  arr = fix1MedNecGoal(arr);           // Fix 1: Medical Necessity + Goal merge
-  arr = fix2DomainHeaders(arr);        // Fix 2: domain header prepend (runs after Fix 1)
-  arr = fix4Telehealth(arr);           // Fix 4: telehealth sub-table merge
-  return arr;
-}
-
 // ─── Public API ───────────────────────────────────────────────────────────────
 function buildDocx(planText, clientName) {
   const children = planText && planText.trim()
-    ? postProcessTables(parseMarkdown(planText))
+    ? parseMarkdown(planText)
     : [para('(empty)')];
 
   return new Document({
