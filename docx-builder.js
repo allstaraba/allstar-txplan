@@ -1007,7 +1007,7 @@ function buildDocx(planText, clientName, logoBuffer = null) {
         }),
       ],
     });
-    sectionHeaders.default = new Header({ children: [] });
+    sectionHeaders.default = new Header({ children: [new Paragraph({})] });
   }
 
   const sectionProps = {
