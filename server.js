@@ -453,14 +453,14 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
     const userId = req.user.id;
     setJob(userId, { status: 'running', section: 1, total: 4, label: 'Client Info & Narrative', planId: null, clientName, error: null, startedAt: Date.now() });
 
-    let clientConnected = true;
-    res.on('close', () => { clientConnected = false; });
+    let clientDisconnected = false;
+    req.on('close', () => { clientDisconnected = true; clearInterval(keepAlive); });
 
     let totalChunksSent = 0;
     let totalCharsSent = 0;
     // send() never throws — generation continues even if client disconnected
     const send = (obj) => {
-      if (!clientConnected) return;
+      if (clientDisconnected) return;
       if (obj.type === 'chunk') {
         totalChunksSent++;
         totalCharsSent += (obj.text || '').length;
@@ -622,8 +622,10 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
     }
 
     // Keep done event small — client fetches injected text from /api/plans/:id
-    send({ type: 'done', plan_id: planId, client_name: clientName });
-    res.end();
+    if (!clientDisconnected) {
+      send({ type: 'done', plan_id: planId, client_name: clientName });
+      res.end();
+    }
     // Mark job done (keep for 60s so polling clients can pick it up, then clear)
     setJob(userId, { status: 'done', planId, clientName });
     setTimeout(() => { if (generationJobs.get(userId)?.status === 'done') clearJob(userId); }, 60000);
@@ -697,6 +699,15 @@ app.post('/api/revise', authMiddleware, async (req, res) => {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('X-Accel-Buffering', 'no');
 
+    let clientDisconnected = false;
+    let keepAlive;
+    req.on('close', () => { clientDisconnected = true; clearInterval(keepAlive); });
+
+    const send = (obj) => {
+      if (clientDisconnected) return;
+      try { res.write(`data: ${JSON.stringify(obj)}\n\n`); } catch {}
+    };
+
     let revisedText = '';
     const msgChars = messages.reduce((sum, m) => sum + (typeof m.content === 'string' ? m.content.length : 0), 0);
     console.log(`[revise] plan_id=${plan_id} input: ${msgChars.toLocaleString()} chars (~${Math.round(msgChars/4).toLocaleString()} tokens)`);
@@ -708,12 +719,11 @@ app.post('/api/revise', authMiddleware, async (req, res) => {
       messages,
     });
 
-    // Send periodic keep-alive comments so the connection stays open
-    const keepAlive = setInterval(() => res.write(': ping\n\n'), 20000);
+    keepAlive = setInterval(() => { try { res.write(': ping\n\n'); } catch {} }, 20000);
 
     stream.on('text', (chunk) => {
       revisedText += chunk;
-      res.write(`data: ${JSON.stringify({ type: 'chunk', text: chunk })}\n\n`);
+      send({ type: 'chunk', text: chunk });
     });
 
     stream.on('finalMessage', async (msg) => {
@@ -726,15 +736,19 @@ app.post('/api/revise', authMiddleware, async (req, res) => {
       ).run(plan_id, newRevisionNumber, revisedText, feedback);
       console.log(`[revise] saved revision ${newRevisionNumber} for plan_id=${plan_id}`);
       logActivity(req.user.id, req.user.username, 'revised_plan', 'plan', Number(plan_id), feedback.slice(0, 200));
-      res.write(`data: ${JSON.stringify({ type: 'done', revision_number: newRevisionNumber })}\n\n`);
-      res.end();
+      if (!clientDisconnected) {
+        send({ type: 'done', revision_number: newRevisionNumber });
+        res.end();
+      }
     });
 
     stream.on('error', (err) => {
       clearInterval(keepAlive);
       console.error('Revise stream error:', err);
-      res.write(`data: ${JSON.stringify({ type: 'error', error: err.message })}\n\n`);
-      res.end();
+      if (!clientDisconnected) {
+        send({ type: 'error', error: err.message });
+        res.end();
+      }
     });
 
   } catch (err) {
@@ -1365,6 +1379,15 @@ app.post('/api/chat/:plan_id/regenerate', authMiddleware, async (req, res) => {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('X-Accel-Buffering', 'no');
 
+    let clientDisconnected = false;
+    let keepAlive;
+    req.on('close', () => { clientDisconnected = true; clearInterval(keepAlive); });
+
+    const send = (obj) => {
+      if (clientDisconnected) return;
+      try { res.write(`data: ${JSON.stringify(obj)}\n\n`); } catch {}
+    };
+
     let revisedText = '';
     console.log(`[regenerate] plan_id=${req.params.plan_id} input: ${userContent.length.toLocaleString()} chars (~${Math.round(userContent.length/4).toLocaleString()} tokens)`);
 
@@ -1375,11 +1398,11 @@ app.post('/api/chat/:plan_id/regenerate', authMiddleware, async (req, res) => {
       messages: [{ role: 'user', content: userContent }],
     });
 
-    const keepAlive = setInterval(() => res.write(': ping\n\n'), 20000);
+    keepAlive = setInterval(() => { try { res.write(': ping\n\n'); } catch {} }, 20000);
 
     stream.on('text', (chunk) => {
       revisedText += chunk;
-      res.write(`data: ${JSON.stringify({ type: 'chunk', text: chunk })}\n\n`);
+      send({ type: 'chunk', text: chunk });
     });
 
     stream.on('finalMessage', (msg) => {
@@ -1395,15 +1418,19 @@ app.post('/api/chat/:plan_id/regenerate', authMiddleware, async (req, res) => {
       ).run(req.params.plan_id, newRevisionNumber, revisedText, feedbackSummary);
       console.log(`[regenerate] saved revision ${newRevisionNumber} for plan_id=${req.params.plan_id}`);
       logActivity(req.user.id, req.user.username, 'regenerated_plan', 'plan', Number(req.params.plan_id), 'Chat regeneration');
-      res.write(`data: ${JSON.stringify({ type: 'done', revision_number: newRevisionNumber })}\n\n`);
-      res.end();
+      if (!clientDisconnected) {
+        send({ type: 'done', revision_number: newRevisionNumber });
+        res.end();
+      }
     });
 
     stream.on('error', (err) => {
       clearInterval(keepAlive);
       console.error('Regenerate stream error:', err);
-      res.write(`data: ${JSON.stringify({ type: 'error', error: err.message })}\n\n`);
-      res.end();
+      if (!clientDisconnected) {
+        send({ type: 'error', error: err.message });
+        res.end();
+      }
     });
 
   } catch (err) {
