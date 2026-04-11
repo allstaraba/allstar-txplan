@@ -261,10 +261,28 @@ function TypingDots() {
 }
 
 // ── Chat message bubble ────────────────────────────────────────────────────────
+function formatMsgTime(dt) {
+  if (!dt) return '';
+  const d = new Date(dt.endsWith('Z') ? dt : dt + 'Z');
+  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
+}
+
 function ChatBubble({ msg }) {
   const isUser = msg.role === 'user';
+  const meta = [msg.username, formatMsgTime(msg.created_at)].filter(Boolean).join(' · ');
   return (
-    <div style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start', marginBottom: '10px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: isUser ? 'flex-end' : 'flex-start', marginBottom: '10px' }}>
+      {meta && (
+        <div style={{
+          fontSize: '10px',
+          color: '#94a3b8',
+          marginBottom: '3px',
+          paddingLeft: isUser ? '0' : '4px',
+          paddingRight: isUser ? '4px' : '0',
+        }}>
+          {meta}
+        </div>
+      )}
       <div style={{
         maxWidth: '88%',
         padding: '9px 13px',
@@ -294,7 +312,8 @@ function formatRevDate(dateStr) {
   return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
 }
 
-export default function ReviewRevise({ currentPlan, setCurrentPlan, injectedText, setInjectedText, generatingPlan, onRegeneratingChange }) {
+export default function ReviewRevise({ user, currentPlan, setCurrentPlan, injectedText, setInjectedText, generatingPlans, activeGenId, onRegeneratingChange, onRegenChunk }) {
+  const generatingPlan = (generatingPlans && activeGenId != null) ? generatingPlans.get(activeGenId) : null;
   const [revisions, setRevisions] = useState([]);
   const [selectedRevIdx, setSelectedRevIdx] = useState(0);
   // Chat messages: [{role: 'user'|'assistant', content: '...'}]
@@ -421,7 +440,8 @@ export default function ReviewRevise({ currentPlan, setCurrentPlan, injectedText
     setError('');
     setSending(true);
 
-    const userMessage = { role: 'user', content: userMsg };
+    const now = new Date().toISOString();
+    const userMessage = { role: 'user', content: userMsg, username: user?.username || '', created_at: now };
     setMessages(prev => [...prev, userMessage]);
 
     let reply = '';
@@ -432,7 +452,7 @@ export default function ReviewRevise({ currentPlan, setCurrentPlan, injectedText
         reply += chunk;
         setStreamingReply(reply);
       });
-      setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: reply, username: 'Claude', created_at: new Date().toISOString() }]);
       setStreamingReply('');
     } catch (err) {
       setError(err.message);
@@ -448,17 +468,18 @@ export default function ReviewRevise({ currentPlan, setCurrentPlan, injectedText
     if (regenerating || sending) return;
     setError('');
     setRegenerating(true);
-    if (onRegeneratingChange) onRegeneratingChange(true);
+    if (onRegeneratingChange) onRegeneratingChange(true, currentPlan.client_name || '');
     setStreamingPlanText('');
 
     // Add a system-style note to the chat
-    setMessages(prev => [...prev, { role: 'assistant', content: 'Regenerating the full treatment plan with all your requested changes. This may take 1–2 minutes…' }]);
+    setMessages(prev => [...prev, { role: 'assistant', content: 'Regenerating the full treatment plan with all your requested changes. This may take 1–2 minutes…', username: 'Claude', created_at: new Date().toISOString() }]);
 
     let newPlanText = '';
     try {
       const { revision_number } = await regeneratePlan(currentPlan.plan_id, (chunk) => {
         newPlanText += chunk;
         setStreamingPlanText(newPlanText);
+        if (onRegenChunk) onRegenChunk(chunk);
       });
 
       // Load the saved revision
@@ -467,11 +488,11 @@ export default function ReviewRevise({ currentPlan, setCurrentPlan, injectedText
       setSelectedRevIdx(updatedRevisions.length - 1);
       setStreamingPlanText('');
 
-      setMessages(prev => [...prev, { role: 'assistant', content: `Full plan regenerated — revision ${revision_number} saved. The updated plan is shown on the left.` }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: `Full plan regenerated — revision ${revision_number} saved. The updated plan is shown on the left.`, username: 'Claude', created_at: new Date().toISOString() }]);
     } catch (err) {
       setError(err.message);
       setStreamingPlanText('');
-      setMessages(prev => [...prev, { role: 'assistant', content: `Regeneration failed: ${err.message}` }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: `Regeneration failed: ${err.message}`, username: 'Claude', created_at: new Date().toISOString() }]);
     } finally {
       setRegenerating(false);
       if (onRegeneratingChange) onRegeneratingChange(false);

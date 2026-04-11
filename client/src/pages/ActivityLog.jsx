@@ -87,6 +87,7 @@ export default function ActivityLog() {
                 <th style={th}>Date / Time</th>
                 <th style={th}>User</th>
                 <th style={th}>Action</th>
+                <th style={th}>Client</th>
                 <th style={{ ...th, textAlign: 'left' }}>Details</th>
               </tr>
             </thead>
@@ -112,7 +113,10 @@ export default function ActivityLog() {
                       {ACTION_LABELS[e.action] || e.action}
                     </span>
                   </td>
-                  <td style={{ ...td, color: '#374151', maxWidth: '380px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <td style={{ ...td, color: '#374151', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {e.client_name || '—'}
+                  </td>
+                  <td style={{ ...td, color: '#374151', maxWidth: '280px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {e.details || '—'}
                   </td>
                 </tr>

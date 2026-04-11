@@ -14,6 +14,7 @@ const { Packer } = require('docx');
 const { buildDocx } = require('./docx-builder');
 const XLSX = require('xlsx');
 const { injectBoilerplate } = require('./plan-boilerplate');
+const { runBackup, latestBackup, BACKUP_DIR } = require('./backup');
 const db = require('./db');
 
 const app = express();
@@ -22,6 +23,17 @@ const JWT_SECRET = process.env.JWT_SECRET || 'allstar-aba-secret-2026';
 const CLAUDE_MODEL = process.env.CLAUDE_MODEL || 'claude-opus-4-5';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+// Server-side generation job tracking keyed by userId
+// Survives client disconnects so users can reconnect and see status
+const generationJobs = new Map(); // userId -> { status, section, total, label, planId, clientName, error, startedAt }
+
+function setJob(userId, data) {
+  generationJobs.set(userId, { ...generationJobs.get(userId), ...data });
+}
+function clearJob(userId) {
+  generationJobs.delete(userId);
+}
 console.log(`[startup] Using model: ${CLAUDE_MODEL}`);
 
 app.use(express.json({ limit: '50mb' }));
@@ -59,6 +71,18 @@ function adminMiddleware(req, res, next) {
     return res.status(403).json({ error: 'Admin access required' });
   }
   next();
+}
+
+// Strip any AI preamble that appears before the actual plan heading
+function stripAIPreamble(text) {
+  const markers = ['# ABA Treatment Plan', '## ABA Treatment Plan', 'ABA Treatment Plan'];
+  for (const marker of markers) {
+    const idx = text.indexOf(marker);
+    if (idx > 0) {
+      return text.slice(idx);
+    }
+  }
+  return text;
 }
 
 // Activity logger
@@ -133,6 +157,13 @@ app.get('/api/me', authMiddleware, (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// Generation status endpoint — returns active job for the logged-in user
+app.get('/api/generate/status', authMiddleware, (req, res) => {
+  const job = generationJobs.get(req.user.id);
+  if (!job) return res.json({ status: 'idle' });
+  res.json(job);
 });
 
 // ---- CLIENT INFO SAVE/LOAD ----
@@ -387,7 +418,7 @@ Generate sections 19 through 26 in order. Do not write skill acquisition goals, 
 };
 
 app.post('/api/generate', authMiddleware, async (req, res) => {
-  const keepAlive = setInterval(() => res.write(': ping\n\n'), 20000);
+  const keepAlive = setInterval(() => { try { res.write(': ping\n\n'); } catch {} }, 20000);
 
   try {
     const { notes, clientInfo } = req.body;
@@ -418,14 +449,23 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('X-Accel-Buffering', 'no');
 
+    // Track this job server-side so user can reconnect and see status
+    const userId = req.user.id;
+    setJob(userId, { status: 'running', section: 1, total: 4, label: 'Client Info & Narrative', planId: null, clientName, error: null, startedAt: Date.now() });
+
+    let clientConnected = true;
+    res.on('close', () => { clientConnected = false; });
+
     let totalChunksSent = 0;
     let totalCharsSent = 0;
+    // send() never throws — generation continues even if client disconnected
     const send = (obj) => {
+      if (!clientConnected) return;
       if (obj.type === 'chunk') {
         totalChunksSent++;
         totalCharsSent += (obj.text || '').length;
       }
-      res.write(`data: ${JSON.stringify(obj)}\n\n`);
+      try { res.write(`data: ${JSON.stringify(obj)}\n\n`); } catch {}
     };
 
     let fullPlanText = '';
@@ -503,16 +543,19 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
 
     // ── Step 1: S1 — client info & narrative ──────────────────────────────
     send({ type: 'progress', section: 1, total: 4, label: GEN.S1.label });
+    setJob(userId, { section: 1, label: GEN.S1.label });
     const s1Text = await callWithRetry(GEN.S1.id, buildMessages(GEN.S1, null));
 
     // ── Step 2: S2 — assessments & goal summary ───────────────────────────
     send({ type: 'progress', section: 2, total: 4, label: GEN.S2.label });
+    setJob(userId, { section: 2, label: GEN.S2.label });
     const s2Text = await callWithRetry(GEN.S2.id, buildMessages(GEN.S2, s1Text));
 
     const s1s2Context = s1Text + '\n\n' + s2Text;
 
     // ── Step 3: S3A ‖ S3B — skill acquisition goals in parallel ──────────
     send({ type: 'progress', section: 3, total: 4, label: 'Skill Acquisition Goals (parallel)' });
+    setJob(userId, { section: 3, label: 'Skill Acquisition Goals (parallel)' });
     console.log('[generate] Starting S3A and S3B in parallel');
     const [s3aText, s3bText] = await Promise.all([
       callWithRetry(GEN.S3A.id, buildMessages(GEN.S3A, s1s2Context)),
@@ -525,6 +568,7 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
 
     // ── Step 4: S3C ‖ S3D — BIPs and final sections in parallel ──────────
     send({ type: 'progress', section: 4, total: 4, label: 'BIPs & Final Sections (parallel)' });
+    setJob(userId, { section: 4, label: 'BIPs & Final Sections (parallel)' });
     console.log('[generate] Starting S3C and S3D in parallel');
     const bipContext = s1s2Context + (goalList
       ? '\n\n=== SKILL ACQUISITION GOALS (reference these numbers for FERB goals) ===\n' + goalList
@@ -543,6 +587,8 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
     console.log(`[generate] SSE chunks sent: ${totalChunksSent}, total chars streamed: ${totalCharsSent}`);
 
     clearInterval(keepAlive);
+
+    fullPlanText = stripAIPreamble(fullPlanText);
 
     // Try to refine client name from generated text
     const planNameMatch = fullPlanText.match(/Participant Name[:\s]+([^\n\r]+)/i);
@@ -578,6 +624,9 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
     // Keep done event small — client fetches injected text from /api/plans/:id
     send({ type: 'done', plan_id: planId, client_name: clientName });
     res.end();
+    // Mark job done (keep for 60s so polling clients can pick it up, then clear)
+    setJob(userId, { status: 'done', planId, clientName });
+    setTimeout(() => { if (generationJobs.get(userId)?.status === 'done') clearJob(userId); }, 60000);
     logActivity(req.user.id, req.user.username, 'generated_plan', 'plan', planId, clientName);
 
     // Generate clarifying questions in the background AFTER the response is closed
@@ -592,7 +641,7 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
           }]
         });
         const clarifyText = clarifyMsg.content[0].text;
-        db.prepare('INSERT INTO chat_messages (plan_id, role, content) VALUES (?, ?, ?)').run(planId, 'assistant', clarifyText);
+        db.prepare('INSERT INTO chat_messages (plan_id, role, content, username) VALUES (?, ?, ?, ?)').run(planId, 'assistant', clarifyText, 'Claude');
         console.log(`[generate] Posted clarifying questions to chat for plan_id=${planId}`);
       } catch (e) {
         console.log('[generate] Could not generate clarifying questions:', e.message);
@@ -602,6 +651,9 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
   } catch (err) {
     clearInterval(keepAlive);
     console.error('Generate error:', err);
+    // Mark job as error so polling clients see it
+    if (req.user) setJob(req.user.id, { status: 'error', error: err.message });
+    setTimeout(() => { if (req.user && generationJobs.get(req.user.id)?.status === 'error') clearJob(req.user.id); }, 30000);
     try {
       res.write(`data: ${JSON.stringify({ type: 'error', error: err.message })}\n\n`);
       res.end();
@@ -667,6 +719,7 @@ app.post('/api/revise', authMiddleware, async (req, res) => {
     stream.on('finalMessage', async (msg) => {
       clearInterval(keepAlive);
       const newRevisionNumber = allRevisions[allRevisions.length - 1].revision_number + 1;
+      revisedText = stripAIPreamble(revisedText);
       console.log(`[revise] done. stop_reason=${msg.stop_reason} output=${revisedText.length.toLocaleString()} chars (${revisedText.split('\n').length} lines)`);
       db.prepare(
         'INSERT INTO plan_revisions (plan_id, revision_number, text, feedback) VALUES (?, ?, ?, ?)'
@@ -1232,8 +1285,8 @@ app.post('/api/chat/:plan_id', authMiddleware, async (req, res) => {
     ];
 
     // Save the user message
-    db.prepare('INSERT INTO chat_messages (plan_id, role, content) VALUES (?, ?, ?)').run(
-      req.params.plan_id, 'user', message
+    db.prepare('INSERT INTO chat_messages (plan_id, role, content, username) VALUES (?, ?, ?, ?)').run(
+      req.params.plan_id, 'user', message, req.user.username
     );
 
     // Stream conversational reply
@@ -1261,8 +1314,8 @@ app.post('/api/chat/:plan_id', authMiddleware, async (req, res) => {
     stream.on('finalMessage', () => {
       clearInterval(keepAlive);
       // Save assistant reply
-      db.prepare('INSERT INTO chat_messages (plan_id, role, content) VALUES (?, ?, ?)').run(
-        req.params.plan_id, 'assistant', replyText
+      db.prepare('INSERT INTO chat_messages (plan_id, role, content, username) VALUES (?, ?, ?, ?)').run(
+        req.params.plan_id, 'assistant', replyText, 'Claude'
       );
       res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);
       res.end();
@@ -1335,6 +1388,7 @@ app.post('/api/chat/:plan_id/regenerate', authMiddleware, async (req, res) => {
       const feedbackSummary = userChatMessages.length > 0
         ? `Chat regeneration: ${userChatMessages.length} change(s) applied`
         : 'Full regeneration';
+      revisedText = stripAIPreamble(revisedText);
       console.log(`[regenerate] done. stop_reason=${msg.stop_reason} output=${revisedText.length.toLocaleString()} chars (${revisedText.split('\n').length} lines)`);
       db.prepare(
         'INSERT INTO plan_revisions (plan_id, revision_number, text, feedback) VALUES (?, ?, ?, ?)'
@@ -1358,13 +1412,32 @@ app.post('/api/chat/:plan_id/regenerate', authMiddleware, async (req, res) => {
   }
 });
 
+// ---- BACKUP ROUTES ----
+
+app.get('/api/admin/backup', authMiddleware, adminMiddleware, (req, res) => {
+  const result = runBackup();
+  if (!result) return res.status(500).json({ error: 'Backup failed' });
+  res.json({ ok: true, filename: result.filename, bytes: result.bytes });
+});
+
+app.get('/api/admin/backup/download', authMiddleware, adminMiddleware, (req, res) => {
+  const filename = latestBackup();
+  if (!filename) return res.status(404).json({ error: 'No backup found' });
+  const filepath = path.join(BACKUP_DIR, filename);
+  if (!fs.existsSync(filepath)) return res.status(404).json({ error: 'Backup file not found' });
+  res.download(filepath, filename);
+});
+
 // ---- ACTIVITY LOG ----
 
 app.get('/api/activity-log', authMiddleware, adminMiddleware, (req, res) => {
   try {
-    const entries = db.prepare(
-      'SELECT * FROM activity_log ORDER BY created_at DESC LIMIT 200'
-    ).all();
+    const entries = db.prepare(`
+      SELECT a.*, p.client_name
+      FROM activity_log a
+      LEFT JOIN plan_history p ON a.target_type = 'plan' AND a.target_id = p.id
+      ORDER BY a.created_at DESC LIMIT 200
+    `).all();
     res.json(entries);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1379,4 +1452,8 @@ app.get('*', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`All Star ABA server running on http://localhost:${PORT}`);
+
+  // Run a backup immediately on startup, then every 24 hours
+  runBackup();
+  setInterval(runBackup, 24 * 60 * 60 * 1000);
 });

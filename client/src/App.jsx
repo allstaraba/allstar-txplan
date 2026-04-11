@@ -10,7 +10,7 @@ import PlanHistory from './pages/PlanHistory.jsx';
 import ClientRecords from './pages/ClientRecords.jsx';
 import ClientProfile from './pages/ClientProfile.jsx';
 import ActivityLog from './pages/ActivityLog.jsx';
-import { getMe, logout, generatePlan, getPlan } from './api.js';
+import { getMe, logout, generatePlan, getPlan, getGenerationStatus } from './api.js';
 
 const styles = {
   layout: {
@@ -116,35 +116,134 @@ const styles = {
 
 function Layout({ user, onLogout, currentPlan, setCurrentPlan, injectedText, setInjectedText }) {
   const navigate = useNavigate();
-  // generatingPlan tracks an in-progress generation so navigation doesn't kill it
-  // { text: string, status: 'running' | 'error', error: string | null }
-  const [generatingPlan, setGeneratingPlan] = useState(null);
-  const [isRegenerating, setIsRegenerating] = useState(false);
-  const abortControllerRef = useRef(null);
+  // generatingPlans: Map<genId, { text, status, section, total, label, error, clientName }>
+  const [generatingPlans, setGeneratingPlans] = useState(new Map());
+  const [activeGenId, setActiveGenId] = useState(null);
+  const [regenJob, setRegenJob] = useState(null); // null or { clientName, chars }
+  const abortControllersRef = useRef(new Map());
+  const genCounterRef = useRef(0);
+  const pollIntervalRef = useRef(null);
+
+  // On mount, check if there's an in-progress generation for this user on the server.
+  // This handles page refresh / browser close / navigation away mid-generation.
+  useEffect(() => {
+    let cancelled = false;
+
+    async function checkServerJob() {
+      try {
+        const job = await getGenerationStatus();
+        if (cancelled) return;
+        if (job.status === 'running') {
+          // Show a reconnected status widget (no SSE stream — just poll for updates)
+          const RECONNECT_GEN_ID = 'server-reconnect';
+          setGeneratingPlans(prev => {
+            const next = new Map(prev);
+            if (!next.has(RECONNECT_GEN_ID)) {
+              next.set(RECONNECT_GEN_ID, {
+                text: '', status: 'running',
+                section: job.section || 1, total: job.total || 4,
+                label: job.label || 'Generating…',
+                error: null, clientName: job.clientName || '',
+                reconnected: true,
+              });
+            }
+            return next;
+          });
+          setActiveGenId(RECONNECT_GEN_ID);
+
+          // Poll every 3s until the server reports done or error
+          pollIntervalRef.current = setInterval(async () => {
+            try {
+              const updated = await getGenerationStatus();
+              if (cancelled) return;
+              if (updated.status === 'running') {
+                setGeneratingPlans(prev => {
+                  const next = new Map(prev);
+                  const cur = next.get(RECONNECT_GEN_ID);
+                  if (!cur) return prev;
+                  next.set(RECONNECT_GEN_ID, { ...cur, section: updated.section, label: updated.label });
+                  return next;
+                });
+              } else if (updated.status === 'done') {
+                clearInterval(pollIntervalRef.current);
+                // Load the completed plan
+                try {
+                  const planData = await getPlan(updated.planId);
+                  const revs = planData.revisions;
+                  const planText = revs && revs.length > 0 ? revs[revs.length - 1].text : '';
+                  setCurrentPlan({ plan_id: updated.planId, text: planText, client_name: updated.clientName });
+                } catch {}
+                setGeneratingPlans(prev => { const next = new Map(prev); next.delete(RECONNECT_GEN_ID); return next; });
+                setActiveGenId(null);
+              } else if (updated.status === 'error' || updated.status === 'idle') {
+                clearInterval(pollIntervalRef.current);
+                if (updated.status === 'error') {
+                  setGeneratingPlans(prev => {
+                    const next = new Map(prev);
+                    const cur = next.get(RECONNECT_GEN_ID);
+                    if (cur) next.set(RECONNECT_GEN_ID, { ...cur, status: 'error', error: updated.error || 'Generation failed' });
+                    return next;
+                  });
+                } else {
+                  setGeneratingPlans(prev => { const next = new Map(prev); next.delete(RECONNECT_GEN_ID); return next; });
+                  setActiveGenId(null);
+                }
+              }
+            } catch {}
+          }, 3000);
+        }
+      } catch {}
+    }
+
+    checkServerJob();
+    return () => {
+      cancelled = true;
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleLogout = async () => {
+    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
     await logout();
     localStorage.removeItem('allstar_token');
     onLogout();
     navigate('/login');
   };
 
-  const stopGeneration = () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
+  const stopGeneration = (genId) => {
+    const ctrl = abortControllersRef.current.get(genId);
+    if (ctrl) {
+      ctrl.abort();
+      abortControllersRef.current.delete(genId);
     }
-    setGeneratingPlan(null);
+    setGeneratingPlans(prev => {
+      const next = new Map(prev);
+      next.delete(genId);
+      return next;
+    });
+    setActiveGenId(prev => prev === genId ? null : prev);
+  };
+
+  const updateGen = (genId, updater) => {
+    setGeneratingPlans(prev => {
+      const next = new Map(prev);
+      const cur = next.get(genId);
+      if (!cur) return prev;
+      next.set(genId, typeof updater === 'function' ? updater(cur) : { ...cur, ...updater });
+      return next;
+    });
   };
 
   // Start generation at Layout level so it survives page navigation
   const startGeneration = async (notes) => {
-    setCurrentPlan(null);
-    setGeneratingPlan({ text: '', status: 'running', section: 1, total: 4, label: 'Client Info & Narrative', error: null });
+    const genId = ++genCounterRef.current;
+    const initEntry = { text: '', status: 'running', section: 1, total: 4, label: 'Client Info & Narrative', error: null, clientName: '' };
+    setGeneratingPlans(prev => new Map(prev).set(genId, initEntry));
+    setActiveGenId(genId);
     navigate('/review');
 
     const controller = new AbortController();
-    abortControllerRef.current = controller;
+    abortControllersRef.current.set(genId, controller);
 
     let accumulated = '';
     try {
@@ -153,31 +252,36 @@ function Layout({ user, onLogout, currentPlan, setCurrentPlan, injectedText, set
         {},
         (chunk) => {
           accumulated += chunk;
-          setGeneratingPlan(prev => ({ ...prev, text: accumulated }));
+          updateGen(genId, prev => ({ ...prev, text: accumulated }));
         },
         ({ section, total, label }) => {
-          setGeneratingPlan(prev => ({ ...prev, section, total, label }));
+          updateGen(genId, prev => ({ ...prev, section, total, label }));
         },
         controller.signal
       );
       // Fetch from DB to get the boilerplate-injected text (markers replaced)
+      let planText = accumulated;
       try {
         const planData = await getPlan(data.plan_id);
         const revs = planData.revisions;
-        const planText = (revs && revs.length > 0) ? revs[revs.length - 1].text : accumulated;
-        setCurrentPlan({ plan_id: data.plan_id, text: planText, client_name: data.client_name });
-      } catch {
-        setCurrentPlan({ plan_id: data.plan_id, text: accumulated, client_name: data.client_name });
-      }
-      setGeneratingPlan(null);
+        if (revs && revs.length > 0) planText = revs[revs.length - 1].text;
+      } catch { /* use accumulated */ }
+      setCurrentPlan({ plan_id: data.plan_id, text: planText, client_name: data.client_name });
+      setGeneratingPlans(prev => {
+        const next = new Map(prev);
+        next.delete(genId);
+        return next;
+      });
+      setActiveGenId(null);
     } catch (err) {
       if (err.name === 'AbortError') {
-        setGeneratingPlan(null); // clean stop, no error shown
+        setGeneratingPlans(prev => { const next = new Map(prev); next.delete(genId); return next; });
+        setActiveGenId(prev => prev === genId ? null : prev);
       } else {
-        setGeneratingPlan(prev => ({ ...prev, status: 'error', error: err.message }));
+        updateGen(genId, prev => ({ ...prev, status: 'error', error: err.message }));
       }
     } finally {
-      abortControllerRef.current = null;
+      abortControllersRef.current.delete(genId);
     }
   };
 
@@ -220,89 +324,108 @@ function Layout({ user, onLogout, currentPlan, setCurrentPlan, injectedText, set
           ))}
         </nav>
 
-        {/* Persistent regeneration indicator */}
-        {isRegenerating && !generatingPlan && (
+        {/* Persistent regeneration card */}
+        {regenJob && (
           <div style={{
-            margin: '0 12px 10px',
+            margin: '0 12px 8px',
             padding: '10px 12px',
-            background: 'rgba(37,99,235,0.18)',
-            border: '1px solid rgba(37,99,235,0.35)',
+            background: 'rgba(124,58,237,0.18)',
+            border: '1px solid rgba(124,58,237,0.4)',
             borderRadius: '8px',
             cursor: 'pointer',
           }} onClick={() => navigate('/review')}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '5px' }}>
               <span style={{
                 display: 'inline-block', width: '10px', height: '10px',
-                border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#60a5fa',
+                border: '2px solid rgba(255,255,255,0.25)', borderTopColor: '#c4b5fd',
                 borderRadius: '50%', animation: 'spin 0.8s linear infinite', flexShrink: 0,
               }} />
-              <span style={{ fontSize: '12px', color: '#93c5fd', fontWeight: '600' }}>Regenerating Plan</span>
+              <span style={{ fontSize: '11px', color: '#c4b5fd', fontWeight: '600', flex: 1 }}>
+                Regenerating Plan
+              </span>
             </div>
-            <div style={{ fontSize: '11px', color: '#60a5fa', lineHeight: 1.3 }}>
-              Applying all chat changes…<br />
-              <span style={{ color: '#93c5fd', opacity: 0.7 }}>Click to watch progress</span>
+            {regenJob.clientName && (
+              <div style={{ fontSize: '10px', color: '#a78bfa', marginBottom: '5px', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {regenJob.clientName}
+              </div>
+            )}
+            <div style={{ height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', marginBottom: '6px', overflow: 'hidden' }}>
+              <div style={{
+                height: '100%', width: '45%',
+                background: 'linear-gradient(90deg, #7c3aed, #c4b5fd)',
+                borderRadius: '2px', animation: 'slidebar 1.6s ease-in-out infinite',
+              }} />
+            </div>
+            <div style={{ fontSize: '10px', color: '#a78bfa', lineHeight: 1.4 }}>
+              Applying all chat changes…
+              {regenJob.chars > 500 && (
+                <span style={{ opacity: 0.75 }}> · {Math.round(regenJob.chars / 1000)}k chars</span>
+              )}
+              <br />
+              <span style={{ color: '#c4b5fd', opacity: 0.7 }}>Click to watch progress</span>
             </div>
           </div>
         )}
 
-        {/* Persistent generation indicator */}
-        {generatingPlan && (
-          <div style={{
-            margin: '0 12px 10px',
-            padding: '10px 12px',
-            background: generatingPlan.status === 'error' ? 'rgba(239,68,68,0.15)' : 'rgba(37,99,235,0.18)',
-            border: `1px solid ${generatingPlan.status === 'error' ? 'rgba(239,68,68,0.3)' : 'rgba(37,99,235,0.35)'}`,
-            borderRadius: '8px',
-            cursor: 'pointer',
-          }} onClick={() => navigate('/review')}>
-            {generatingPlan.status === 'running' ? (
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                  <span style={{
-                    display: 'inline-block', width: '10px', height: '10px',
-                    border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#60a5fa',
-                    borderRadius: '50%', animation: 'spin 0.8s linear infinite', flexShrink: 0,
-                  }} />
-                  <span style={{ fontSize: '12px', color: '#93c5fd', fontWeight: '600' }}>
-                    Section {generatingPlan.section} of {generatingPlan.total}
-                  </span>
+        {/* Persistent generation cards — one per active generation */}
+        {[...generatingPlans.entries()].map(([genId, gen]) => {
+          const pct = Math.round(((gen.section - 1) / gen.total) * 100);
+          const isActive = genId === activeGenId;
+          return (
+            <div key={genId} style={{
+              margin: '0 12px 8px',
+              padding: '10px 12px',
+              background: gen.status === 'error' ? 'rgba(239,68,68,0.15)' : (isActive ? 'rgba(37,99,235,0.25)' : 'rgba(37,99,235,0.13)'),
+              border: `1px solid ${gen.status === 'error' ? 'rgba(239,68,68,0.3)' : (isActive ? 'rgba(37,99,235,0.5)' : 'rgba(37,99,235,0.28)')}`,
+              borderRadius: '8px',
+              cursor: 'pointer',
+            }} onClick={() => { setActiveGenId(genId); navigate('/review'); }}>
+              {gen.status === 'running' ? (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '5px' }}>
+                    <span style={{
+                      display: 'inline-block', width: '10px', height: '10px',
+                      border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#60a5fa',
+                      borderRadius: '50%', animation: 'spin 0.8s linear infinite', flexShrink: 0,
+                    }} />
+                    <span style={{ fontSize: '11px', color: '#93c5fd', fontWeight: '600', flex: 1 }}>
+                      Generating Plan #{genId}
+                    </span>
+                    <span style={{ fontSize: '10px', color: '#60a5fa' }}>{pct}%</span>
+                  </div>
+                  {/* 0–100% progress bar */}
+                  <div style={{ height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', marginBottom: '5px' }}>
+                    <div style={{
+                      height: '100%', width: `${pct}%`,
+                      background: 'linear-gradient(90deg, #2563eb, #60a5fa)',
+                      borderRadius: '2px', transition: 'width 0.5s ease',
+                    }} />
+                  </div>
+                  <div style={{ fontSize: '10px', color: '#60a5fa', lineHeight: 1.3, marginBottom: '7px' }}>
+                    Section {gen.section}/{gen.total} — {gen.label}<br />
+                    <span style={{ color: '#93c5fd', opacity: 0.7 }}>Click to watch progress</span>
+                  </div>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); stopGeneration(genId); }}
+                    style={{
+                      width: '100%', padding: '4px 0',
+                      background: 'rgba(239,68,68,0.18)',
+                      border: '1px solid rgba(239,68,68,0.35)',
+                      borderRadius: '5px', color: '#fca5a5',
+                      fontSize: '11px', fontWeight: '600', cursor: 'pointer',
+                    }}
+                  >
+                    ✕ Stop
+                  </button>
                 </div>
-                {/* Progress bar */}
-                <div style={{ height: '3px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', marginBottom: '6px' }}>
-                  <div style={{
-                    height: '100%',
-                    width: `${((generatingPlan.section - 1) / generatingPlan.total) * 100}%`,
-                    background: '#60a5fa', borderRadius: '2px', transition: 'width 0.4s ease',
-                  }} />
+              ) : (
+                <div style={{ fontSize: '11px', color: '#fca5a5' }}>
+                  Plan #{genId} failed. {gen.error}
                 </div>
-                <div style={{ fontSize: '11px', color: '#60a5fa', lineHeight: 1.3, marginBottom: '8px' }}>
-                  {generatingPlan.label}<br />
-                  <span style={{ color: '#93c5fd', opacity: 0.7 }}>Click to watch progress</span>
-                </div>
-                <button
-                  onClick={(e) => { e.stopPropagation(); stopGeneration(); }}
-                  style={{
-                    width: '100%',
-                    padding: '5px 0',
-                    background: 'rgba(239,68,68,0.18)',
-                    border: '1px solid rgba(239,68,68,0.35)',
-                    borderRadius: '5px',
-                    color: '#fca5a5',
-                    fontSize: '11px',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                  }}
-                >
-                  ✕ Stop Generating
-                </button>
-              </div>
-            ) : (
-              <div style={{ fontSize: '12px', color: '#fca5a5' }}>
-                Generation failed. {generatingPlan.error}
-              </div>
-            )}
-          </div>
-        )}
+              )}
+            </div>
+          );
+        })}
 
         <div style={styles.sidebarFooter}>
           <div style={styles.userInfo}>
@@ -316,8 +439,8 @@ function Layout({ user, onLogout, currentPlan, setCurrentPlan, injectedText, set
       </div>
       <main style={styles.content}>
         <Routes>
-          <Route path="/generate" element={<GeneratePlan onGenerate={startGeneration} isGenerating={!!generatingPlan && generatingPlan.status === 'running'} />} />
-          <Route path="/review" element={<ReviewRevise currentPlan={currentPlan} setCurrentPlan={setCurrentPlan} injectedText={injectedText} setInjectedText={setInjectedText} generatingPlan={generatingPlan} onRegeneratingChange={setIsRegenerating} />} />
+          <Route path="/generate" element={<GeneratePlan onGenerate={startGeneration} isGenerating={generatingPlans.size > 0} />} />
+          <Route path="/review" element={<ReviewRevise user={user} currentPlan={currentPlan} setCurrentPlan={setCurrentPlan} injectedText={injectedText} setInjectedText={setInjectedText} generatingPlans={generatingPlans} activeGenId={activeGenId} onRegeneratingChange={(active, clientName = '') => { if (active) setRegenJob({ clientName, chars: 0 }); else setRegenJob(null); }} onRegenChunk={(text) => setRegenJob(prev => prev ? { ...prev, chars: prev.chars + text.length } : prev)} />} />
           <Route path="/clients" element={<ClientRecords />} />
           <Route path="/clients/:id" element={<ClientProfile currentPlan={currentPlan} setCurrentPlan={setCurrentPlan} injectedText={injectedText} setInjectedText={setInjectedText} />} />
           <Route path="/plans" element={<PlanHistory setCurrentPlan={setCurrentPlan} />} />
@@ -328,7 +451,10 @@ function Layout({ user, onLogout, currentPlan, setCurrentPlan, injectedText, set
           <Route path="*" element={<Navigate to="/generate" replace />} />
         </Routes>
       </main>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes slidebar { 0% { transform: translateX(-150%); } 100% { transform: translateX(280%); } }
+      `}</style>
     </div>
   );
 }

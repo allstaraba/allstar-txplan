@@ -59,6 +59,11 @@ export async function getMe() {
   return data;
 }
 
+export async function getGenerationStatus() {
+  const res = await apiFetch(`${BASE_URL}/api/generate/status`, { headers: authHeaders() });
+  return res.json();
+}
+
 export async function generatePlan(notes, clientInfo, onChunk, onProgress, signal) {
   const res = await fetch(`${BASE_URL}/api/generate`, {
     method: 'POST',

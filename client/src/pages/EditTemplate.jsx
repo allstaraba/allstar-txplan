@@ -39,7 +39,7 @@ export default function EditTemplate({ user }) {
     setLogoError('');
     setLogoUploading(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('allstar_token');
       const form = new FormData();
       form.append('logo', file);
       const r = await fetch('/api/settings/logo', {
@@ -65,7 +65,7 @@ export default function EditTemplate({ user }) {
     setLogoError('');
     setLogoDeleting(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('allstar_token');
       const r = await fetch('/api/settings/logo', {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
