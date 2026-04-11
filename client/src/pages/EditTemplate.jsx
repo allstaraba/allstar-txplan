@@ -40,6 +40,11 @@ export default function EditTemplate({ user }) {
     setLogoUploading(true);
     try {
       const token = localStorage.getItem('allstar_token');
+      if (!token) {
+        localStorage.removeItem('allstar_token');
+        window.location.href = '/login';
+        return;
+      }
       const form = new FormData();
       form.append('logo', file);
       const r = await fetch('/api/settings/logo', {
@@ -47,6 +52,11 @@ export default function EditTemplate({ user }) {
         headers: { Authorization: `Bearer ${token}` },
         body: form,
       });
+      if (r.status === 401) {
+        localStorage.removeItem('allstar_token');
+        window.location.href = '/login';
+        return;
+      }
       if (!r.ok) {
         const j = await r.json().catch(() => ({}));
         throw new Error(j.error || 'Upload failed');
@@ -66,10 +76,20 @@ export default function EditTemplate({ user }) {
     setLogoDeleting(true);
     try {
       const token = localStorage.getItem('allstar_token');
+      if (!token) {
+        localStorage.removeItem('allstar_token');
+        window.location.href = '/login';
+        return;
+      }
       const r = await fetch('/api/settings/logo', {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (r.status === 401) {
+        localStorage.removeItem('allstar_token');
+        window.location.href = '/login';
+        return;
+      }
       if (!r.ok) {
         const j = await r.json().catch(() => ({}));
         throw new Error(j.error || 'Delete failed');
