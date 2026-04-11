@@ -287,7 +287,7 @@ Generate ONLY sections 10 through 14:
 10. Strengths, Challenges & Severity Level — 2-column table, four domain rows (Language/Communication, Social Skills, Adaptive/Self-Care, Challenging Behaviors). Each row: Strengths paragraph, Challenges paragraph, Severity: ☐ Mild ☐ Moderate ☐ Severe
 11. Standardized Assessment — Vineland-3 boilerplate introduction + ABC and Domain Score Summary placeholder + Subdomain Score Summary placeholder + Maladaptive Behavior Score Summary table (Internalizing, Externalizing, Critical Items)
 12. Criterion-Referenced Assessment — VB-MAPP or ABLLS-R boilerplate introduction + full score narrative for all domains
-13. Goal Objective Summary table (columns: Total Goals, Mastered, In-Progress, On Hold, Discontinued, New)
+13. Goal Objective Summary — write only [GOAL_SUMMARY_TABLE] as a placeholder. Do not generate the actual table.
 14. Response to Treatment / Authorization Summary (write "N/A — Initial Treatment Plan" for initial plans)
 
 Be thorough. STOP after section 14. Do NOT write skill acquisition goals, BIPs, behavior reduction, or any later sections.`,
@@ -566,6 +566,13 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
     // Extract goal list for BIP FERB references
     const goalList = extractGoalNumbers(s3aText, s3bText);
 
+    // Count actual goals by matching goal number pattern in S3A + S3B
+    const goalCount = (s3aText + '\n' + s3bText)
+      .split('\n')
+      .filter(line => /^\s*\|?\s*\d+\.\s+Goal Statement:/i.test(line))
+      .length;
+    console.log(`[generate] Goal count for summary table: ${goalCount}`);
+
     // ── Step 4: S3C ‖ S3D — BIPs and final sections in parallel ──────────
     send({ type: 'progress', section: 4, total: 4, label: 'BIPs & Final Sections (parallel)' });
     setJob(userId, { section: 4, label: 'BIPs & Final Sections (parallel)' });
@@ -601,7 +608,7 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
     const assessmentDate = dateMatch ? dateMatch[1].trim() : '[DATE]';
 
     // Inject boilerplate markers — keeps system prompt lean but final plan has full text
-    const injectedPlanText = injectBoilerplate(fullPlanText, clientName, bcbaName, assessmentDate);
+    const injectedPlanText = injectBoilerplate(fullPlanText, clientName, bcbaName, assessmentDate, goalCount);
     console.log(`[generate] Boilerplate injected. Raw: ${fullPlanText.length} chars → Final: ${injectedPlanText.length} chars`);
 
     // Save injected text to DB
