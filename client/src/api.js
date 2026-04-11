@@ -290,17 +290,42 @@ export async function deleteClient(id) {
   return res.json();
 }
 
-export async function getClientDocuments(id) {
-  const res = await fetch(`${BASE_URL}/api/clients/${id}/documents`, { headers: authHeaders() });
+export async function getClientDocuments(id, periodId) {
+  const url = periodId
+    ? `${BASE_URL}/api/clients/${id}/documents?period_id=${periodId}`
+    : `${BASE_URL}/api/clients/${id}/documents`;
+  const res = await fetch(url, { headers: authHeaders() });
   return res.json();
 }
 
-export async function uploadClientDocument(id, file) {
+export async function uploadClientDocument(id, file, periodId = null) {
   const formData = new FormData();
   formData.append('file', file);
+  if (periodId) formData.append('authorization_period_id', periodId);
   const res = await fetch(`${BASE_URL}/api/clients/${id}/documents`, { method: 'POST', headers: authHeadersNoContentType(), body: formData });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'Upload failed');
+  return data;
+}
+
+export async function getAuthPeriods(id) {
+  const res = await fetch(`${BASE_URL}/api/clients/${id}/auth-periods`, { headers: authHeaders() });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed');
+  return data;
+}
+
+export async function createAuthPeriod(id, body) {
+  const res = await fetch(`${BASE_URL}/api/clients/${id}/auth-periods`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed');
+  return data;
+}
+
+export async function updateAuthPeriod(id, periodId, body) {
+  const res = await fetch(`${BASE_URL}/api/clients/${id}/auth-periods/${periodId}`, { method: 'PUT', headers: authHeaders(), body: JSON.stringify(body) });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed');
   return data;
 }
 

@@ -106,6 +106,22 @@ db.exec(`CREATE TABLE IF NOT EXISTS chat_messages (
   FOREIGN KEY (plan_id) REFERENCES plan_history(id)
 )`);
 
+db.exec(`CREATE TABLE IF NOT EXISTS authorization_periods (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  plan_id INTEGER NOT NULL,
+  period_number INTEGER NOT NULL,
+  period_type TEXT NOT NULL CHECK(period_type IN ('initial', 'reauth')),
+  start_date TEXT,
+  end_date TEXT,
+  status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'completed', 'pending')),
+  plan_revision_id INTEGER,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (plan_id) REFERENCES plan_history(id),
+  FOREIGN KEY (plan_revision_id) REFERENCES plan_revisions(id)
+)`);
+
+try { db.exec("ALTER TABLE client_documents ADD COLUMN authorization_period_id INTEGER"); } catch(e) {}
+
 db.exec(`CREATE TABLE IF NOT EXISTS client_info (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   plan_id INTEGER UNIQUE NOT NULL,

@@ -1181,15 +1181,63 @@ app.delete('/api/clients/:id', authMiddleware, (req, res) => {
   }
 });
 
+// ---- AUTHORIZATION PERIOD ROUTES ----
+
+// GET /api/clients/:id/auth-periods
+app.get('/api/clients/:id/auth-periods', authMiddleware, (req, res) => {
+  try {
+    const periods = db.prepare(
+      'SELECT * FROM authorization_periods WHERE plan_id=? ORDER BY period_number ASC'
+    ).all(req.params.id);
+    res.json(periods);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/clients/:id/auth-periods
+app.post('/api/clients/:id/auth-periods', authMiddleware, (req, res) => {
+  try {
+    const { start_date, end_date, status = 'active' } = req.body;
+    const existing = db.prepare(
+      'SELECT COUNT(*) AS cnt FROM authorization_periods WHERE plan_id=?'
+    ).get(req.params.id);
+    const period_number = existing.cnt + 1;
+    const period_type = period_number === 1 ? 'initial' : 'reauth';
+    const result = db.prepare(
+      'INSERT INTO authorization_periods (plan_id, period_number, period_type, start_date, end_date, status) VALUES (?,?,?,?,?,?)'
+    ).run(req.params.id, period_number, period_type, start_date || null, end_date || null, status);
+    const period = db.prepare('SELECT * FROM authorization_periods WHERE id=?').get(result.lastInsertRowid);
+    res.json(period);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/clients/:id/auth-periods/:period_id
+app.put('/api/clients/:id/auth-periods/:period_id', authMiddleware, (req, res) => {
+  try {
+    const { start_date, end_date, status } = req.body;
+    db.prepare(
+      'UPDATE authorization_periods SET start_date=COALESCE(?,start_date), end_date=COALESCE(?,end_date), status=COALESCE(?,status) WHERE id=? AND plan_id=?'
+    ).run(start_date ?? null, end_date ?? null, status ?? null, req.params.period_id, req.params.id);
+    const period = db.prepare('SELECT * FROM authorization_periods WHERE id=?').get(req.params.period_id);
+    res.json(period);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/clients/:id/documents — upload a document
 app.post('/api/clients/:id/documents', authMiddleware, uploadClient.single('file'), (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
     const { originalname, filename, mimetype, size } = req.file;
     const ext = path.extname(originalname).toLowerCase();
+    const periodId = req.body.authorization_period_id ? Number(req.body.authorization_period_id) : null;
     const result = db.prepare(
-      'INSERT INTO client_documents (plan_id, filename, original_name, file_type, file_size, uploaded_by) VALUES (?,?,?,?,?,?)'
-    ).run(req.params.id, filename, originalname, ext || mimetype, size, req.user.id);
+      'INSERT INTO client_documents (plan_id, filename, original_name, file_type, file_size, uploaded_by, authorization_period_id) VALUES (?,?,?,?,?,?,?)'
+    ).run(req.params.id, filename, originalname, ext || mimetype, size, req.user.id, periodId);
     const doc = db.prepare('SELECT cd.*, u.username AS uploader FROM client_documents cd LEFT JOIN users u ON cd.uploaded_by=u.id WHERE cd.id=?').get(result.lastInsertRowid);
     res.json(doc);
   } catch (err) {
@@ -1197,10 +1245,15 @@ app.post('/api/clients/:id/documents', authMiddleware, uploadClient.single('file
   }
 });
 
-// GET /api/clients/:id/documents — list documents
+// GET /api/clients/:id/documents — list documents, optionally filtered by period
 app.get('/api/clients/:id/documents', authMiddleware, (req, res) => {
   try {
-    const docs = db.prepare(`SELECT cd.*, u.username AS uploader FROM client_documents cd LEFT JOIN users u ON cd.uploaded_by=u.id WHERE cd.plan_id=? ORDER BY cd.uploaded_at DESC`).all(req.params.id);
+    let docs;
+    if (req.query.period_id) {
+      docs = db.prepare(`SELECT cd.*, u.username AS uploader FROM client_documents cd LEFT JOIN users u ON cd.uploaded_by=u.id WHERE cd.plan_id=? AND cd.authorization_period_id=? ORDER BY cd.uploaded_at DESC`).all(req.params.id, req.query.period_id);
+    } else {
+      docs = db.prepare(`SELECT cd.*, u.username AS uploader FROM client_documents cd LEFT JOIN users u ON cd.uploaded_by=u.id WHERE cd.plan_id=? ORDER BY cd.uploaded_at DESC`).all(req.params.id);
+    }
     res.json(docs);
   } catch (err) {
     res.status(500).json({ error: err.message });
