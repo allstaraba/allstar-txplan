@@ -5,6 +5,7 @@ const {
   Table, TableRow, TableCell,
   AlignmentType, BorderStyle, WidthType,
   ShadingType, convertInchesToTwip,
+  Header, ImageRun,
 } = require('docx');
 
 // ─── Layout constants (matching reference plan XML exactly) ──────────────────
@@ -986,27 +987,49 @@ function postProcessTables(elements) {
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
-function buildDocx(planText, clientName) {
+function buildDocx(planText, clientName, logoBuffer = null) {
   const children = planText && planText.trim()
     ? postProcessTables(parseMarkdown(planText))
     : [para('(empty)')];
 
+  const sectionHeaders = {};
+  if (logoBuffer) {
+    sectionHeaders.first = new Header({
+      children: [
+        new Paragraph({
+          alignment: AlignmentType.CENTER,
+          children: [
+            new ImageRun({
+              data: logoBuffer,
+              transformation: { width: 240, height: 72 }, // pixels; ~2.5in wide at 96dpi
+            }),
+          ],
+        }),
+      ],
+    });
+    sectionHeaders.default = new Header({ children: [] });
+  }
+
+  const sectionProps = {
+    page: {
+      margin: {
+        top:    MARGIN,
+        right:  MARGIN,
+        bottom: MARGIN,
+        left:   MARGIN,
+        header: 708,
+        footer: 708,
+        gutter: 0,
+      },
+      size: { width: PAGE_W, height: PAGE_H },
+    },
+  };
+  if (logoBuffer) sectionProps.titlePage = true;
+
   return new Document({
     sections: [{
-      properties: {
-        page: {
-          margin: {
-            top:    MARGIN,
-            right:  MARGIN,
-            bottom: MARGIN,
-            left:   MARGIN,
-            header: 708,
-            footer: 708,
-            gutter: 0,
-          },
-          size: { width: PAGE_W, height: PAGE_H },
-        },
-      },
+      properties: sectionProps,
+      ...(logoBuffer ? { headers: sectionHeaders } : {}),
       children,
     }],
     styles: {

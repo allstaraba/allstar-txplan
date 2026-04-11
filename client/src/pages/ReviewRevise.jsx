@@ -312,8 +312,7 @@ function formatRevDate(dateStr) {
   return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
 }
 
-export default function ReviewRevise({ user, currentPlan, setCurrentPlan, injectedText, setInjectedText, generatingPlans, activeGenId, onRegeneratingChange, onRegenChunk }) {
-  const generatingPlan = (generatingPlans && activeGenId != null) ? generatingPlans.get(activeGenId) : null;
+export default function ReviewRevise({ user, currentPlan, setCurrentPlan, injectedText, setInjectedText, generatingPlan, onRegeneratingChange, onRegenChunk }) {
   const [revisions, setRevisions] = useState([]);
   const [selectedRevIdx, setSelectedRevIdx] = useState(0);
   // Chat messages: [{role: 'user'|'assistant', content: '...'}]
