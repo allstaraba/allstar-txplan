@@ -288,7 +288,13 @@ const EXAMPLE_PROMPTS = [
   "Phase 1 fading should include toileting",
 ];
 
-export default function ReviewRevise({ currentPlan, setCurrentPlan, injectedText, setInjectedText, generatingPlan }) {
+function formatRevDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr.endsWith('Z') ? dateStr : dateStr + 'Z');
+  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
+}
+
+export default function ReviewRevise({ currentPlan, setCurrentPlan, injectedText, setInjectedText, generatingPlan, onRegeneratingChange }) {
   const [revisions, setRevisions] = useState([]);
   const [selectedRevIdx, setSelectedRevIdx] = useState(0);
   // Chat messages: [{role: 'user'|'assistant', content: '...'}]
@@ -442,6 +448,7 @@ export default function ReviewRevise({ currentPlan, setCurrentPlan, injectedText
     if (regenerating || sending) return;
     setError('');
     setRegenerating(true);
+    if (onRegeneratingChange) onRegeneratingChange(true);
     setStreamingPlanText('');
 
     // Add a system-style note to the chat
@@ -467,6 +474,7 @@ export default function ReviewRevise({ currentPlan, setCurrentPlan, injectedText
       setMessages(prev => [...prev, { role: 'assistant', content: `Regeneration failed: ${err.message}` }]);
     } finally {
       setRegenerating(false);
+      if (onRegeneratingChange) onRegeneratingChange(false);
     }
   };
 
@@ -515,9 +523,10 @@ export default function ReviewRevise({ currentPlan, setCurrentPlan, injectedText
   };
 
   const revisionLabel = (rev) => {
-    if (rev.revision_number === 0) return 'Rev 0: Initial';
-    const preview = rev.feedback ? rev.feedback.substring(0, 35) : '';
-    return `Rev ${rev.revision_number}: ${preview}${rev.feedback?.length > 35 ? '…' : ''}`;
+    const ts = rev.created_at ? ` · ${formatRevDate(rev.created_at)}` : '';
+    if (rev.revision_number === 0) return `Rev 0: Initial${ts}`;
+    const preview = rev.feedback ? rev.feedback.substring(0, 30) : '';
+    return `Rev ${rev.revision_number}: ${preview}${rev.feedback?.length > 30 ? '…' : ''}${ts}`;
   };
 
   const btnBase = {

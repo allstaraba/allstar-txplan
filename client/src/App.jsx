@@ -119,6 +119,7 @@ function Layout({ user, onLogout, currentPlan, setCurrentPlan, injectedText, set
   // generatingPlan tracks an in-progress generation so navigation doesn't kill it
   // { text: string, status: 'running' | 'error', error: string | null }
   const [generatingPlan, setGeneratingPlan] = useState(null);
+  const [isRegenerating, setIsRegenerating] = useState(false);
   const abortControllerRef = useRef(null);
 
   const handleLogout = async () => {
@@ -219,6 +220,31 @@ function Layout({ user, onLogout, currentPlan, setCurrentPlan, injectedText, set
           ))}
         </nav>
 
+        {/* Persistent regeneration indicator */}
+        {isRegenerating && !generatingPlan && (
+          <div style={{
+            margin: '0 12px 10px',
+            padding: '10px 12px',
+            background: 'rgba(37,99,235,0.18)',
+            border: '1px solid rgba(37,99,235,0.35)',
+            borderRadius: '8px',
+            cursor: 'pointer',
+          }} onClick={() => navigate('/review')}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+              <span style={{
+                display: 'inline-block', width: '10px', height: '10px',
+                border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#60a5fa',
+                borderRadius: '50%', animation: 'spin 0.8s linear infinite', flexShrink: 0,
+              }} />
+              <span style={{ fontSize: '12px', color: '#93c5fd', fontWeight: '600' }}>Regenerating Plan</span>
+            </div>
+            <div style={{ fontSize: '11px', color: '#60a5fa', lineHeight: 1.3 }}>
+              Applying all chat changes…<br />
+              <span style={{ color: '#93c5fd', opacity: 0.7 }}>Click to watch progress</span>
+            </div>
+          </div>
+        )}
+
         {/* Persistent generation indicator */}
         {generatingPlan && (
           <div style={{
@@ -291,7 +317,7 @@ function Layout({ user, onLogout, currentPlan, setCurrentPlan, injectedText, set
       <main style={styles.content}>
         <Routes>
           <Route path="/generate" element={<GeneratePlan onGenerate={startGeneration} isGenerating={!!generatingPlan && generatingPlan.status === 'running'} />} />
-          <Route path="/review" element={<ReviewRevise currentPlan={currentPlan} setCurrentPlan={setCurrentPlan} injectedText={injectedText} setInjectedText={setInjectedText} generatingPlan={generatingPlan} />} />
+          <Route path="/review" element={<ReviewRevise currentPlan={currentPlan} setCurrentPlan={setCurrentPlan} injectedText={injectedText} setInjectedText={setInjectedText} generatingPlan={generatingPlan} onRegeneratingChange={setIsRegenerating} />} />
           <Route path="/clients" element={<ClientRecords />} />
           <Route path="/clients/:id" element={<ClientProfile currentPlan={currentPlan} setCurrentPlan={setCurrentPlan} injectedText={injectedText} setInjectedText={setInjectedText} />} />
           <Route path="/plans" element={<PlanHistory setCurrentPlan={setCurrentPlan} />} />

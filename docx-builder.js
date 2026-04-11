@@ -5,7 +5,6 @@ const {
   Table, TableRow, TableCell,
   AlignmentType, BorderStyle, WidthType,
   ShadingType, convertInchesToTwip,
-  Header, ImageRun,
 } = require('docx');
 
 // ─── Layout constants (matching reference plan XML exactly) ──────────────────
@@ -158,56 +157,32 @@ function makeTable(rows, colWidths) {
 //   { multiCol: string[], widths: number[] } => plain multi-col row
 //
 // ─── Pre-process: merge consecutive bullet { full } rows into one merged cell ──
-// Fix 2/5: post-crisis bullets and any consecutive bullet rows land in one cell.
-// Handles both '• ' and '- ' prefixes (the latter comes from boilerplate dash lists).
-// Always merges (even a single bullet) to normalise rendering.
-function isBulletRow(fr) {
-  return fr.full && typeof fr.full === 'string' &&
-    (fr.full.startsWith('• ') || fr.full.startsWith('- '));
-}
-
-function bulletText(b) {
-  // Normalise '- text' → '• text'
-  return b.startsWith('- ') ? '• ' + b.slice(2) : b;
-}
-
-// Also: if a { label, value } row has an empty label+non-empty value that starts
-// with a dash (i.e., the first boilerplate bullet got absorbed into the value),
-// split it back out so all bullets land in the bullet merger.
-function splitLabelBullet(fr) {
-  if (fr.label !== undefined && fr.value && /^[-•]\s/.test(fr.value)) {
-    return [
-      { label: fr.label, value: '' },
-      { full: '• ' + fr.value.replace(/^[-•]\s+/, '') },
-    ];
-  }
-  return [fr];
-}
-
+// Fix 5: post-crisis bullets (and any 2+ consecutive bullet rows) land in one cell
 function mergeBulletRuns(fieldRows) {
-  // First pass: split any label row whose value is actually a bullet
-  const expanded = [];
-  for (const fr of fieldRows) expanded.push(...splitLabelBullet(fr));
-
-  // Second pass: merge consecutive bullet rows into one fullParagraphs row
   const out = [];
   let i = 0;
-  while (i < expanded.length) {
-    const fr = expanded[i];
-    if (isBulletRow(fr)) {
+  while (i < fieldRows.length) {
+    const fr = fieldRows[i];
+    const isBullet = fr.full && typeof fr.full === 'string' && fr.full.startsWith('• ');
+    if (isBullet) {
       const bullets = [fr.full];
       let j = i + 1;
-      while (j < expanded.length && isBulletRow(expanded[j])) {
-        bullets.push(expanded[j].full);
-        j++;
+      while (j < fieldRows.length) {
+        const nfr = fieldRows[j];
+        if (nfr.full && typeof nfr.full === 'string' && nfr.full.startsWith('• ')) {
+          bullets.push(nfr.full);
+          j++;
+        } else break;
       }
-      out.push({
-        fullParagraphs: bullets.map(b =>
-          new Paragraph({ children: runs(bulletText(b)), spacing: { after: 40 } })
-        ),
-      });
-      i = j;
-      continue;
+      if (bullets.length > 1) {
+        out.push({
+          fullParagraphs: bullets.map(b =>
+            new Paragraph({ children: runs(b), spacing: { after: 40 } })
+          ),
+        });
+        i = j;
+        continue;
+      }
     }
     out.push(fr);
     i++;
@@ -521,26 +496,15 @@ function buildBipTable(bipTitle, bipLines) {
       continue;
     }
 
-    // Bullet line → collect consecutive bullets into one full-width merged cell
+    // Bullet line → full-width
     if (/^[●•\-]\s/.test(line)) {
-      const bulletParas = [
-        new Paragraph({ children: runs('• ' + line.replace(/^[●•\-]\s*/, '')), spacing: { after: 40 } }),
-      ];
-      let j = i + 1;
-      while (j < bipLines.length) {
-        const nb = bipLines[j].trim();
-        if (/^[●•\-]\s/.test(nb)) {
-          bulletParas.push(
-            new Paragraph({ children: runs('• ' + nb.replace(/^[●•\-]\s*/, '')), spacing: { after: 40 } })
-          );
-          j++;
-        } else break;
-      }
       rows.push(new TableRow({
-        children: [cell(bulletParas, TABLE_W, { colspan: 2 })],
+        children: [cell(
+          new Paragraph({ children: runs('• ' + line.replace(/^[●•\-]\s*/, '')), spacing: { after: 0 } }),
+          TABLE_W, { colspan: 2 }
+        )],
       }));
-      i = j;
-      continue;
+      i++; continue;
     }
 
     // Plain line → full-width
@@ -584,19 +548,12 @@ function parseMarkdown(text) {
       out.push(makeTable(tableRows, [COL2_L, COL2_R]));
       out.push(gap(80));
     } else if (sectionHeader !== null && sectionRows.length === 0) {
-      // Fix 1: if the header looks like a domain sub-header (e.g., "Language/Communication Goals",
-      // "Social Goals", "Adaptive/Self-Care Goals", "Behavior Reduction Goals"),
-      // defer it as pendingDomainHeader to be merged as row 0 of the next goal table.
-      if (/(?:Goals?|Training)\s*$/i.test(sectionHeader)) {
-        pendingDomainHeader = sectionHeader;
-      } else {
-        // Header with no field rows — emit as standalone shaded header table
-        const headerRow = new TableRow({
-          children: [cell(cellParaRaw(sectionHeader, true), TABLE_W, { fill: GRAY_HD, colspan: 2 })],
-        });
-        out.push(makeTable([headerRow], [TABLE_W]));
-        out.push(gap(60));
-      }
+      // Header with no field rows — emit as standalone shaded header table
+      const headerRow = new TableRow({
+        children: [cell(cellParaRaw(sectionHeader, true), TABLE_W, { fill: GRAY_HD, colspan: 2 })],
+      });
+      out.push(makeTable([headerRow], [TABLE_W]));
+      out.push(gap(60));
     }
     sectionHeader = null;
     sectionRows   = [];
@@ -620,18 +577,8 @@ function parseMarkdown(text) {
 
     // ── H2 section heading → flush + start new section ──
     if (t.startsWith('## ') && !t.startsWith('### ')) {
-      const heading = t.slice(3).trim().replace(/^\d+\.\s+/, '');  // Fix 6: strip leading "N. "
-
-      // Fix 3: if currently inside a telehealth section, absorb H2 sub-headings
-      // as subheader rows instead of flushing to a new table
-      if (sectionHeader && /telehealth/i.test(sectionHeader)) {
-        sectionRows.push({ subheader: heading });
-        i++;
-        continue;
-      }
-
       flushSection();
-      sectionHeader = heading;
+      sectionHeader = t.slice(3).trim().replace(/^\d+\.\s+/, '');  // Fix 6: strip leading "N. "
       inBipSection = /^Behavior Intervention Plan/i.test(sectionHeader);
       i++;
       continue;
@@ -852,50 +799,27 @@ function parseMarkdown(text) {
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
-function buildDocx(planText, clientName, logoBuffer) {
+function buildDocx(planText, clientName) {
   const children = planText && planText.trim()
     ? parseMarkdown(planText)
     : [para('(empty)')];
 
-  // Logo dimensions: 2.5 inches wide at 96 DPI = 240px; height 80px (~reasonable logo band)
-  // Word will render these pixel values exactly, so 240×80 is a safe default.
-  const LOGO_W_PX = 240;
-  const LOGO_H_PX = 80;
-
-  const sectionProps = {
-    titlePage: !!logoBuffer,  // enables "different first page" header
-    page: {
-      margin: {
-        top:    MARGIN,
-        right:  MARGIN,
-        bottom: MARGIN,
-        left:   MARGIN,
-        header: 708,
-        footer: 708,
-        gutter: 0,
-      },
-      size: { width: PAGE_W, height: PAGE_H },
-    },
-  };
-
-  const headers = logoBuffer ? {
-    first: new Header({
-      children: [new Paragraph({
-        children: [new ImageRun({
-          data: logoBuffer,
-          transformation: { width: LOGO_W_PX, height: LOGO_H_PX },
-        })],
-        alignment: AlignmentType.CENTER,
-        spacing: { after: 120 },
-      })],
-    }),
-    default: new Header({ children: [new Paragraph({ children: [] })] }),
-  } : undefined;
-
   return new Document({
     sections: [{
-      properties: sectionProps,
-      ...(headers ? { headers } : {}),
+      properties: {
+        page: {
+          margin: {
+            top:    MARGIN,
+            right:  MARGIN,
+            bottom: MARGIN,
+            left:   MARGIN,
+            header: 708,
+            footer: 708,
+            gutter: 0,
+          },
+          size: { width: PAGE_W, height: PAGE_H },
+        },
+      },
       children,
     }],
     styles: {
