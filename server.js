@@ -284,13 +284,28 @@ Be thorough. Write full paragraphs. STOP after section 9. Do NOT write Strengths
 
 Generate ONLY sections 10 through 14:
 
-10. Strengths, Challenges & Severity Level — 2-column table, four domain rows (Language/Communication, Social Skills, Adaptive/Self-Care, Challenging Behaviors). Each row: Strengths paragraph, Challenges paragraph, Severity: ☐ Mild ☐ Moderate ☐ Severe
-11. Standardized Assessment — Vineland-3 boilerplate introduction + ABC and Domain Score Summary placeholder + Subdomain Score Summary placeholder + Maladaptive Behavior Score Summary table (Internalizing, Externalizing, Critical Items)
-12. Criterion-Referenced Assessment — VB-MAPP or ABLLS-R boilerplate introduction + full score narrative for all domains
-13. Goal Objective Summary — write only [GOAL_SUMMARY_TABLE] as a placeholder. Do not generate the actual table.
-14. Response to Treatment / Authorization Summary (write "N/A — Initial Treatment Plan" for initial plans)
+10. Strengths/Challenges/Severity Level — 2-column table. Left column is the domain label, right column contains ALL of the following in one cell: "Strengths:" paragraph, "Challenges:" paragraph, "Severity Level: ☐ Mild ☐ Moderate ☑ Severe". Four rows: Language/Communication, Social Skills, Adaptive/Self-Care, Challenging Behaviors. Do NOT use "Strengths" and "Challenges" as column headers. Do NOT include Vineland scores in this section.
 
-Be thorough. STOP after section 14. Do NOT write skill acquisition goals, BIPs, behavior reduction, or any later sections.`,
+11. Standardized Assessment — Vineland-3. Generate in this EXACT order:
+a) Bordered table: header "Standardized Assessment", second row "Name of Standardized Assessment conducted: Vineland Adaptive Behavior Scales, Third Edition (Vineland-3)"
+b) Bordered table: header "Vineland Adaptive Behavior Scales, Third Edition (Vineland-3)", second row with the boilerplate intro
+c) Single 3-column row: Form: [form name] | Full Name of Rater: [name] | Date: [date]
+d) Bordered table cell containing EXACTLY: [INSERT VINELAND ABC/DOMAIN AND SUBDOMAIN SCORE SUMMARY GRAPHIC HERE]
+e) Maladaptive Behavior Score Summary table: Type | Scaled Score | Qualitative Descriptor with rows Internalizing, Externalizing, Critical Items
+f) Critical Items detail if available
+g) Clinical Interpretation paragraph in bordered table
+
+12. Criterion-Referenced Assessment:
+a) Header table
+b) Boilerplate intro
+c) Bordered table cell containing EXACTLY: [INSERT VB-MAPP/ABLLS-R SCORING GRID GRAPHIC HERE]
+d) Assessment narrative — all domains in one cell, no bold headings, smooth transitions
+
+13. Goal Objective Summary — write ONLY: [GOAL_SUMMARY_TABLE]
+
+14. Response to Treatment/Authorization Summary — write "N/A — Initial Treatment Plan" for initial plans.
+
+Be thorough. STOP after section 14.`,
   },
 
   S3A: {
