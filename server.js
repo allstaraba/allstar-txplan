@@ -336,58 +336,24 @@ Write every goal in full. STOP after the last Social goal. Do NOT write Adaptive
 
   S3B: {
     id: 'S3B',
-    label: 'Adaptive Goals, Behavior Reduction & Parent Training',
+    label: 'Adaptive/Self-Care Goals',
     instruction: `Sections 1–14 of the treatment plan have been written above. Continue — do not repeat anything.
 
-Generate three sections in order:
+Generate ONLY the Adaptive/Self-Care skill acquisition goals (section 15, third domain):
 
-**Adaptive/Self-Care Goals** (shaded domain header row, section 15 third domain)
+**Adaptive/Self-Care Goals** (shaded domain header row, then goals)
 Write 5–8 goals for this domain. Start numbering at Goal 25.
 Use the same exact goal table format as Communication and Social goals above.
-Do NOT include hygiene, dressing, or toileting as skill acquisition goals — instead write those as Caregiver Training goals below.
+Do NOT include hygiene, dressing, or toileting as skill acquisition goals — instead write those as Caregiver Training goals in a later section.
 
-**Behavior Reduction Goals** (section 17)
-Write one goal per target behavior identified in the BCBA notes using this format:
-| Medical Necessity Rationale: | Core Deficit of ASD Addressed: A. ... B. ... |
-| [N]. Goal Statement: | When [condition], [client] will reduce instances of [behavior] to [0 or specific number] instances per day across four consecutive weeks in the presence of two people and in two settings. |
-| Baseline: | [data] on [date] |
-| Date of Introduction: | [date] |
-| Projected Mastery: | [date ~6 months out] |
-| Progress Data: | N/A |
-
-**Parent or Caregiver Training Goals** (section 18)
-Write at least 2 goals using the standard parent training language from your instructions. Fill in [Client]'s actual name.
-
-Write every goal completely. STOP after the last Parent Training goal. Do NOT write BIPs, generalization, or any later sections.`,
+Write every goal completely. STOP after the last Adaptive goal. Do NOT write behavior reduction goals, parent training goals, BIPs, or any later sections.`,
   },
 
+  // S3C instruction is built dynamically at runtime (after S3A+S3B finish) so it can inject
+  // the correct starting goal number for Behavior Reduction goals.
   S3C: {
     id: 'S3C',
-    label: 'Behavior Intervention Plans (section 16)',
-    instruction: `The skill acquisition goals listed above contain the goal numbers to reference for FERB goals.
-
-Generate ONLY section 16: Behavior Intervention Plans, organized by function.
-
-CONCISENESS RULE: Each antecedent and consequence intervention entry must be 2–3 sentences maximum. Bold intervention name + brief clinical description. One blank line between interventions. No explanatory paragraphs.
-
-Write all applicable function-based BIPs. For each BIP that applies, include ALL subsections:
-- Date
-- Behavior Assessment (ABC)
-- Target Behavior (names only — list all topographies for this function)
-- Operational Definition (one precise bullet per topography; if not inherently maladaptive, specify maladaptive context)
-- Quantitative Baseline Data
-- Hypothesized Function
-- Functionally Equivalent Replacement Behaviors (reference specific goal numbers from the goal list above)
-- Antecedent Interventions (bold sub-header + 2–3 sentences each)
-- Consequence Interventions (bold sub-header + 2–3 sentences each; include reinforcement schedule — CRF thinning to VR-2, VR-3, VR-5)
-- De-escalation Procedures: write only '[STANDARD_DEESCALATION_PROTOCOL]'
-
-Write in this order:
-1. Social Negative Reinforcement BIP (escape/avoidance). If none: "No Social Negative Reinforcement BIP is indicated for this client."
-2. Social Positive Reinforcement BIP (access/attention). If none: "No Social Positive Reinforcement BIP is indicated for this client."
-3. Automatic Positive Reinforcement BIP (sensory/automatic). If none: "No Automatic Positive Reinforcement BIP is indicated for this client."
-
-STOP after all BIPs. Do NOT write generalization, fading, or any later sections.`,
+    label: 'BIPs, Behavior Reduction & Parent Training',
   },
 
   S3D: {
@@ -433,6 +399,51 @@ Generate sections 19 through 26 in order. Do not write skill acquisition goals, 
 25. Maryland Medicaid Telehealth Readiness Checklist — write only: '[TELEHEALTH_CHECKLIST]'`,
   },
 };
+
+// Build the S3C instruction dynamically after S3A+S3B finish, so we can inject
+// the correct starting goal number for Behavior Reduction goals.
+function buildS3CInstruction(nextGoalNum) {
+  return `The skill acquisition goals listed above contain the goal numbers to reference for FERB goals.
+
+Generate sections 16, 17, and 18 in order:
+
+## Section 16: Behavior Intervention Plans
+
+CONCISENESS RULE: Each antecedent and consequence intervention entry must be 2–3 sentences maximum. Bold intervention name + brief clinical description. One blank line between interventions. No explanatory paragraphs.
+
+Write all applicable function-based BIPs. For each BIP that applies, include ALL subsections:
+- Date
+- Behavior Assessment (ABC)
+- Target Behavior (names only — list all topographies for this function)
+- Operational Definition (one precise bullet per topography; if not inherently maladaptive, specify maladaptive context)
+- Quantitative Baseline Data
+- Hypothesized Function
+- Functionally Equivalent Replacement Behaviors (reference specific goal numbers from the goal list above)
+- Antecedent Interventions (bold sub-header + 2–3 sentences each)
+- Consequence Interventions (bold sub-header + 2–3 sentences each; include reinforcement schedule — CRF thinning to VR-2, VR-3, VR-5)
+- De-escalation Procedures: write only '[STANDARD_DEESCALATION_PROTOCOL]'
+
+Write BIPs in this order:
+1. Social Negative Reinforcement BIP (escape/avoidance). If none: "No Social Negative Reinforcement BIP is indicated for this client."
+2. Social Positive Reinforcement BIP (access/attention). If none: "No Social Positive Reinforcement BIP is indicated for this client."
+3. Automatic Positive Reinforcement BIP (sensory/automatic). If none: "No Automatic Positive Reinforcement BIP is indicated for this client."
+
+## Section 17: Behavior Reduction Goals
+
+Start numbering at Goal ${nextGoalNum}. Write one goal per target behavior identified in the BCBA notes using this format:
+| Medical Necessity Rationale: | Core Deficit of ASD Addressed: A. ... B. ... |
+| [N]. Goal Statement: | When [condition], [client] will reduce instances of [behavior] to [0 or specific number] instances per day across four consecutive weeks in the presence of two people and in two settings. |
+| Baseline: | [data] on [date] |
+| Date of Introduction: | [date] |
+| Projected Mastery: | [date ~6 months out] |
+| Progress Data: | N/A |
+
+## Section 18: Parent or Caregiver Training Goals
+
+Continue numbering from the last Behavior Reduction goal. Write at least 2 goals using the standard parent training language from your instructions.
+
+Write every goal completely. STOP after the last Parent Training goal. Do NOT write generalization, fading, or any later sections.`;
+}
 
 app.post('/api/generate', authMiddleware, async (req, res) => {
   const keepAlive = setInterval(() => { try { res.write(': ping\n\n'); } catch {} }, 20000);
@@ -539,26 +550,43 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
     };
 
     // extractGoalNumbers: pull "N. Goal Statement: ..." lines from S3A+S3B output
-    // Handles both pipe-table format "| N. Goal Statement: | text |"
-    // and bold standalone format "N. **Goal Statement:** text"
+    // Matches the actual AI format: | **N. Goal Statement:** | text |
+    // Also handles FERB format: | **N. (FERB) Goal Statement:** | text |
+    const GOAL_RE = /(\d+)\.\s+(?:\(FERB\)\s+)?Goal Statement:\**\s*\|?\s*(.+?)(?:\s*\|)?\s*$/i;
     const extractGoalNumbers = (s3aText, s3bText) => {
       const lines = [];
       for (const line of (s3aText + '\n' + s3bText).split('\n')) {
-        const m = line.match(/(\d+)\.\s+(?:\*\*)?(?:\(FERB\)\s+)?(?:\*\*)?Goal Statement:\**\s*\|?\s*(.+?)(?:\s*\|)?\s*$/i);
+        const m = line.match(GOAL_RE);
         if (m) lines.push(`${m[1]}. Goal Statement: ${m[2].trim()}`);
       }
       console.log(`[generate] Extracted ${lines.length} goal statements for BIP context`);
       return lines.join('\n');
     };
 
-    // Helper: build messages array for a section with optional prior-context block
-    const buildMessages = (sec, contextBlock) => contextBlock
-      ? [
-          { role: 'user', content: baseMessage },
-          { role: 'assistant', content: contextBlock },
-          { role: 'user', content: sec.instruction },
-        ]
-      : [{ role: 'user', content: `${baseMessage}\n\n${sec.instruction}` }];
+    // extractHighestGoalNum: find the largest goal number in skill acquisition sections
+    // Used to pass the correct starting number for Behavior Reduction goals in S3C.
+    const extractHighestGoalNum = (text) => {
+      let highest = 0;
+      for (const line of text.split('\n')) {
+        const m = line.match(/(\d+)\.\s+(?:\(FERB\)\s+)?Goal Statement/i);
+        if (m) highest = Math.max(highest, parseInt(m[1], 10));
+      }
+      return highest;
+    };
+
+    // Helper: build messages array for a section with optional prior-context block.
+    // Always prepends client name so the AI never bleeds a previous client's name in.
+    const buildMessages = (sec, contextBlock) => {
+      const clientPrefix = `You are generating a treatment plan for ${clientName}. Use ONLY "${clientName}" as the client's name throughout — do not use any other client's name.\n\n`;
+      const instruction = clientPrefix + sec.instruction;
+      return contextBlock
+        ? [
+            { role: 'user', content: baseMessage },
+            { role: 'assistant', content: contextBlock },
+            { role: 'user', content: instruction },
+          ]
+        : [{ role: 'user', content: `${baseMessage}\n\n${instruction}` }];
+    };
 
     // ── Step 1: S1 — client info & narrative ──────────────────────────────
     send({ type: 'progress', section: 1, total: 4, label: GEN.S1.label });
@@ -582,25 +610,30 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
     ]);
     console.log(`[generate] S3A+S3B complete. S3A=${s3aText.length} chars, S3B=${s3bText.length} chars`);
 
-    // Extract goal list for BIP FERB references
+    // Extract goal list for BIP FERB references and find highest goal number for BR numbering
     const goalList = extractGoalNumbers(s3aText, s3bText);
+    const highestSkillGoalNum = extractHighestGoalNum(s3aText + '\n' + s3bText);
+    const nextGoalNum = highestSkillGoalNum + 1;
+    console.log(`[generate] Highest skill acquisition goal: ${highestSkillGoalNum} → Behavior Reduction starts at ${nextGoalNum}`);
 
-    // ── Step 4: S3C ‖ S3D — BIPs and final sections in parallel ──────────
+    // ── Step 4: S3C ‖ S3D — BIPs, BR, PT and final sections in parallel ──────────
     send({ type: 'progress', section: 4, total: 4, label: 'BIPs & Final Sections (parallel)' });
     setJob(userId, { section: 4, label: 'BIPs & Final Sections (parallel)' });
     console.log('[generate] Starting S3C and S3D in parallel');
     const bipContext = s1s2Context + (goalList
       ? '\n\n=== SKILL ACQUISITION GOALS (reference these numbers for FERB goals) ===\n' + goalList
       : '');
+    // S3C instruction is built dynamically with the correct BR starting goal number
+    const s3cSec = { id: GEN.S3C.id, instruction: buildS3CInstruction(nextGoalNum) };
     const [s3cText, s3dText] = await Promise.all([
-      callWithRetry(GEN.S3C.id, buildMessages(GEN.S3C, bipContext)),
+      callWithRetry(s3cSec.id, buildMessages(s3cSec, bipContext)),
       callWithRetry(GEN.S3D.id, buildMessages(GEN.S3D, s1s2Context)),
     ]);
     console.log(`[generate] S3C+S3D complete. S3C=${s3cText.length} chars, S3D=${s3dText.length} chars`);
 
     // Count goals across all goal sections (S3A + S3B + S3C) after all are complete.
-    // Handles both pipe-table format "| N. Goal Statement: |" and bold "N. **Goal Statement:**"
-    const GOAL_LINE_RE = /(\d+)\.\s+(?:\*\*)?(?:\(FERB\)\s+)?(?:\*\*)?Goal Statement:/i;
+    // Uses simple regex that matches the actual AI format: | **N. Goal Statement:** |
+    const GOAL_LINE_RE = /\d+\.\s+(?:\(FERB\)\s+)?Goal Statement/i;
     const goalCount = (s3aText + '\n' + s3bText + '\n' + s3cText)
       .split('\n')
       .filter(line => GOAL_LINE_RE.test(line))
@@ -1467,8 +1500,8 @@ app.post('/api/chat/:plan_id/regenerate', authMiddleware, async (req, res) => {
       revisedText = stripAIPreamble(revisedText);
       console.log(`[regenerate] done. stop_reason=${msg.stop_reason} output=${revisedText.length.toLocaleString()} chars (${revisedText.split('\n').length} lines)`);
 
-      // Count goals — same regex as generate route, handles pipe-table and bold formats
-      const REGEN_GOAL_LINE_RE = /(\d+)\.\s+(?:\*\*)?(?:\(FERB\)\s+)?(?:\*\*)?Goal Statement:/i;
+      // Count goals — matches actual AI format: | **N. Goal Statement:** |
+      const REGEN_GOAL_LINE_RE = /\d+\.\s+(?:\(FERB\)\s+)?Goal Statement/i;
       const regenGoalCount = revisedText
         .split('\n')
         .filter(line => REGEN_GOAL_LINE_RE.test(line))
