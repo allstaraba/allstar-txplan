@@ -460,6 +460,44 @@ Continue numbering from the last Behavior Reduction goal. Write at least 2 goals
 Write every goal completely. STOP after the last Parent Training goal. Do NOT write generalization, fading, or any later sections.`;
 }
 
+/**
+ * Post-generation mastery criteria enforcer.
+ * Scans every Goal Statement line and corrects the "in X% of opportunities"
+ * mastery percentage to match FERB status:
+ *   - FERB goals  → must be 90%
+ *   - Non-FERB    → must be 80%
+ * Only the first "in X% of opportunities" on each Goal Statement line is
+ * replaced (the mastery criterion); baseline percentages live on separate lines.
+ *
+ * @param {string} text - Full plan text
+ * @returns {{ text: string, ferbFixed: number, nonFerbFixed: number }}
+ */
+function fixMasteryCriteria(text) {
+  let ferbFixed = 0;
+  let nonFerbFixed = 0;
+
+  const fixed = text.split('\n').map(line => {
+    if (!/Goal Statement/i.test(line)) return line;
+
+    const isFerb = /\(FERB\)/i.test(line);
+    const correct = isFerb ? '90' : '80';
+    const wrong   = isFerb ? '80' : '90';
+
+    const updated = line.replace(
+      new RegExp(`\\bin ${wrong}% of opportunities`, 'i'),
+      `in ${correct}% of opportunities`
+    );
+
+    if (updated !== line) {
+      if (isFerb) ferbFixed++;
+      else nonFerbFixed++;
+    }
+    return updated;
+  }).join('\n');
+
+  return { text: fixed, ferbFixed, nonFerbFixed };
+}
+
 app.post('/api/generate', authMiddleware, async (req, res) => {
   const keepAlive = setInterval(() => { try { res.write(': ping\n\n'); } catch {} }, 20000);
 
@@ -668,6 +706,11 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
     clearInterval(keepAlive);
 
     fullPlanText = stripAIPreamble(fullPlanText);
+
+    // Enforce mastery criteria: FERB=90%, non-FERB=80% — don't trust the AI
+    const { text: planTextFixed, ferbFixed, nonFerbFixed } = fixMasteryCriteria(fullPlanText);
+    fullPlanText = planTextFixed;
+    console.log(`[generate] Mastery criteria: ${ferbFixed} FERB goals fixed to 90%, ${nonFerbFixed} non-FERB goals fixed to 80%`);
 
     // Try to refine client name from generated text
     const planNameMatch = fullPlanText.match(/Participant Name[:\s]+([^\n\r]+)/i);
@@ -1727,6 +1770,11 @@ app.post('/api/chat/:plan_id/regenerate', authMiddleware, async (req, res) => {
         : 'Full regeneration';
       revisedText = stripAIPreamble(revisedText);
       console.log(`[regenerate] done. stop_reason=${msg.stop_reason} output=${revisedText.length.toLocaleString()} chars (${revisedText.split('\n').length} lines)`);
+
+      // Enforce mastery criteria: FERB=90%, non-FERB=80% — don't trust the AI
+      const { text: regenTextFixed, ferbFixed: regenFerbFixed, nonFerbFixed: regenNonFerbFixed } = fixMasteryCriteria(revisedText);
+      revisedText = regenTextFixed;
+      console.log(`[regenerate] Mastery criteria: ${regenFerbFixed} FERB goals fixed to 90%, ${regenNonFerbFixed} non-FERB goals fixed to 80%`);
 
       // Count goals — matches actual AI format: | **N. Goal Statement:** |
       const REGEN_GOAL_LINE_RE = /\d+\.\s+(?:\(FERB\)\s+)?Goal Statement/i;
