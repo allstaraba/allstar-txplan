@@ -165,6 +165,18 @@ db.exec(`CREATE TABLE IF NOT EXISTS insurance_templates (
   FOREIGN KEY (created_by) REFERENCES users(id)
 )`);
 
+db.exec(`CREATE TABLE IF NOT EXISTS insurance_template_versions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  template_id INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  text TEXT NOT NULL,
+  version_number INTEGER NOT NULL,
+  saved_by INTEGER NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (template_id) REFERENCES insurance_templates(id),
+  FOREIGN KEY (saved_by) REFERENCES users(id)
+)`);
+
 db.exec(`CREATE TABLE IF NOT EXISTS compliance_checks (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   plan_id INTEGER NOT NULL,

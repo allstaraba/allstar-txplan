@@ -444,6 +444,22 @@ export async function createInsuranceTemplate(name, text) {
   return data;
 }
 
+export async function getInsuranceTemplateVersions(id) {
+  const res = await apiFetch(`${BASE_URL}/api/insurance-templates/${id}/versions`, { headers: authHeaders() });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to get versions');
+  return data;
+}
+
+export async function restoreInsuranceTemplateVersion(templateId, versionId) {
+  const res = await fetch(`${BASE_URL}/api/insurance-templates/${templateId}/versions/${versionId}/restore`, {
+    method: 'POST', headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to restore version');
+  return data;
+}
+
 export async function updateInsuranceTemplate(id, name, text) {
   const res = await fetch(`${BASE_URL}/api/insurance-templates/${id}`, {
     method: 'PUT', headers: authHeaders(), body: JSON.stringify({ name, text }),
@@ -469,6 +485,37 @@ export async function getComplianceChecks(plan_id) {
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'Failed to get compliance checks');
   return data;
+}
+
+export async function sendComplianceChatMessage(plan_id, check_result, messages, onChunk) {
+  const res = await fetch(`${BASE_URL}/api/compliance/chat/${plan_id}`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ check_result, messages }),
+  });
+  if (!res.ok) {
+    const data = await res.json();
+    throw new Error(data.error || 'Compliance chat failed');
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop();
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const jsonStr = line.slice(6).trim();
+      if (!jsonStr) continue;
+      let evt;
+      try { evt = JSON.parse(jsonStr); } catch { continue; }
+      if (evt.type === 'chunk' && onChunk) onChunk(evt.text);
+      if (evt.type === 'error') throw new Error(evt.error || 'Chat failed');
+    }
+  }
 }
 
 export async function runComplianceCheck(plan_id, template_id, onChunk) {

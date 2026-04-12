@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useRef } from 'react';
-import { getInsuranceTemplates, getInsuranceTemplate, createInsuranceTemplate, updateInsuranceTemplate, deleteInsuranceTemplate, extractInsuranceTemplateDocument } from '../api.js';
+import React, { useState, useEffect, useRef } from 'react';
+import { getInsuranceTemplates, getInsuranceTemplate, createInsuranceTemplate, updateInsuranceTemplate, deleteInsuranceTemplate, extractInsuranceTemplateDocument, getInsuranceTemplateVersions, restoreInsuranceTemplateVersion } from '../api.js';
 
 function formatDate(dateStr) {
   if (!dateStr) return '';
@@ -20,6 +19,12 @@ export default function InsuranceTemplates() {
   const [loadingEdit, setLoadingEdit] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null); // template id to confirm
   const fileInputRef = useRef(null);
+
+  // Version history for the template currently being edited
+  const [versions, setVersions] = useState([]);
+  const [showVersions, setShowVersions] = useState(false);
+  const [restoring, setRestoring] = useState(false);
+  const [previewVersion, setPreviewVersion] = useState(null); // version object being previewed
 
   const load = () => {
     setLoading(true);
@@ -41,9 +46,13 @@ export default function InsuranceTemplates() {
     setError('');
     setSuccess('');
     setLoadingEdit(true);
+    setVersions([]);
+    setShowVersions(false);
+    setPreviewVersion(null);
     try {
-      const t = await getInsuranceTemplate(id);
+      const [t, vers] = await Promise.all([getInsuranceTemplate(id), getInsuranceTemplateVersions(id)]);
       setEditing({ id: t.id, name: t.name, text: t.text });
+      setVersions(vers);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -54,6 +63,30 @@ export default function InsuranceTemplates() {
   const cancelEdit = () => {
     setEditing(null);
     setError('');
+    setVersions([]);
+    setShowVersions(false);
+    setPreviewVersion(null);
+  };
+
+  const handleRestore = async (version) => {
+    if (!editing?.id) return;
+    setRestoring(true);
+    setError('');
+    try {
+      await restoreInsuranceTemplateVersion(editing.id, version.id);
+      // Reload template and version list
+      const [t, vers] = await Promise.all([getInsuranceTemplate(editing.id), getInsuranceTemplateVersions(editing.id)]);
+      setEditing({ id: t.id, name: t.name, text: t.text });
+      setVersions(vers);
+      setPreviewVersion(null);
+      setShowVersions(false);
+      setSuccess(`Restored to version ${version.version_number}.`);
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setRestoring(false);
+    }
   };
 
   const handleFileUpload = async (e) => {
@@ -214,12 +247,74 @@ export default function InsuranceTemplates() {
           )}
         </div>
 
-        <div style={{ display: 'flex', gap: '10px' }}>
+        {success && (
+          <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#16a34a', padding: '10px 14px', borderRadius: '8px', marginBottom: '16px', fontSize: '13px' }}>
+            {success}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: '10px', marginBottom: versions.length > 0 ? '32px' : 0 }}>
           <button onClick={handleSave} disabled={saving} style={{ ...btnStyle('primary'), opacity: saving ? 0.6 : 1 }}>
             {saving ? 'Saving…' : 'Save Template'}
           </button>
           <button onClick={cancelEdit} style={btnStyle('ghost')}>Cancel</button>
         </div>
+
+        {/* Version history — only for existing templates */}
+        {editing.id !== null && versions.length > 0 && (
+          <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '24px' }}>
+            <button
+              onClick={() => { setShowVersions(v => !v); setPreviewVersion(null); }}
+              style={{ background: 'none', border: 'none', fontSize: '13px', fontWeight: '600', color: '#64748b', cursor: 'pointer', padding: 0, marginBottom: '12px' }}
+            >
+              {showVersions ? '▾' : '▸'} Version History ({versions.length})
+            </button>
+
+            {showVersions && (
+              <div>
+                {previewVersion && (
+                  <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '14px', marginBottom: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+                      <span style={{ fontSize: '13px', fontWeight: '600', color: '#374151' }}>
+                        Version {previewVersion.version_number} — {formatDate(previewVersion.created_at)}
+                      </span>
+                      <button
+                        onClick={() => handleRestore(previewVersion)}
+                        disabled={restoring}
+                        style={{ ...btnStyle('primary'), fontSize: '12px', padding: '5px 12px', opacity: restoring ? 0.6 : 1 }}
+                      >
+                        {restoring ? 'Restoring…' : 'Restore this version'}
+                      </button>
+                      <button onClick={() => setPreviewVersion(null)} style={{ ...btnStyle('ghost'), fontSize: '12px', padding: '5px 10px' }}>Close</button>
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#374151', fontWeight: '600', marginBottom: '4px' }}>{previewVersion.name}</div>
+                    <pre style={{ fontSize: '11px', color: '#64748b', whiteSpace: 'pre-wrap', maxHeight: '200px', overflowY: 'auto', margin: 0, lineHeight: '1.5' }}>
+                      {previewVersion.text.slice(0, 1000)}{previewVersion.text.length > 1000 ? '\n…' : ''}
+                    </pre>
+                  </div>
+                )}
+                {versions.map(v => (
+                  <div
+                    key={v.id}
+                    style={{ display: 'flex', alignItems: 'center', padding: '9px 12px', marginBottom: '6px', background: previewVersion?.id === v.id ? '#eff6ff' : '#f8fafc', border: `1px solid ${previewVersion?.id === v.id ? '#bfdbfe' : '#e2e8f0'}`, borderRadius: '6px' }}
+                  >
+                    <div style={{ flex: 1, fontSize: '13px', color: '#374151' }}>
+                      <span style={{ fontWeight: '600' }}>v{v.version_number}</span>
+                      <span style={{ color: '#94a3b8', marginLeft: '10px', fontSize: '12px' }}>{formatDate(v.created_at)}</span>
+                      {v.name !== editing.name && <span style={{ color: '#94a3b8', marginLeft: '8px', fontSize: '12px' }}>"{v.name}"</span>}
+                    </div>
+                    <button
+                      onClick={() => setPreviewVersion(previewVersion?.id === v.id ? null : v)}
+                      style={{ ...btnStyle('ghost'), fontSize: '12px', padding: '4px 10px' }}
+                    >
+                      {previewVersion?.id === v.id ? 'Hide' : 'Preview'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     );
   }
@@ -231,7 +326,7 @@ export default function InsuranceTemplates() {
         <div style={{ flex: 1 }}>
           <h1 style={{ fontSize: '22px', fontWeight: '700', color: '#0f172a', margin: 0 }}>Insurance Templates</h1>
           <p style={{ fontSize: '13px', color: '#64748b', marginTop: '4px', marginBottom: 0 }}>
-            Paste insurance rules documents. BCBAs can run compliance checks against any template from the Review & Revise page.
+            Paste or upload insurance rules documents. Used by the Compliance tool to check plans against each insurer's requirements.
           </p>
         </div>
         <button onClick={startCreate} style={{ ...btnStyle('primary'), padding: '9px 18px' }}>

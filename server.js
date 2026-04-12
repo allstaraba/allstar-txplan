@@ -1933,10 +1933,43 @@ app.put('/api/insurance-templates/:id', authMiddleware, adminMiddleware, (req, r
     const { name, text } = req.body;
     if (!name || !name.trim()) return res.status(400).json({ error: 'Name is required' });
     if (!text || !text.trim()) return res.status(400).json({ error: 'Rules text is required' });
-    const existing = db.prepare('SELECT id FROM insurance_templates WHERE id = ?').get(req.params.id);
+    const existing = db.prepare('SELECT * FROM insurance_templates WHERE id = ?').get(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Template not found' });
+    // Save current version before overwriting
+    const versionCount = db.prepare('SELECT COUNT(*) as c FROM insurance_template_versions WHERE template_id = ?').get(req.params.id).c;
+    db.prepare('INSERT INTO insurance_template_versions (template_id, name, text, version_number, saved_by) VALUES (?, ?, ?, ?, ?)')
+      .run(req.params.id, existing.name, existing.text, versionCount + 1, req.user.id);
     db.prepare('UPDATE insurance_templates SET name = ?, text = ? WHERE id = ?').run(name.trim(), text.trim(), req.params.id);
     logActivity(req.user.id, req.user.username, 'updated_insurance_template', 'insurance_template', Number(req.params.id), name.trim());
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/insurance-templates/:id/versions', authMiddleware, adminMiddleware, (req, res) => {
+  try {
+    const versions = db.prepare(
+      'SELECT id, version_number, name, created_at FROM insurance_template_versions WHERE template_id = ? ORDER BY version_number DESC'
+    ).all(req.params.id);
+    res.json(versions);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/insurance-templates/:id/versions/:vid/restore', authMiddleware, adminMiddleware, (req, res) => {
+  try {
+    const version = db.prepare('SELECT * FROM insurance_template_versions WHERE id = ? AND template_id = ?').get(req.params.vid, req.params.id);
+    if (!version) return res.status(404).json({ error: 'Version not found' });
+    const existing = db.prepare('SELECT * FROM insurance_templates WHERE id = ?').get(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Template not found' });
+    // Save current as a version before restoring
+    const versionCount = db.prepare('SELECT COUNT(*) as c FROM insurance_template_versions WHERE template_id = ?').get(req.params.id).c;
+    db.prepare('INSERT INTO insurance_template_versions (template_id, name, text, version_number, saved_by) VALUES (?, ?, ?, ?, ?)')
+      .run(req.params.id, existing.name, existing.text, versionCount + 1, req.user.id);
+    db.prepare('UPDATE insurance_templates SET name = ?, text = ? WHERE id = ?').run(version.name, version.text, req.params.id);
+    logActivity(req.user.id, req.user.username, 'restored_insurance_template_version', 'insurance_template', Number(req.params.id), `v${version.version_number}`);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -2085,6 +2118,74 @@ For each: **Rule:** [requirement] → **Issue:** [what's unclear or partially me
 
   } catch (err) {
     console.error('Compliance check error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---- COMPLIANCE CHAT ----
+
+app.post('/api/compliance/chat/:plan_id', authMiddleware, async (req, res) => {
+  try {
+    const { check_result, messages } = req.body;
+    // messages: [{role, content}] — the conversation so far
+    if (!check_result) return res.status(400).json({ error: 'check_result is required' });
+    if (!Array.isArray(messages) || messages.length === 0) return res.status(400).json({ error: 'messages is required' });
+
+    const plan = db.prepare('SELECT * FROM plan_history WHERE id = ?').get(req.params.plan_id);
+    if (!plan) return res.status(404).json({ error: 'Plan not found' });
+
+    const systemPrompt = `You are a compliance expert helping a BCBA review and fix an ABA treatment plan that has been checked against insurance rules. You have the full compliance check result as context. Help the user understand specific failures, draft corrective language for missing sections, write reports, or answer any questions about the requirements. Be concise and practical.`;
+
+    const apiMessages = [
+      {
+        role: 'user',
+        content: `The compliance check result for ${plan.client_name || 'this client'}:\n\n${check_result}`,
+      },
+      {
+        role: 'assistant',
+        content: `I've reviewed the compliance results for ${plan.client_name || 'this client'}. I can help you understand failures, draft corrective text, or generate a summary report. What would you like to work on?`,
+      },
+      ...messages,
+    ];
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+    if (res.socket) res.socket.setNoDelay(true);
+    res.write(': connected\n\n');
+
+    let clientConnected = true;
+    res.on('close', () => { clientConnected = false; });
+
+    const send = (obj) => {
+      if (!clientConnected) return;
+      try { res.write(`data: ${JSON.stringify(obj)}\n\n`); } catch {}
+    };
+
+    const stream = anthropic.messages.stream({
+      model: CLAUDE_MODEL,
+      max_tokens: 4096,
+      system: systemPrompt,
+      messages: apiMessages,
+    });
+
+    const keepAlive = setInterval(() => { try { res.write(': ping\n\n'); } catch {} }, 20000);
+
+    stream.on('text', (chunk) => send({ type: 'chunk', text: chunk }));
+
+    stream.on('finalMessage', () => {
+      clearInterval(keepAlive);
+      if (clientConnected) { send({ type: 'done' }); res.end(); }
+    });
+
+    stream.on('error', (err) => {
+      clearInterval(keepAlive);
+      if (clientConnected) { send({ type: 'error', error: err.message }); res.end(); }
+    });
+
+  } catch (err) {
+    console.error('Compliance chat error:', err);
     res.status(500).json({ error: err.message });
   }
 });
