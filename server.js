@@ -602,6 +602,9 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
       .filter(line => /^\s*\d+\.\s+\**(?:\(FERB\)\s+)?\**Goal Statement:/i.test(line))
       .length;
     console.log(`[generate] Goal count for summary table: ${goalCount}`);
+    console.log('[generate] GOAL DEBUG: First 10 goal lines found in s3a+s3b+s3c:');
+    const debugLines = (s3aText + '\n' + s3bText + '\n' + s3cText).split('\n').filter(l => /Goal Statement/i.test(l)).slice(0, 10);
+    debugLines.forEach(l => console.log('  ', l.slice(0, 120)));
 
     // ── Step 5: concatenate in document order ─────────────────────────────
     fullPlanText = [s1Text, s2Text, s3aText, s3bText, s3cText, s3dText]
