@@ -13,7 +13,7 @@ const pdfParse = require('pdf-parse');
 const { Packer } = require('docx');
 const { buildDocx } = require('./docx-builder');
 const XLSX = require('xlsx');
-const { injectBoilerplate } = require('./plan-boilerplate');
+const { injectBoilerplate, buildGoalSummaryTable } = require('./plan-boilerplate');
 const { runBackup, latestBackup, BACKUP_DIR } = require('./backup');
 const db = require('./db');
 
@@ -624,9 +624,17 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
     const dateMatch = fullPlanText.match(/Assessment Date[:\s|]+([^\n\r|]+)/i);
     const assessmentDate = dateMatch ? dateMatch[1].trim() : '[DATE]';
 
-    // Overwrite any AI-guessed goal count with the actual counted value
+    // Replace the AI-generated goal summary table with the actual counted goalCount.
+    // The AI never writes [GOAL_SUMMARY_TABLE]; it writes its own table in various formats.
+    // Strategy: find the "## Goal Objective Summary" section and overwrite its table content.
+    const correctGoalTable = buildGoalSummaryTable(goalCount);
     fullPlanText = fullPlanText.replace(
-      /(Total\s*#\s*of\s*(?:new\s*)?goals[:\s|]+)\d+/gi,
+      /(##\s+Goal Objective Summary\s*\n)([\s\S]*?)(?=##\s+Response to Treatment)/i,
+      (match, header) => header + '\n' + correctGoalTable + '\n\n'
+    );
+    // Fallback: also replace any inline count patterns the AI may have written elsewhere
+    fullPlanText = fullPlanText.replace(
+      /(Total\s*#?\s*(?:of\s*)?(?:new\s*)?[Gg]oals[:\s|*]+)\d+/g,
       (match, prefix) => prefix + goalCount
     );
 
@@ -1463,8 +1471,13 @@ app.post('/api/chat/:plan_id/regenerate', authMiddleware, async (req, res) => {
       const regenBcbaName = regenBcbaMatch ? regenBcbaMatch[1].trim() : '[BCBA NAME]';
       const regenDateMatch = revisedText.match(/Assessment Date[:\s|]+([^\n\r|]+)/i);
       const regenAssessmentDate = regenDateMatch ? regenDateMatch[1].trim() : '[DATE]';
+      const correctRegenGoalTable = buildGoalSummaryTable(regenGoalCount);
       revisedText = revisedText.replace(
-        /(Total\s*#\s*of\s*(?:new\s*)?goals[:\s|]+)\d+/gi,
+        /(##\s+Goal Objective Summary\s*\n)([\s\S]*?)(?=##\s+Response to Treatment)/i,
+        (match, header) => header + '\n' + correctRegenGoalTable + '\n\n'
+      );
+      revisedText = revisedText.replace(
+        /(Total\s*#?\s*(?:of\s*)?(?:new\s*)?[Gg]oals[:\s|*]+)\d+/g,
         (match, prefix) => prefix + regenGoalCount
       );
       revisedText = injectBoilerplate(revisedText, regenClientName, regenBcbaName, regenAssessmentDate, regenGoalCount);
