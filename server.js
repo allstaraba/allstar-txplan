@@ -494,257 +494,15 @@ function fixMasteryCriteria(text) {
   return { text: fixed, ferbFixed, nonFerbFixed };
 }
 
-// runGenerationBackground: runs the full plan generation pipeline independently of any
-// HTTP request. Updates job state (liveText, section, status) so the polling client
-// can track progress and load the plan when done.
-async function runGenerationBackground(userId, { notes, baseMessage, clientName, systemPrompt, uploadedFileIds, userRecord }) {
-  const GOAL_RE = /(\d+)\.\s+(?:\(FERB\)\s+)?Goal Statement:\**\s*\|?\s*(.+?)(?:\s*\|)?\s*$/i;
-  const SECTION_TIMEOUT_MS = 5 * 60 * 1000;
-
-  // Accumulate text and update job state on each chunk
-  const send = (obj) => {
-    if (obj.type === 'chunk') {
-      const cur = generationJobs.get(userId);
-      if (cur) setJob(userId, { liveText: (cur.liveText || '') + obj.text });
-    } else if (obj.type === 'progress') {
-      setJob(userId, { section: obj.section, total: obj.total, label: obj.label });
-    }
-  };
-
-  const callWithRetry = async (secId, messages, maxAttempts = 4) => {
-    let lastErr;
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      const msgChars = messages.reduce((sum, m) => sum + (m.content ? m.content.length : 0), 0);
-      console.log(`[generate] ${secId} attempt ${attempt}/${maxAttempts}: ${msgChars.toLocaleString()} chars input (~${Math.round(msgChars/4).toLocaleString()} tokens)`);
-
-      let sectionText = '';
-      try {
-        await new Promise((resolve, reject) => {
-          const stream = anthropic.messages.stream({
-            model: CLAUDE_MODEL,
-            max_tokens: 32768,
-            system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
-            messages,
-          });
-
-          const timeoutId = setTimeout(() => {
-            try { stream.abort(); } catch {}
-            reject(new Error(`${secId} timed out after 5 minutes — no response from Anthropic API`));
-          }, SECTION_TIMEOUT_MS);
-
-          let firstChunk = true;
-          stream.on('text', (chunk) => {
-            if (firstChunk) { console.log(`[generate] ${secId} first chunk received`); firstChunk = false; }
-            sectionText += chunk;
-            send({ type: 'chunk', text: chunk });
-          });
-          stream.on('finalMessage', (msg) => {
-            clearTimeout(timeoutId);
-            console.log(`[generate] ${secId} done. stop_reason=${msg.stop_reason} output=${sectionText.length} chars`);
-            resolve();
-          });
-          stream.on('error', (err) => { clearTimeout(timeoutId); reject(err); });
-        });
-
-        if (sectionText.trim().length < 100) {
-          throw new Error(`${secId} returned suspiciously short output (${sectionText.trim().length} chars) — possible empty response`);
-        }
-        return sectionText;
-      } catch (err) {
-        lastErr = err;
-        const isPrematureClose = err.message === 'Premature close' || err.code === 'ERR_STREAM_PREMATURE_CLOSE';
-        const isTimeout = err.message && err.message.includes('timed out after 5 minutes');
-        if ((isPrematureClose || isTimeout) && sectionText.length === 0 && attempt < maxAttempts) {
-          const delay = attempt * 5000;
-          const reason = isTimeout ? 'timeout (no response)' : 'premature close (no output)';
-          console.log(`[generate] ${secId} ${reason}. Retrying in ${delay/1000}s (attempt ${attempt+1}/${maxAttempts})...`);
-          await new Promise(r => setTimeout(r, delay));
-          continue;
-        }
-        console.error(`[generate] ${secId} failed on attempt ${attempt}:`, err.message);
-        throw err;
-      }
-    }
-    throw lastErr;
-  };
-
-  const extractGoalNumbers = (s3aText, s3bText) => {
-    const lines = [];
-    for (const line of (s3aText + '\n' + s3bText).split('\n')) {
-      const m = line.match(GOAL_RE);
-      if (m) lines.push(`${m[1]}. Goal Statement: ${m[2].trim()}`);
-    }
-    console.log(`[generate] Extracted ${lines.length} goal statements for BIP context`);
-    return lines.join('\n');
-  };
-
-  const extractHighestGoalNum = (text) => {
-    let highest = 0;
-    for (const line of text.split('\n')) {
-      const m = line.match(/(\d+)\.\s+(?:\(FERB\)\s+)?Goal Statement/i);
-      if (m) highest = Math.max(highest, parseInt(m[1], 10));
-    }
-    return highest;
-  };
-
-  const buildMessages = (sec, contextBlock) => {
-    const clientPrefix = `You are generating a treatment plan for ${clientName}. Use ONLY "${clientName}" as the client's name throughout — do not use any other client's name.\n\n`;
-    const instruction = clientPrefix + sec.instruction;
-    return contextBlock
-      ? [
-          { role: 'user', content: baseMessage },
-          { role: 'assistant', content: contextBlock },
-          { role: 'user', content: instruction },
-        ]
-      : [{ role: 'user', content: `${baseMessage}\n\n${instruction}` }];
-  };
-
-  console.log("=== STARTING PLAN GENERATION ===");
-
-  send({ type: 'progress', section: 1, total: 4, label: GEN.S1.label });
-  const s1Text = await callWithRetry(GEN.S1.id, buildMessages(GEN.S1, null));
-
-  send({ type: 'progress', section: 2, total: 4, label: GEN.S2.label });
-  const s2Text = await callWithRetry(GEN.S2.id, buildMessages(GEN.S2, s1Text));
-
-  const s1s2Context = s1Text + '\n\n' + s2Text;
-
-  send({ type: 'progress', section: 3, total: 4, label: 'Skill Acquisition Goals (parallel)' });
-  console.log('[generate] Starting S3A and S3B in parallel');
-  const [s3aText, s3bText] = await Promise.all([
-    callWithRetry(GEN.S3A.id, buildMessages(GEN.S3A, s1s2Context)),
-    callWithRetry(GEN.S3B.id, buildMessages(GEN.S3B, s1s2Context)),
-  ]);
-  console.log(`[generate] S3A+S3B complete. S3A=${s3aText.length} chars, S3B=${s3bText.length} chars`);
-
-  const goalList = extractGoalNumbers(s3aText, s3bText);
-  const highestSkillGoalNum = extractHighestGoalNum(s3aText + '\n' + s3bText);
-  const nextGoalNum = highestSkillGoalNum + 1;
-  console.log(`[generate] Highest skill acquisition goal: ${highestSkillGoalNum} → Behavior Reduction starts at ${nextGoalNum}`);
-
-  send({ type: 'progress', section: 4, total: 4, label: 'BIPs & Final Sections (parallel)' });
-  console.log('[generate] Starting S3C and S3D in parallel');
-  const bipContext = s1s2Context + (goalList
-    ? '\n\n=== SKILL ACQUISITION GOALS (reference these numbers for FERB goals) ===\n' + goalList
-    : '');
-  const s3cSec = { id: GEN.S3C.id, instruction: buildS3CInstruction(nextGoalNum) };
-  const [s3cText, s3dText] = await Promise.all([
-    callWithRetry(s3cSec.id, buildMessages(s3cSec, bipContext)),
-    callWithRetry(GEN.S3D.id, buildMessages(GEN.S3D, s1s2Context)),
-  ]);
-  console.log(`[generate] S3C+S3D complete. S3C=${s3cText.length} chars, S3D=${s3dText.length} chars`);
-
-  const GOAL_LINE_RE = /\d+\.\s+(?:\(FERB\)\s+)?Goal Statement/i;
-  const goalCount = (s3aText + '\n' + s3bText + '\n' + s3cText)
-    .split('\n').filter(line => GOAL_LINE_RE.test(line)).length;
-  console.log(`[generate] Goal count for summary table: ${goalCount}`);
-  const debugLines = (s3aText + '\n' + s3bText + '\n' + s3cText).split('\n').filter(l => /Goal Statement/i.test(l)).slice(0, 10);
-  console.log('[generate] GOAL DEBUG: First 10 goal lines found in s3a+s3b+s3c:');
-  debugLines.forEach(l => console.log('  ', l.slice(0, 120)));
-
-  let fullPlanText = [s1Text, s2Text, s3aText, s3bText, s3cText, s3dText].filter(Boolean).join('\n\n');
-  console.log(`[generate] All sections complete. Total: ${fullPlanText.length} chars (${fullPlanText.split('\n').length} lines)`);
-
-  fullPlanText = stripAIPreamble(fullPlanText);
-
-  const { text: planTextFixed, ferbFixed, nonFerbFixed } = fixMasteryCriteria(fullPlanText);
-  fullPlanText = planTextFixed;
-  console.log(`[generate] Mastery criteria: ${ferbFixed} FERB goals fixed to 90%, ${nonFerbFixed} non-FERB goals fixed to 80%`);
-
-  const planNameMatch = fullPlanText.match(/Participant Name[:\s]+([^\n\r]+)/i);
-  if (planNameMatch && clientName === 'Unknown') clientName = planNameMatch[1].trim();
-
-  const bcbaMatch = fullPlanText.match(/(?:Supervising BCBA|BCBA Name)[:\s|]+([^\n\r|]+)/i);
-  const bcbaName = bcbaMatch ? bcbaMatch[1].trim() : '[BCBA NAME]';
-  const dateMatch = fullPlanText.match(/Assessment Date[:\s|]+([^\n\r|]+)/i);
-  const assessmentDate = dateMatch ? dateMatch[1].trim() : '[DATE]';
-
-  const correctGoalTable = buildGoalSummaryTable(goalCount);
-  fullPlanText = fullPlanText.replace(
-    /(##\s+Goal Objective Summary\s*\n)([\s\S]*?)(?=##\s+Response to Treatment)/i,
-    (match, header) => header + '\n' + correctGoalTable + '\n\n'
-  );
-  fullPlanText = fullPlanText.replace(
-    /(Total\s*#?\s*(?:of\s*)?(?:new\s*)?[Gg]oals[:\s|*]+)\d+/g,
-    (match, prefix) => prefix + goalCount
-  );
-
-  const injectedPlanText = injectBoilerplate(fullPlanText, clientName, bcbaName, assessmentDate, goalCount);
-  console.log(`[generate] Boilerplate injected. Raw: ${fullPlanText.length} chars → Final: ${injectedPlanText.length} chars`);
-
-  console.log(`[generate] Saving to DB: ${injectedPlanText.length} chars for plan "${clientName}"`);
-  const planInsert = db.prepare(
-    'INSERT INTO plan_history (user_id, client_name, original_notes) VALUES (?, ?, ?)'
-  ).run(userRecord.id, clientName, notes);
-  const planId = planInsert.lastInsertRowid;
-
-  db.prepare(
-    'INSERT INTO plan_revisions (plan_id, revision_number, text, feedback) VALUES (?, ?, ?, ?)'
-  ).run(planId, 0, injectedPlanText, 'Initial generation');
-  console.log(`[generate] DB save complete. plan_id=${planId}, revision_number=0, text_length=${injectedPlanText.length}`);
-
-  if (notes && Object.keys(notes).length > 0) {
-    // clientInfo saved separately by the POST handler before starting background job
-  }
-
-  if (Array.isArray(uploadedFileIds) && uploadedFileIds.length > 0) {
-    const clientDir = path.join(UPLOADS_DIR, 'clients', String(planId));
-    fs.mkdirSync(clientDir, { recursive: true });
-    for (const f of uploadedFileIds) {
-      try {
-        const tempFiles = fs.readdirSync(TEMP_UPLOADS_DIR).filter(n => n.startsWith(f.fileId + '_'));
-        if (tempFiles.length === 0) continue;
-        const tempFilename = tempFiles[0];
-        const destFilename = `${Date.now()}_${tempFilename.slice(f.fileId.length + 1)}`;
-        fs.renameSync(
-          path.join(TEMP_UPLOADS_DIR, tempFilename),
-          path.join(clientDir, destFilename)
-        );
-        const ext = path.extname(f.originalName).toLowerCase();
-        db.prepare(
-          'INSERT INTO client_documents (plan_id, filename, original_name, file_type, file_size, uploaded_by) VALUES (?,?,?,?,?,?)'
-        ).run(planId, destFilename, f.originalName, ext || f.fileType, f.fileSize || 0, userRecord.id);
-      } catch (e) {
-        console.error(`[generate] Failed to save temp file ${f.fileId}:`, e.message);
-      }
-    }
-  }
-
-  setJob(userId, { status: 'done', planId, clientName });
-  setTimeout(() => { if (generationJobs.get(userId)?.status === 'done') clearJob(userId); }, 60000);
-  logActivity(userRecord.id, userRecord.username, 'generated_plan', 'plan', planId, clientName);
-
-  // Generate clarifying questions after plan is saved
-  setImmediate(async () => {
-    try {
-      const clarifyMsg = await anthropic.messages.create({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 1000,
-        messages: [{
-          role: 'user',
-          content: `You are an ABA treatment plan assistant. A complete treatment plan was just generated from the BCBA notes below. Any missing information was filled with bracketed placeholders like [PHONE NUMBER] or [TO BE DETERMINED].\n\nReview the notes and identify what specific information is missing or unclear that would improve the plan. Ask targeted clarifying questions in a friendly, clinical tone — 3 to 7 questions max. Be specific (e.g., "What is the 97153 hours per week you want to request?" not "Are there any missing hours?"). Do not ask about things that are clearly present in the notes.\n\nBCBA Notes:\n${notes.slice(0, 8000)}`
-        }]
-      });
-      const clarifyText = clarifyMsg.content[0].text;
-      db.prepare('INSERT INTO chat_messages (plan_id, role, content, username) VALUES (?, ?, ?, ?)').run(planId, 'assistant', clarifyText, 'Claude');
-      console.log(`[generate] Posted clarifying questions to chat for plan_id=${planId}`);
-    } catch (e) {
-      console.log('[generate] Could not generate clarifying questions:', e.message);
-    }
-  });
-}
-
 app.post('/api/generate', authMiddleware, async (req, res) => {
+  // Keep-alive ping every 10s so Railway's proxy doesn't close the SSE connection.
+  const keepAlive = setInterval(() => { try { res.write(': ping\n\n'); } catch {} }, 10000);
+
   try {
     const { notes, clientInfo, uploadedFileIds } = req.body;
-    if (!notes) return res.status(400).json({ error: 'Notes are required' });
-
-    const userId = req.user.id;
-
-    // If already running for this user, just acknowledge — client will poll
-    const existing = generationJobs.get(userId);
-    if (existing?.status === 'running') {
-      return res.json({ ok: true, alreadyRunning: true });
+    if (!notes) {
+      clearInterval(keepAlive);
+      return res.status(400).json({ error: 'Notes are required' });
     }
 
     const activePrompt = db.prepare('SELECT * FROM prompt_versions WHERE is_active = 1').get();
@@ -762,44 +520,274 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
       ? `${formatClientInfoForPrompt(clientInfo)}\n=== ORIGINAL BCBA NOTES ===\n${notes}`
       : notes;
 
-    // Save client info now (before background job runs, so planId isn't needed yet)
-    // Will be associated with planId inside the background job
-    const pendingClientInfo = (clientInfo && Object.keys(clientInfo).length > 0) ? clientInfo : null;
+    // Set up SSE
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+    if (res.socket) res.socket.setNoDelay(true);
+    res.write(': connected\n\n');
 
-    setJob(userId, {
-      status: 'running', section: 1, total: 4, label: GEN.S1.label,
-      planId: null, clientName, error: null, startedAt: Date.now(), liveText: '',
-    });
+    const userId = req.user.id;
+    setJob(userId, { status: 'running', section: 1, total: 4, label: GEN.S1.label, planId: null, clientName, error: null, startedAt: Date.now() });
 
-    // Return immediately — don't make the client wait 6+ minutes for a response
-    res.json({ ok: true });
+    let clientDisconnected = false;
+    req.on('close', () => { clientDisconnected = true; });
 
-    // Run generation in background; catch errors and record them in job state
-    runGenerationBackground(userId, {
-      notes, baseMessage, clientName, systemPrompt, uploadedFileIds,
-      userRecord: { id: req.user.id, username: req.user.username },
-    }).then(() => {
-      // If clientInfo was provided, save it now that we have a planId
-      if (pendingClientInfo) {
-        const job = generationJobs.get(userId);
-        if (job?.planId) {
-          try {
-            db.prepare('INSERT OR REPLACE INTO client_info (plan_id, data, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)')
-              .run(job.planId, JSON.stringify(pendingClientInfo));
-          } catch (e) {
-            console.error('[generate] Failed to save client_info:', e.message);
+    let totalChunksSent = 0;
+    let totalCharsSent = 0;
+    const send = (obj) => {
+      if (clientDisconnected) return;
+      if (obj.type === 'chunk') { totalChunksSent++; totalCharsSent += (obj.text || '').length; }
+      try { res.write(`data: ${JSON.stringify(obj)}\n\n`); } catch {}
+    };
+
+    let fullPlanText = '';
+
+    console.log("=== STARTING PLAN GENERATION ===");
+
+    const SECTION_TIMEOUT_MS = 5 * 60 * 1000;
+    const callWithRetry = async (secId, messages, maxAttempts = 4) => {
+      let lastErr;
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        const msgChars = messages.reduce((sum, m) => sum + (m.content ? m.content.length : 0), 0);
+        console.log(`[generate] ${secId} attempt ${attempt}/${maxAttempts}: ${msgChars.toLocaleString()} chars input (~${Math.round(msgChars/4).toLocaleString()} tokens)`);
+
+        let sectionText = '';
+        try {
+          await new Promise((resolve, reject) => {
+            const stream = anthropic.messages.stream({
+              model: CLAUDE_MODEL,
+              max_tokens: 32768,
+              system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
+              messages,
+            });
+
+            const timeoutId = setTimeout(() => {
+              try { stream.abort(); } catch {}
+              reject(new Error(`${secId} timed out after 5 minutes — no response from Anthropic API`));
+            }, SECTION_TIMEOUT_MS);
+
+            let firstChunk = true;
+            stream.on('text', (chunk) => {
+              if (firstChunk) { console.log(`[generate] ${secId} first chunk received`); firstChunk = false; }
+              sectionText += chunk;
+              send({ type: 'chunk', text: chunk });
+            });
+            stream.on('finalMessage', (msg) => {
+              clearTimeout(timeoutId);
+              console.log(`[generate] ${secId} done. stop_reason=${msg.stop_reason} output=${sectionText.length} chars`);
+              resolve();
+            });
+            stream.on('error', (err) => { clearTimeout(timeoutId); reject(err); });
+          });
+
+          if (sectionText.trim().length < 100) {
+            throw new Error(`${secId} returned suspiciously short output (${sectionText.trim().length} chars) — possible empty response`);
           }
+          return sectionText;
+        } catch (err) {
+          lastErr = err;
+          const isPrematureClose = err.message === 'Premature close' || err.code === 'ERR_STREAM_PREMATURE_CLOSE';
+          const isTimeout = err.message && err.message.includes('timed out after 5 minutes');
+          if ((isPrematureClose || isTimeout) && sectionText.length === 0 && attempt < maxAttempts) {
+            const delay = attempt * 5000;
+            const reason = isTimeout ? 'timeout (no response)' : 'premature close (no output)';
+            console.log(`[generate] ${secId} ${reason}. Retrying in ${delay/1000}s (attempt ${attempt+1}/${maxAttempts})...`);
+            await new Promise(r => setTimeout(r, delay));
+            continue;
+          }
+          console.error(`[generate] ${secId} failed on attempt ${attempt}:`, err.message);
+          throw err;
         }
       }
-    }).catch(err => {
-      console.error('[generate] Background generation failed:', err.message);
-      setJob(userId, { status: 'error', error: err.message });
-      setTimeout(() => { if (generationJobs.get(userId)?.status === 'error') clearJob(userId); }, 30000);
+      throw lastErr;
+    };
+
+    const GOAL_RE = /(\d+)\.\s+(?:\(FERB\)\s+)?Goal Statement:\**\s*\|?\s*(.+?)(?:\s*\|)?\s*$/i;
+    const extractGoalNumbers = (s3aText, s3bText) => {
+      const lines = [];
+      for (const line of (s3aText + '\n' + s3bText).split('\n')) {
+        const m = line.match(GOAL_RE);
+        if (m) lines.push(`${m[1]}. Goal Statement: ${m[2].trim()}`);
+      }
+      console.log(`[generate] Extracted ${lines.length} goal statements for BIP context`);
+      return lines.join('\n');
+    };
+
+    const extractHighestGoalNum = (text) => {
+      let highest = 0;
+      for (const line of text.split('\n')) {
+        const m = line.match(/(\d+)\.\s+(?:\(FERB\)\s+)?Goal Statement/i);
+        if (m) highest = Math.max(highest, parseInt(m[1], 10));
+      }
+      return highest;
+    };
+
+    const buildMessages = (sec, contextBlock) => {
+      const clientPrefix = `You are generating a treatment plan for ${clientName}. Use ONLY "${clientName}" as the client's name throughout — do not use any other client's name.\n\n`;
+      const instruction = clientPrefix + sec.instruction;
+      return contextBlock
+        ? [
+            { role: 'user', content: baseMessage },
+            { role: 'assistant', content: contextBlock },
+            { role: 'user', content: instruction },
+          ]
+        : [{ role: 'user', content: `${baseMessage}\n\n${instruction}` }];
+    };
+
+    send({ type: 'progress', section: 1, total: 4, label: GEN.S1.label });
+    setJob(userId, { section: 1, label: GEN.S1.label });
+    const s1Text = await callWithRetry(GEN.S1.id, buildMessages(GEN.S1, null));
+
+    send({ type: 'progress', section: 2, total: 4, label: GEN.S2.label });
+    setJob(userId, { section: 2, label: GEN.S2.label });
+    const s2Text = await callWithRetry(GEN.S2.id, buildMessages(GEN.S2, s1Text));
+
+    const s1s2Context = s1Text + '\n\n' + s2Text;
+
+    send({ type: 'progress', section: 3, total: 4, label: 'Skill Acquisition Goals (parallel)' });
+    setJob(userId, { section: 3, label: 'Skill Acquisition Goals (parallel)' });
+    console.log('[generate] Starting S3A and S3B in parallel');
+    const [s3aText, s3bText] = await Promise.all([
+      callWithRetry(GEN.S3A.id, buildMessages(GEN.S3A, s1s2Context)),
+      callWithRetry(GEN.S3B.id, buildMessages(GEN.S3B, s1s2Context)),
+    ]);
+    console.log(`[generate] S3A+S3B complete. S3A=${s3aText.length} chars, S3B=${s3bText.length} chars`);
+
+    const goalList = extractGoalNumbers(s3aText, s3bText);
+    const highestSkillGoalNum = extractHighestGoalNum(s3aText + '\n' + s3bText);
+    const nextGoalNum = highestSkillGoalNum + 1;
+    console.log(`[generate] Highest skill acquisition goal: ${highestSkillGoalNum} → Behavior Reduction starts at ${nextGoalNum}`);
+
+    send({ type: 'progress', section: 4, total: 4, label: 'BIPs & Final Sections (parallel)' });
+    setJob(userId, { section: 4, label: 'BIPs & Final Sections (parallel)' });
+    console.log('[generate] Starting S3C and S3D in parallel');
+    const bipContext = s1s2Context + (goalList
+      ? '\n\n=== SKILL ACQUISITION GOALS (reference these numbers for FERB goals) ===\n' + goalList
+      : '');
+    const s3cSec = { id: GEN.S3C.id, instruction: buildS3CInstruction(nextGoalNum) };
+    const [s3cText, s3dText] = await Promise.all([
+      callWithRetry(s3cSec.id, buildMessages(s3cSec, bipContext)),
+      callWithRetry(GEN.S3D.id, buildMessages(GEN.S3D, s1s2Context)),
+    ]);
+    console.log(`[generate] S3C+S3D complete. S3C=${s3cText.length} chars, S3D=${s3dText.length} chars`);
+
+    const GOAL_LINE_RE = /\d+\.\s+(?:\(FERB\)\s+)?Goal Statement/i;
+    const goalCount = (s3aText + '\n' + s3bText + '\n' + s3cText)
+      .split('\n').filter(line => GOAL_LINE_RE.test(line)).length;
+    console.log(`[generate] Goal count for summary table: ${goalCount}`);
+    const debugLines = (s3aText + '\n' + s3bText + '\n' + s3cText).split('\n').filter(l => /Goal Statement/i.test(l)).slice(0, 10);
+    console.log('[generate] GOAL DEBUG: First 10 goal lines found in s3a+s3b+s3c:');
+    debugLines.forEach(l => console.log('  ', l.slice(0, 120)));
+
+    fullPlanText = [s1Text, s2Text, s3aText, s3bText, s3cText, s3dText].filter(Boolean).join('\n\n');
+    console.log(`[generate] All sections complete. Total: ${fullPlanText.length} chars (${fullPlanText.split('\n').length} lines)`);
+    console.log(`[generate] SSE chunks sent: ${totalChunksSent}, total chars streamed: ${totalCharsSent}`);
+
+    clearInterval(keepAlive);
+
+    fullPlanText = stripAIPreamble(fullPlanText);
+
+    const { text: planTextFixed, ferbFixed, nonFerbFixed } = fixMasteryCriteria(fullPlanText);
+    fullPlanText = planTextFixed;
+    console.log(`[generate] Mastery criteria: ${ferbFixed} FERB goals fixed to 90%, ${nonFerbFixed} non-FERB goals fixed to 80%`);
+
+    const planNameMatch = fullPlanText.match(/Participant Name[:\s]+([^\n\r]+)/i);
+    if (planNameMatch && clientName === 'Unknown') clientName = planNameMatch[1].trim();
+
+    const bcbaMatch = fullPlanText.match(/(?:Supervising BCBA|BCBA Name)[:\s|]+([^\n\r|]+)/i);
+    const bcbaName = bcbaMatch ? bcbaMatch[1].trim() : '[BCBA NAME]';
+    const dateMatch = fullPlanText.match(/Assessment Date[:\s|]+([^\n\r|]+)/i);
+    const assessmentDate = dateMatch ? dateMatch[1].trim() : '[DATE]';
+
+    const correctGoalTable = buildGoalSummaryTable(goalCount);
+    fullPlanText = fullPlanText.replace(
+      /(##\s+Goal Objective Summary\s*\n)([\s\S]*?)(?=##\s+Response to Treatment)/i,
+      (match, header) => header + '\n' + correctGoalTable + '\n\n'
+    );
+    fullPlanText = fullPlanText.replace(
+      /(Total\s*#?\s*(?:of\s*)?(?:new\s*)?[Gg]oals[:\s|*]+)\d+/g,
+      (match, prefix) => prefix + goalCount
+    );
+
+    const injectedPlanText = injectBoilerplate(fullPlanText, clientName, bcbaName, assessmentDate, goalCount);
+    console.log(`[generate] Boilerplate injected. Raw: ${fullPlanText.length} chars → Final: ${injectedPlanText.length} chars`);
+
+    console.log(`[generate] Saving to DB: ${injectedPlanText.length} chars for plan "${clientName}"`);
+    const planInsert = db.prepare(
+      'INSERT INTO plan_history (user_id, client_name, original_notes) VALUES (?, ?, ?)'
+    ).run(req.user.id, clientName, notes);
+    const planId = planInsert.lastInsertRowid;
+
+    db.prepare(
+      'INSERT INTO plan_revisions (plan_id, revision_number, text, feedback) VALUES (?, ?, ?, ?)'
+    ).run(planId, 0, injectedPlanText, 'Initial generation');
+    console.log(`[generate] DB save complete. plan_id=${planId}, revision_number=0, text_length=${injectedPlanText.length}`);
+
+    if (clientInfo && Object.keys(clientInfo).length > 0) {
+      db.prepare('INSERT OR REPLACE INTO client_info (plan_id, data, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)')
+        .run(planId, JSON.stringify(clientInfo));
+    }
+
+    if (Array.isArray(uploadedFileIds) && uploadedFileIds.length > 0) {
+      const clientDir = path.join(UPLOADS_DIR, 'clients', String(planId));
+      fs.mkdirSync(clientDir, { recursive: true });
+      for (const f of uploadedFileIds) {
+        try {
+          const tempFiles = fs.readdirSync(TEMP_UPLOADS_DIR).filter(n => n.startsWith(f.fileId + '_'));
+          if (tempFiles.length === 0) continue;
+          const tempFilename = tempFiles[0];
+          const destFilename = `${Date.now()}_${tempFilename.slice(f.fileId.length + 1)}`;
+          fs.renameSync(
+            path.join(TEMP_UPLOADS_DIR, tempFilename),
+            path.join(clientDir, destFilename)
+          );
+          const ext = path.extname(f.originalName).toLowerCase();
+          db.prepare(
+            'INSERT INTO client_documents (plan_id, filename, original_name, file_type, file_size, uploaded_by) VALUES (?,?,?,?,?,?)'
+          ).run(planId, destFilename, f.originalName, ext || f.fileType, f.fileSize || 0, req.user.id);
+        } catch (e) {
+          console.error(`[generate] Failed to save temp file ${f.fileId}:`, e.message);
+        }
+      }
+    }
+
+    if (!clientDisconnected) {
+      send({ type: 'done', plan_id: planId, client_name: clientName });
+      res.end();
+    }
+    setJob(userId, { status: 'done', planId, clientName });
+    setTimeout(() => { if (generationJobs.get(userId)?.status === 'done') clearJob(userId); }, 60000);
+    logActivity(req.user.id, req.user.username, 'generated_plan', 'plan', planId, clientName);
+
+    setImmediate(async () => {
+      try {
+        const clarifyMsg = await anthropic.messages.create({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 1000,
+          messages: [{
+            role: 'user',
+            content: `You are an ABA treatment plan assistant. A complete treatment plan was just generated from the BCBA notes below. Any missing information was filled with bracketed placeholders like [PHONE NUMBER] or [TO BE DETERMINED].\n\nReview the notes and identify what specific information is missing or unclear that would improve the plan. Ask targeted clarifying questions in a friendly, clinical tone — 3 to 7 questions max. Be specific (e.g., "What is the 97153 hours per week you want to request?" not "Are there any missing hours?"). Do not ask about things that are clearly present in the notes.\n\nBCBA Notes:\n${notes.slice(0, 8000)}`
+          }]
+        });
+        const clarifyText = clarifyMsg.content[0].text;
+        db.prepare('INSERT INTO chat_messages (plan_id, role, content, username) VALUES (?, ?, ?, ?)').run(planId, 'assistant', clarifyText, 'Claude');
+        console.log(`[generate] Posted clarifying questions to chat for plan_id=${planId}`);
+      } catch (e) {
+        console.log('[generate] Could not generate clarifying questions:', e.message);
+      }
     });
 
   } catch (err) {
+    clearInterval(keepAlive);
     console.error('Generate error:', err);
-    res.status(500).json({ error: err.message });
+    if (req.user) setJob(req.user.id, { status: 'error', error: err.message });
+    setTimeout(() => { if (req.user && generationJobs.get(req.user.id)?.status === 'error') clearJob(req.user.id); }, 30000);
+    try {
+      res.write(`data: ${JSON.stringify({ type: 'error', error: err.message })}\n\n`);
+      res.end();
+    } catch {}
   }
 });
 
