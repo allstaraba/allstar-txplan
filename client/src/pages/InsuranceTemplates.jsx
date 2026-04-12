@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { getInsuranceTemplates, getInsuranceTemplate, createInsuranceTemplate, updateInsuranceTemplate, deleteInsuranceTemplate } from '../api.js';
+import { useRef } from 'react';
+import { getInsuranceTemplates, getInsuranceTemplate, createInsuranceTemplate, updateInsuranceTemplate, deleteInsuranceTemplate, extractInsuranceTemplateDocument } from '../api.js';
 
 function formatDate(dateStr) {
   if (!dateStr) return '';
@@ -15,8 +16,10 @@ export default function InsuranceTemplates() {
   // Editor state — null means "list view", otherwise { id: null|number, name, text }
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [extracting, setExtracting] = useState(false);
   const [loadingEdit, setLoadingEdit] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null); // template id to confirm
+  const fileInputRef = useRef(null);
 
   const load = () => {
     setLoading(true);
@@ -51,6 +54,26 @@ export default function InsuranceTemplates() {
   const cancelEdit = () => {
     setEditing(null);
     setError('');
+  };
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    e.target.value = '';
+    setExtracting(true);
+    setError('');
+    try {
+      const { text, filename } = await extractInsuranceTemplateDocument(file);
+      setEditing(prev => ({
+        ...prev,
+        text,
+        name: prev.name || filename.replace(/\.[^.]+$/, ''),
+      }));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setExtracting(false);
+    }
   };
 
   const handleSave = async () => {
@@ -150,12 +173,27 @@ export default function InsuranceTemplates() {
         </div>
 
         <div style={{ marginBottom: '20px' }}>
-          <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '6px' }}>
-            Insurance Rules Document
-            <span style={{ fontWeight: '400', color: '#94a3b8', marginLeft: '8px' }}>
-              Paste the full rules text — Claude will check each requirement against the plan
-            </span>
-          </label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+            <label style={{ fontSize: '13px', fontWeight: '600', color: '#374151' }}>
+              Insurance Rules Document
+            </label>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={extracting}
+              style={{ ...btnStyle('ghost'), fontSize: '12px', padding: '5px 11px', opacity: extracting ? 0.6 : 1 }}
+            >
+              {extracting ? 'Extracting…' : '↑ Upload PDF / DOCX / TXT'}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.docx,.txt"
+              style={{ display: 'none' }}
+              onChange={handleFileUpload}
+            />
+            <span style={{ fontSize: '12px', color: '#94a3b8' }}>or paste below</span>
+          </div>
           <textarea
             value={editing.text}
             onChange={e => setEditing(prev => ({ ...prev, text: e.target.value }))}

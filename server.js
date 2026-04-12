@@ -1863,6 +1863,37 @@ app.get('/api/activity-log', authMiddleware, adminMiddleware, (req, res) => {
   }
 });
 
+// ---- INSURANCE TEMPLATE DOCUMENT EXTRACTION ----
+
+app.post('/api/insurance-templates/extract', authMiddleware, adminMiddleware, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    const { originalname, mimetype, buffer } = req.file;
+    const ext = path.extname(originalname).toLowerCase();
+    let text = '';
+
+    if (ext === '.txt' || mimetype === 'text/plain') {
+      text = buffer.toString('utf8');
+    } else if (ext === '.docx' || mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+      const result = await mammoth.extractRawText({ buffer });
+      text = result.value;
+    } else if (ext === '.pdf' || mimetype === 'application/pdf') {
+      const result = await pdfParse(buffer);
+      text = result.text;
+    } else {
+      return res.status(400).json({ error: 'Unsupported file type. Upload a PDF, DOCX, or TXT file.' });
+    }
+
+    text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+    if (!text) return res.status(400).json({ error: 'Could not extract text from the file — it may be empty or image-based.' });
+    console.log(`[insurance extract] ${originalname} → ${text.length.toLocaleString()} chars`);
+    res.json({ text, filename: originalname, chars: text.length });
+  } catch (err) {
+    console.error('Insurance template extract error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ---- INSURANCE TEMPLATES ----
 
 app.get('/api/insurance-templates', authMiddleware, (req, res) => {

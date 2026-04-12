@@ -406,6 +406,19 @@ export async function saveClientInfo(plan_id, data) {
   return res.json();
 }
 
+export async function extractInsuranceTemplateDocument(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await fetch(`${BASE_URL}/api/insurance-templates/extract`, {
+    method: 'POST',
+    headers: authHeadersNoContentType(),
+    body: formData,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Extraction failed');
+  return data;
+}
+
 // ---- INSURANCE TEMPLATES ----
 
 export async function getInsuranceTemplates() {
