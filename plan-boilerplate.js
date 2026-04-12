@@ -134,4 +134,4 @@ function injectBoilerplate(text, clientName = '', bcbaName = '[BCBA NAME]', asse
     .replace(/\[TELEHEALTH_CHECKLIST\]/g, buildTelehealthChecklist(clientName, bcbaName, assessmentDate));
 }
 
-module.exports = { injectBoilerplate };
+module.exports = { injectBoilerplate, buildGoalSummaryTable };
