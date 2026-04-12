@@ -103,6 +103,7 @@ db.exec(`CREATE TABLE IF NOT EXISTS chat_messages (
   plan_id INTEGER NOT NULL,
   role TEXT NOT NULL CHECK(role IN ('user', 'assistant')),
   content TEXT NOT NULL,
+  username TEXT DEFAULT '',
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (plan_id) REFERENCES plan_history(id)
 )`);

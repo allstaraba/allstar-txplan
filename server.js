@@ -530,10 +530,14 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
       ? `${formatClientInfoForPrompt(clientInfo)}\n=== ORIGINAL BCBA NOTES ===\n${notes}`
       : notes;
 
-    // Set up SSE
+    // Set up SSE — flush headers immediately so Railway's proxy treats this as
+    // a live stream from the start. Without this, the proxy may buffer and then
+    // close the connection before any data flows, causing clientDisconnected=true.
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+    res.write(': connected\n\n');
 
     // Track this job server-side so user can reconnect and see status
     const userId = req.user.id;
