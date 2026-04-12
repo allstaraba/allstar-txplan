@@ -406,6 +406,92 @@ export async function saveClientInfo(plan_id, data) {
   return res.json();
 }
 
+// ---- INSURANCE TEMPLATES ----
+
+export async function getInsuranceTemplates() {
+  const res = await apiFetch(`${BASE_URL}/api/insurance-templates`, { headers: authHeaders() });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to get insurance templates');
+  return data;
+}
+
+export async function getInsuranceTemplate(id) {
+  const res = await apiFetch(`${BASE_URL}/api/insurance-templates/${id}`, { headers: authHeaders() });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to get template');
+  return data;
+}
+
+export async function createInsuranceTemplate(name, text) {
+  const res = await fetch(`${BASE_URL}/api/insurance-templates`, {
+    method: 'POST', headers: authHeaders(), body: JSON.stringify({ name, text }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to create template');
+  return data;
+}
+
+export async function updateInsuranceTemplate(id, name, text) {
+  const res = await fetch(`${BASE_URL}/api/insurance-templates/${id}`, {
+    method: 'PUT', headers: authHeaders(), body: JSON.stringify({ name, text }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to update template');
+  return data;
+}
+
+export async function deleteInsuranceTemplate(id) {
+  const res = await fetch(`${BASE_URL}/api/insurance-templates/${id}`, {
+    method: 'DELETE', headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to delete template');
+  return data;
+}
+
+// ---- COMPLIANCE CHECKS ----
+
+export async function getComplianceChecks(plan_id) {
+  const res = await apiFetch(`${BASE_URL}/api/compliance/checks/${plan_id}`, { headers: authHeaders() });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to get compliance checks');
+  return data;
+}
+
+export async function runComplianceCheck(plan_id, template_id, onChunk) {
+  const res = await fetch(`${BASE_URL}/api/compliance/check/${plan_id}`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ template_id }),
+  });
+  if (!res.ok) {
+    const data = await res.json();
+    throw new Error(data.error || 'Failed to run compliance check');
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let check_id = null;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop();
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const jsonStr = line.slice(6).trim();
+      if (!jsonStr) continue;
+      let evt;
+      try { evt = JSON.parse(jsonStr); } catch { continue; }
+      if (evt.type === 'chunk' && onChunk) onChunk(evt.text);
+      if (evt.type === 'done') check_id = evt.check_id;
+      if (evt.type === 'error') throw new Error(evt.error || 'Compliance check failed');
+    }
+  }
+  return { check_id };
+}
+
 // Regenerates the full plan incorporating all chat feedback (SSE streaming)
 export async function regeneratePlan(plan_id, onChunk) {
   const res = await fetch(`${BASE_URL}/api/chat/${plan_id}/regenerate`, {

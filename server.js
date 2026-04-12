@@ -1863,6 +1863,201 @@ app.get('/api/activity-log', authMiddleware, adminMiddleware, (req, res) => {
   }
 });
 
+// ---- INSURANCE TEMPLATES ----
+
+app.get('/api/insurance-templates', authMiddleware, (req, res) => {
+  try {
+    const templates = db.prepare('SELECT id, name, created_at FROM insurance_templates ORDER BY name ASC').all();
+    res.json(templates);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/insurance-templates/:id', authMiddleware, (req, res) => {
+  try {
+    const t = db.prepare('SELECT * FROM insurance_templates WHERE id = ?').get(req.params.id);
+    if (!t) return res.status(404).json({ error: 'Template not found' });
+    res.json(t);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/insurance-templates', authMiddleware, adminMiddleware, (req, res) => {
+  try {
+    const { name, text } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: 'Name is required' });
+    if (!text || !text.trim()) return res.status(400).json({ error: 'Rules text is required' });
+    const result = db.prepare('INSERT INTO insurance_templates (name, text, created_by) VALUES (?, ?, ?)').run(name.trim(), text.trim(), req.user.id);
+    logActivity(req.user.id, req.user.username, 'created_insurance_template', 'insurance_template', result.lastInsertRowid, name.trim());
+    res.json({ id: result.lastInsertRowid });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/insurance-templates/:id', authMiddleware, adminMiddleware, (req, res) => {
+  try {
+    const { name, text } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: 'Name is required' });
+    if (!text || !text.trim()) return res.status(400).json({ error: 'Rules text is required' });
+    const existing = db.prepare('SELECT id FROM insurance_templates WHERE id = ?').get(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Template not found' });
+    db.prepare('UPDATE insurance_templates SET name = ?, text = ? WHERE id = ?').run(name.trim(), text.trim(), req.params.id);
+    logActivity(req.user.id, req.user.username, 'updated_insurance_template', 'insurance_template', Number(req.params.id), name.trim());
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/insurance-templates/:id', authMiddleware, adminMiddleware, (req, res) => {
+  try {
+    const existing = db.prepare('SELECT id, name FROM insurance_templates WHERE id = ?').get(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Template not found' });
+    db.prepare('DELETE FROM insurance_templates WHERE id = ?').run(req.params.id);
+    logActivity(req.user.id, req.user.username, 'deleted_insurance_template', 'insurance_template', Number(req.params.id), existing.name);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---- COMPLIANCE CHECKS ----
+
+app.get('/api/compliance/checks/:plan_id', authMiddleware, (req, res) => {
+  try {
+    const checks = db.prepare(
+      'SELECT id, template_name, result_text, created_at FROM compliance_checks WHERE plan_id = ? ORDER BY created_at DESC'
+    ).all(req.params.plan_id);
+    res.json(checks);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/compliance/check/:plan_id', authMiddleware, async (req, res) => {
+  try {
+    const { template_id } = req.body;
+    if (!template_id) return res.status(400).json({ error: 'template_id is required' });
+
+    const plan = db.prepare('SELECT * FROM plan_history WHERE id = ?').get(req.params.plan_id);
+    if (!plan) return res.status(404).json({ error: 'Plan not found' });
+
+    const latestRevision = db.prepare(
+      'SELECT text FROM plan_revisions WHERE plan_id = ? ORDER BY revision_number DESC LIMIT 1'
+    ).get(req.params.plan_id);
+    if (!latestRevision) return res.status(404).json({ error: 'No plan revision found' });
+
+    const template = db.prepare('SELECT * FROM insurance_templates WHERE id = ?').get(template_id);
+    if (!template) return res.status(404).json({ error: 'Insurance template not found' });
+
+    // Strip internal markers from plan text before sending to Claude
+    const planText = latestRevision.text
+      .replace(/\[(SECTION|TABLE|\/TABLE|GOAL|\/GOAL|BIP|\/BIP|FADING_PHASE|\/FADING_PHASE|CRISIS_ROW|\/CRISIS_ROW):[^\]]*\]/g, '')
+      .replace(/^\n{3,}/gm, '\n\n').trim();
+
+    const complianceSystemPrompt = `You are an expert compliance reviewer for ABA (Applied Behavior Analysis) treatment plans. Your job is to carefully review a treatment plan against insurance company rules and requirements.
+
+For each requirement in the insurance rules, determine if the treatment plan:
+- PASSES: The plan clearly and fully meets this requirement
+- FAILS: The plan is missing, incomplete, or violates this requirement
+- WARNING: The plan partially meets this requirement, or it is ambiguous and may need clarification
+
+Be thorough and specific. Cite exact sections or quotes from the plan when relevant. For failures and warnings, provide a clear recommendation for what needs to be added or changed.`;
+
+    const userMessage = `Please review the following ABA treatment plan for compliance with the insurance rules provided.
+
+=== INSURANCE RULES: ${template.name} ===
+${template.text}
+
+=== TREATMENT PLAN ===
+${planText}
+
+=== INSTRUCTIONS ===
+Review the plan against every rule and requirement in the insurance rules document above.
+
+Format your response exactly as follows:
+
+## Compliance Check: ${template.name}
+**Plan:** ${plan.client_name || 'Unknown Client'}
+
+### Summary
+[2-3 sentence overall compliance assessment]
+
+### ❌ Failed Requirements
+[List each failure. If none, write "None identified."]
+For each: **Rule:** [requirement] → **Issue:** [what's missing or wrong] → **Fix:** [specific recommendation]
+
+### ⚠️ Warnings / Needs Clarification
+[List each warning. If none, write "None identified."]
+For each: **Rule:** [requirement] → **Issue:** [what's unclear or partially met] → **Recommendation:** [what to clarify or add]
+
+### ✅ Passed Requirements
+[List each requirement that is clearly met, with brief confirmation]`;
+
+    // SSE setup
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+    if (res.socket) res.socket.setNoDelay(true);
+    res.write(': connected\n\n');
+
+    let clientConnected = true;
+    res.on('close', () => { clientConnected = false; });
+
+    const send = (obj) => {
+      if (!clientConnected) return;
+      try { res.write(`data: ${JSON.stringify(obj)}\n\n`); } catch {}
+    };
+
+    let resultText = '';
+    console.log(`[compliance] plan_id=${req.params.plan_id} template="${template.name}" plan_chars=${planText.length} rules_chars=${template.text.length}`);
+
+    const stream = anthropic.messages.stream({
+      model: CLAUDE_MODEL,
+      max_tokens: 8192,
+      system: complianceSystemPrompt,
+      messages: [{ role: 'user', content: userMessage }],
+    });
+
+    const keepAlive = setInterval(() => { try { res.write(': ping\n\n'); } catch {} }, 20000);
+
+    stream.on('text', (chunk) => {
+      resultText += chunk;
+      send({ type: 'chunk', text: chunk });
+    });
+
+    stream.on('finalMessage', (msg) => {
+      clearInterval(keepAlive);
+      const checkResult = db.prepare(
+        'INSERT INTO compliance_checks (plan_id, template_id, template_name, result_text, checked_by) VALUES (?, ?, ?, ?, ?)'
+      ).run(req.params.plan_id, template_id, template.name, resultText, req.user.id);
+      console.log(`[compliance] done. stop_reason=${msg.stop_reason} output=${resultText.length} chars. saved check_id=${checkResult.lastInsertRowid}`);
+      logActivity(req.user.id, req.user.username, 'compliance_check', 'plan', Number(req.params.plan_id), template.name);
+      if (clientConnected) {
+        send({ type: 'done', check_id: checkResult.lastInsertRowid });
+        res.end();
+      }
+    });
+
+    stream.on('error', (err) => {
+      clearInterval(keepAlive);
+      console.error('Compliance stream error:', err);
+      if (clientConnected) {
+        send({ type: 'error', error: err.message });
+        res.end();
+      }
+    });
+
+  } catch (err) {
+    console.error('Compliance check error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ---- SERVE REACT APP ----
 
 app.get('*', (req, res) => {

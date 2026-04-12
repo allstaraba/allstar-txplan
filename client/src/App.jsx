@@ -10,6 +10,7 @@ import PlanHistory from './pages/PlanHistory.jsx';
 import ClientRecords from './pages/ClientRecords.jsx';
 import ClientProfile from './pages/ClientProfile.jsx';
 import ActivityLog from './pages/ActivityLog.jsx';
+import InsuranceTemplates from './pages/InsuranceTemplates.jsx';
 import { getMe, logout, generatePlan, getPlan, getGenerationStatus } from './api.js';
 
 const styles = {
@@ -327,6 +328,7 @@ function Layout({ user, onLogout, currentPlan, setCurrentPlan, injectedText, set
     ...(user.role === 'Admin' ? [{ to: '/template', icon: '⊞', label: 'Edit Template' }] : []),
     { to: '/history', icon: '◷', label: 'Version History' },
     ...(user.role === 'Admin' ? [
+      { to: '/insurance', icon: '⊟', label: 'Insurance Rules' },
       { to: '/users', icon: '◉', label: 'Manage Users' },
       { to: '/activity', icon: '◑', label: 'Activity Log' },
     ] : []),
@@ -480,6 +482,7 @@ function Layout({ user, onLogout, currentPlan, setCurrentPlan, injectedText, set
           <Route path="/plans" element={<PlanHistory setCurrentPlan={setCurrentPlan} />} />
           <Route path="/template" element={<EditTemplate user={user} />} />
           <Route path="/history" element={<VersionHistory />} />
+          {user.role === 'Admin' && <Route path="/insurance" element={<InsuranceTemplates />} />}
           {user.role === 'Admin' && <Route path="/users" element={<ManageUsers user={user} />} />}
           {user.role === 'Admin' && <Route path="/activity" element={<ActivityLog />} />}
           <Route path="*" element={<Navigate to="/generate" replace />} />

@@ -156,4 +156,25 @@ db.exec(`CREATE TABLE IF NOT EXISTS activity_log (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 )`);
 
+db.exec(`CREATE TABLE IF NOT EXISTS insurance_templates (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  text TEXT NOT NULL,
+  created_by INTEGER NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (created_by) REFERENCES users(id)
+)`);
+
+db.exec(`CREATE TABLE IF NOT EXISTS compliance_checks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  plan_id INTEGER NOT NULL,
+  template_id INTEGER,
+  template_name TEXT NOT NULL,
+  result_text TEXT NOT NULL,
+  checked_by INTEGER NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (plan_id) REFERENCES plan_history(id),
+  FOREIGN KEY (checked_by) REFERENCES users(id)
+)`);
+
 module.exports = db;

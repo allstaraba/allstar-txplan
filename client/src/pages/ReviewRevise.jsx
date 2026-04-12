@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getPlanRevisions, getExportUrl, getChatHistory, sendChatMessage, regeneratePlan } from '../api.js';
+import { getPlanRevisions, getExportUrl, getChatHistory, sendChatMessage, regeneratePlan, getInsuranceTemplates, getComplianceChecks, runComplianceCheck } from '../api.js';
 
 // ── Plan text renderer ──────────────────────────────────────────────────────────
 
@@ -306,6 +306,46 @@ const EXAMPLE_PROMPTS = [
   "Phase 1 fading should include toileting",
 ];
 
+// Render compliance check result text as structured markdown-like output
+function ComplianceResult({ text }) {
+  if (!text) return null;
+  const lines = text.split('\n');
+  return (
+    <div style={{ fontSize: '13px', lineHeight: '1.7', color: '#1e293b' }}>
+      {lines.map((line, i) => {
+        const trimmed = line.trim();
+        if (!trimmed) return <div key={i} style={{ height: '6px' }} />;
+        if (trimmed.startsWith('## ')) {
+          return <h2 key={i} style={{ fontSize: '15px', fontWeight: '700', color: '#0f172a', margin: '16px 0 8px', borderBottom: '1px solid #e2e8f0', paddingBottom: '6px' }}>{trimmed.slice(3)}</h2>;
+        }
+        if (trimmed.startsWith('### ')) {
+          const heading = trimmed.slice(4);
+          const color = heading.includes('❌') || heading.toLowerCase().includes('fail') ? '#dc2626'
+            : heading.includes('⚠️') || heading.toLowerCase().includes('warn') ? '#d97706'
+            : heading.includes('✅') || heading.toLowerCase().includes('pass') ? '#16a34a'
+            : '#374151';
+          return <h3 key={i} style={{ fontSize: '13px', fontWeight: '700', color, margin: '14px 0 6px' }}>{heading}</h3>;
+        }
+        if (trimmed.startsWith('**') && trimmed.endsWith('**')) {
+          return <div key={i} style={{ fontWeight: '600', color: '#374151', marginBottom: '2px' }}>{trimmed.slice(2, -2)}</div>;
+        }
+        // Inline bold rendering
+        const parts = trimmed.split(/(\*\*[^*]+\*\*)/g);
+        const rendered = parts.map((p, j) => p.startsWith('**') && p.endsWith('**')
+          ? <strong key={j}>{p.slice(2, -2)}</strong>
+          : p
+        );
+        const isListItem = trimmed.startsWith('- ') || /^\d+\.\s/.test(trimmed);
+        return (
+          <div key={i} style={{ marginBottom: isListItem ? '6px' : '2px', paddingLeft: isListItem ? '8px' : 0 }}>
+            {rendered}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function formatRevDate(dateStr) {
   if (!dateStr) return '';
   const d = new Date(dateStr.endsWith('Z') ? dateStr : dateStr + 'Z');
@@ -329,6 +369,17 @@ export default function ReviewRevise({ user, currentPlan, setCurrentPlan, inject
   const inputRef = useRef(null);
   const navigate = useNavigate();
 
+  // Right-panel tab: 'chat' | 'compliance'
+  const [rightTab, setRightTab] = useState('chat');
+  // Compliance state
+  const [insuranceTemplates, setInsuranceTemplates] = useState([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState('');
+  const [checking, setChecking] = useState(false);
+  const [streamingCheckText, setStreamingCheckText] = useState('');
+  const [checkHistory, setCheckHistory] = useState([]);
+  const [viewingCheck, setViewingCheck] = useState(null); // { result_text, template_name, created_at } | null
+  const complianceEndRef = useRef(null);
+
   // When injectedText arrives, put it in the input
   useEffect(() => {
     if (injectedText) {
@@ -343,16 +394,35 @@ export default function ReviewRevise({ user, currentPlan, setCurrentPlan, inject
     if (currentPlan?.plan_id) {
       setError('');
       setStreamingPlanText('');
+      setStreamingCheckText('');
+      setViewingCheck(null);
       Promise.all([
         getPlanRevisions(currentPlan.plan_id),
         getChatHistory(currentPlan.plan_id),
-      ]).then(([revs, chat]) => {
+        getComplianceChecks(currentPlan.plan_id),
+      ]).then(([revs, chat, checks]) => {
         setRevisions(revs);
         setSelectedRevIdx(revs.length - 1);
         setMessages(chat);
+        setCheckHistory(checks);
       }).catch(err => setError(err.message));
     }
   }, [currentPlan?.plan_id]);
+
+  // Load insurance templates once
+  useEffect(() => {
+    getInsuranceTemplates()
+      .then(data => {
+        setInsuranceTemplates(data);
+        if (data.length > 0) setSelectedTemplateId(String(data[0].id));
+      })
+      .catch(() => {});
+  }, []);
+
+  // Auto-scroll compliance result
+  useEffect(() => {
+    complianceEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [streamingCheckText]);
 
   // Auto-scroll chat to bottom
   useEffect(() => {
@@ -505,6 +575,28 @@ export default function ReviewRevise({ user, currentPlan, setCurrentPlan, inject
     }
   };
 
+  const handleComplianceCheck = async () => {
+    if (!selectedTemplateId || checking) return;
+    setError('');
+    setStreamingCheckText('');
+    setViewingCheck(null);
+    setChecking(true);
+    let accumulated = '';
+    try {
+      await runComplianceCheck(currentPlan.plan_id, Number(selectedTemplateId), (chunk) => {
+        accumulated += chunk;
+        setStreamingCheckText(accumulated);
+      });
+      // Reload check history
+      const checks = await getComplianceChecks(currentPlan.plan_id);
+      setCheckHistory(checks);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setChecking(false);
+    }
+  };
+
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -621,126 +713,264 @@ export default function ReviewRevise({ user, currentPlan, setCurrentPlan, inject
           </div>
         </div>
 
-        {/* Right: Chat (40%) */}
+        {/* Right: Chat / Compliance tabs (40%) */}
         <div style={{ flex: '0 0 40%', display: 'flex', flexDirection: 'column', background: '#fff', overflow: 'hidden' }}>
 
-          {/* Chat header */}
-          <div style={{ padding: '12px 20px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: '14px', fontWeight: '600', color: '#0f172a' }}>Revision Chat</div>
-              <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '1px' }}>Chat about changes · Enter sends · Shift+Enter = new line</div>
-            </div>
-            {hasUserMessages && (
+          {/* Tab bar */}
+          <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', background: '#f8fafc', flexShrink: 0 }}>
+            {['chat', 'compliance'].map(tab => (
               <button
-                onClick={handleRegenerate}
-                disabled={regenerating || sending}
-                title="Regenerate the full plan incorporating all your chat feedback"
+                key={tab}
+                onClick={() => setRightTab(tab)}
                 style={{
-                  padding: '7px 13px',
-                  background: regenerating || sending ? '#e2e8f0' : '#0f172a',
-                  border: 'none',
-                  borderRadius: '6px',
-                  color: regenerating || sending ? '#94a3b8' : '#fff',
-                  fontSize: '12px',
-                  fontWeight: '600',
-                  cursor: regenerating || sending ? 'not-allowed' : 'pointer',
-                  whiteSpace: 'nowrap',
-                  transition: 'background 0.15s',
+                  padding: '11px 20px',
+                  background: 'none', border: 'none',
+                  borderBottom: rightTab === tab ? '2px solid #2563eb' : '2px solid transparent',
+                  color: rightTab === tab ? '#2563eb' : '#64748b',
+                  fontSize: '13px', fontWeight: '600', cursor: 'pointer',
+                  transition: 'color 0.15s',
+                  marginBottom: '-1px',
                 }}
               >
-                {regenerating ? 'Regenerating…' : 'Regenerate Full Plan'}
+                {tab === 'chat' ? 'Revision Chat' : 'Compliance Check'}
               </button>
-            )}
+            ))}
           </div>
 
-          {/* Messages area */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
-            {messages.length === 0 && !sending ? (
-              <div>
-                <p style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '14px' }}>
-                  Chat about changes to the plan. When you're ready to apply all changes, click "Regenerate Full Plan".
-                </p>
-                <p style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '12px', fontWeight: '500' }}>Try an example:</p>
-                {EXAMPLE_PROMPTS.map((prompt, i) => (
+          {/* ── CHAT TAB ── */}
+          {rightTab === 'chat' && (
+            <>
+              {/* Chat sub-header */}
+              <div style={{ padding: '10px 20px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ flex: 1, fontSize: '12px', color: '#94a3b8' }}>Chat about changes · Enter sends · Shift+Enter = new line</div>
+                {hasUserMessages && (
                   <button
-                    key={i}
-                    onClick={() => handleExampleClick(prompt)}
+                    onClick={handleRegenerate}
+                    disabled={regenerating || sending}
+                    title="Regenerate the full plan incorporating all your chat feedback"
                     style={{
-                      display: 'block', width: '100%', textAlign: 'left',
-                      padding: '9px 13px', marginBottom: '8px',
-                      background: '#f1f5f9', border: '1px solid #e2e8f0',
-                      borderRadius: '8px', fontSize: '13px', color: '#374151', cursor: 'pointer',
+                      padding: '7px 13px',
+                      background: regenerating || sending ? '#e2e8f0' : '#0f172a',
+                      border: 'none', borderRadius: '6px',
+                      color: regenerating || sending ? '#94a3b8' : '#fff',
+                      fontSize: '12px', fontWeight: '600',
+                      cursor: regenerating || sending ? 'not-allowed' : 'pointer',
+                      whiteSpace: 'nowrap', transition: 'background 0.15s',
                     }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#e2e8f0'}
-                    onMouseLeave={e => e.currentTarget.style.background = '#f1f5f9'}
                   >
-                    {prompt}
+                    {regenerating ? 'Regenerating…' : 'Regenerate Full Plan'}
                   </button>
-                ))}
+                )}
               </div>
-            ) : (
-              <>
-                {messages.map((msg, i) => <ChatBubble key={i} msg={msg} />)}
 
-                {/* Streaming assistant reply (while sending) */}
-                {sending && streamingReply && (
-                  <ChatBubble msg={{ role: 'assistant', content: streamingReply }} />
-                )}
-                {/* Typing indicator — show when sending but no chunks yet */}
-                {sending && !streamingReply && (
-                  <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: '10px' }}>
-                    <div style={{ background: '#f1f5f9', borderRadius: '12px 12px 12px 2px' }}>
-                      <TypingDots />
-                    </div>
+              {/* Messages area */}
+              <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
+                {messages.length === 0 && !sending ? (
+                  <div>
+                    <p style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '14px' }}>
+                      Chat about changes to the plan. When you're ready to apply all changes, click "Regenerate Full Plan".
+                    </p>
+                    <p style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '12px', fontWeight: '500' }}>Try an example:</p>
+                    {EXAMPLE_PROMPTS.map((prompt, i) => (
+                      <button
+                        key={i}
+                        onClick={() => handleExampleClick(prompt)}
+                        style={{
+                          display: 'block', width: '100%', textAlign: 'left',
+                          padding: '9px 13px', marginBottom: '8px',
+                          background: '#f1f5f9', border: '1px solid #e2e8f0',
+                          borderRadius: '8px', fontSize: '13px', color: '#374151', cursor: 'pointer',
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.background = '#e2e8f0'}
+                        onMouseLeave={e => e.currentTarget.style.background = '#f1f5f9'}
+                      >
+                        {prompt}
+                      </button>
+                    ))}
                   </div>
+                ) : (
+                  <>
+                    {messages.map((msg, i) => <ChatBubble key={i} msg={msg} />)}
+                    {sending && streamingReply && (
+                      <ChatBubble msg={{ role: 'assistant', content: streamingReply }} />
+                    )}
+                    {sending && !streamingReply && (
+                      <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: '10px' }}>
+                        <div style={{ background: '#f1f5f9', borderRadius: '12px 12px 12px 2px' }}>
+                          <TypingDots />
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
-              </>
-            )}
-            <div ref={messagesEndRef} />
-          </div>
+                <div ref={messagesEndRef} />
+              </div>
 
-          {/* Error banner */}
-          {error && (
-            <div style={{ padding: '8px 20px', background: '#fef2f2', borderTop: '1px solid #fecaca', color: '#dc2626', fontSize: '13px', flexShrink: 0 }}>
-              {error}
-            </div>
+              {error && (
+                <div style={{ padding: '8px 20px', background: '#fef2f2', borderTop: '1px solid #fecaca', color: '#dc2626', fontSize: '13px', flexShrink: 0 }}>
+                  {error}
+                </div>
+              )}
+
+              <div style={{ padding: '14px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', gap: '10px', flexShrink: 0, background: '#fff' }}>
+                <textarea
+                  ref={inputRef}
+                  autoFocus
+                  value={input}
+                  onChange={e => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Tell me what to change…"
+                  rows={3}
+                  style={{
+                    flex: 1, padding: '10px 13px',
+                    border: '1.5px solid #e2e8f0', borderRadius: '8px',
+                    fontSize: '13px', resize: 'none', outline: 'none',
+                    fontFamily: 'inherit', color: '#0f172a', lineHeight: '1.5',
+                  }}
+                  onFocus={e => e.target.style.borderColor = '#2563eb'}
+                  onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+                />
+                <button
+                  onClick={handleSend}
+                  disabled={!input.trim() || regenerating}
+                  style={{
+                    padding: '10px 16px',
+                    background: !input.trim() || regenerating ? '#93c5fd' : '#2563eb',
+                    border: 'none', borderRadius: '8px', color: '#fff',
+                    fontSize: '13px', fontWeight: '600',
+                    cursor: !input.trim() || regenerating ? 'not-allowed' : 'pointer',
+                    alignSelf: 'flex-end', whiteSpace: 'nowrap',
+                    transition: 'background 0.15s',
+                  }}
+                >
+                  {sending ? '…' : 'Send'}
+                </button>
+              </div>
+            </>
           )}
 
-          {/* Input — always visible, never disabled */}
-          <div style={{ padding: '14px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', gap: '10px', flexShrink: 0, background: '#fff' }}>
-            <textarea
-              ref={inputRef}
-              autoFocus
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Tell me what to change…"
-              rows={3}
-              style={{
-                flex: 1, padding: '10px 13px',
-                border: '1.5px solid #e2e8f0', borderRadius: '8px',
-                fontSize: '13px', resize: 'none', outline: 'none',
-                fontFamily: 'inherit', color: '#0f172a', lineHeight: '1.5',
-              }}
-              onFocus={e => e.target.style.borderColor = '#2563eb'}
-              onBlur={e => e.target.style.borderColor = '#e2e8f0'}
-            />
-            <button
-              onClick={handleSend}
-              disabled={!input.trim() || regenerating}
-              style={{
-                padding: '10px 16px',
-                background: !input.trim() || regenerating ? '#93c5fd' : '#2563eb',
-                border: 'none', borderRadius: '8px', color: '#fff',
-                fontSize: '13px', fontWeight: '600',
-                cursor: !input.trim() || regenerating ? 'not-allowed' : 'pointer',
-                alignSelf: 'flex-end', whiteSpace: 'nowrap',
-                transition: 'background 0.15s',
-              }}
-            >
-              {sending ? '…' : 'Send'}
-            </button>
-          </div>
+          {/* ── COMPLIANCE TAB ── */}
+          {rightTab === 'compliance' && (
+            <>
+              {/* Controls */}
+              <div style={{ padding: '14px 20px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc', flexShrink: 0 }}>
+                {insuranceTemplates.length === 0 ? (
+                  <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0 }}>
+                    No insurance templates found. An admin must create templates under Insurance Templates.
+                  </p>
+                ) : (
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    <select
+                      value={selectedTemplateId}
+                      onChange={e => setSelectedTemplateId(e.target.value)}
+                      disabled={checking}
+                      style={{
+                        flex: 1, padding: '8px 10px', border: '1px solid #e2e8f0',
+                        borderRadius: '6px', fontSize: '13px', color: '#0f172a',
+                        background: '#fff', cursor: 'pointer',
+                      }}
+                    >
+                      {insuranceTemplates.map(t => (
+                        <option key={t.id} value={String(t.id)}>{t.name}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={handleComplianceCheck}
+                      disabled={checking || !selectedTemplateId}
+                      style={{
+                        padding: '8px 16px',
+                        background: checking ? '#e2e8f0' : '#2563eb',
+                        border: 'none', borderRadius: '6px',
+                        color: checking ? '#94a3b8' : '#fff',
+                        fontSize: '13px', fontWeight: '600',
+                        cursor: checking ? 'not-allowed' : 'pointer',
+                        whiteSpace: 'nowrap', flexShrink: 0,
+                      }}
+                    >
+                      {checking ? 'Checking…' : 'Check Compliance'}
+                    </button>
+                  </div>
+                )}
+                {checking && (
+                  <div style={{ fontSize: '12px', color: '#2563eb', marginTop: '8px', fontStyle: 'italic' }}>
+                    Reviewing plan against insurance rules… {streamingCheckText.length > 0 && `· ${streamingCheckText.length.toLocaleString()} chars`}
+                  </div>
+                )}
+              </div>
+
+              {error && (
+                <div style={{ padding: '8px 20px', background: '#fef2f2', borderTop: '1px solid #fecaca', color: '#dc2626', fontSize: '13px', flexShrink: 0 }}>
+                  {error}
+                </div>
+              )}
+
+              {/* Result area */}
+              <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+                {/* Viewing a past check */}
+                {viewingCheck && (
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+                      <button
+                        onClick={() => setViewingCheck(null)}
+                        style={{ background: '#f1f5f9', border: 'none', borderRadius: '5px', padding: '5px 10px', fontSize: '12px', cursor: 'pointer', color: '#374151' }}
+                      >
+                        ← Back
+                      </button>
+                      <span style={{ fontSize: '12px', color: '#94a3b8' }}>
+                        {viewingCheck.template_name} · {new Date(viewingCheck.created_at).toLocaleString()}
+                      </span>
+                    </div>
+                    <ComplianceResult text={viewingCheck.result_text} />
+                  </div>
+                )}
+
+                {/* Live streaming result */}
+                {!viewingCheck && (streamingCheckText || checking) && (
+                  <div>
+                    <ComplianceResult text={streamingCheckText} />
+                    <div ref={complianceEndRef} />
+                  </div>
+                )}
+
+                {/* Empty state + history */}
+                {!viewingCheck && !streamingCheckText && !checking && (
+                  <div>
+                    <p style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '20px' }}>
+                      Select an insurance template and click "Check Compliance" to review this plan against the rules. Results are saved and can be viewed again from the history below.
+                    </p>
+                    {checkHistory.length > 0 && (
+                      <>
+                        <div style={{ fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '10px' }}>
+                          Previous Checks ({checkHistory.length})
+                        </div>
+                        {checkHistory.map(c => (
+                          <button
+                            key={c.id}
+                            onClick={() => setViewingCheck(c)}
+                            style={{
+                              display: 'block', width: '100%', textAlign: 'left',
+                              padding: '10px 13px', marginBottom: '8px',
+                              background: '#f8fafc', border: '1px solid #e2e8f0',
+                              borderRadius: '8px', cursor: 'pointer',
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.background = '#f1f5f9'}
+                            onMouseLeave={e => e.currentTarget.style.background = '#f8fafc'}
+                          >
+                            <div style={{ fontSize: '13px', fontWeight: '600', color: '#0f172a', marginBottom: '2px' }}>
+                              {c.template_name}
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+                              {new Date(c.created_at).toLocaleString()}
+                            </div>
+                          </button>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
 
         </div>
       </div>
