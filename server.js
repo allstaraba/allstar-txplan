@@ -537,6 +537,9 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('X-Accel-Buffering', 'no');
     res.flushHeaders();
+    // Disable Nagle algorithm so small writes are sent immediately without
+    // waiting to be batched — critical for SSE streaming through Railway's proxy.
+    if (res.socket) res.socket.setNoDelay(true);
     res.write(': connected\n\n');
 
     // Track this job server-side so user can reconnect and see status
@@ -555,7 +558,12 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
         totalChunksSent++;
         totalCharsSent += (obj.text || '').length;
       }
-      try { res.write(`data: ${JSON.stringify(obj)}\n\n`); } catch {}
+      try {
+        res.write(`data: ${JSON.stringify(obj)}\n\n`);
+        // res.flush() exists when compression middleware is active; call it if available
+        // to push data through immediately rather than waiting for the buffer to fill.
+        if (typeof res.flush === 'function') res.flush();
+      } catch {}
     };
 
     let fullPlanText = '';
