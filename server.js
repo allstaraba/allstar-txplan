@@ -499,7 +499,10 @@ function fixMasteryCriteria(text) {
 }
 
 app.post('/api/generate', authMiddleware, async (req, res) => {
-  const keepAlive = setInterval(() => { try { res.write(': ping\n\n'); } catch {} }, 20000);
+  // Ping every 10s — keeps Railway's proxy from closing the connection during long generation.
+  // Do NOT clear on client disconnect; generation continues server-side and the proxy
+  // must stay alive to accept the eventual done/error event.
+  const keepAlive = setInterval(() => { try { res.write(': ping\n\n'); } catch {} }, 10000);
 
   try {
     const { notes, clientInfo, uploadedFileIds } = req.body;
@@ -537,7 +540,7 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
     setJob(userId, { status: 'running', section: 1, total: 4, label: 'Client Info & Narrative', planId: null, clientName, error: null, startedAt: Date.now() });
 
     let clientDisconnected = false;
-    req.on('close', () => { clientDisconnected = true; clearInterval(keepAlive); });
+    req.on('close', () => { clientDisconnected = true; });
 
     let totalChunksSent = 0;
     let totalCharsSent = 0;
