@@ -359,6 +359,12 @@ Unit calculation: 1 hour = 4 units. Total Units = Hours per week × 26 weeks × 
 ☑ per week ☐ per month ☐ per auth
 (Standard for all codes is "per week" unless otherwise specified in the notes.)
 
+**CRITICAL — 97153 HOURS SOURCE RULE:**
+The 97153 "Number of Hours Requested" MUST be taken from the BCBA's clinically RECOMMENDED hours — the medically necessary hours based on the assessment findings — NOT from the proposed schedule, family availability, or what the family agreed to. If the notes contain both a recommended amount and a proposed/agreed schedule that differs, always use the recommended/medically necessary figure in the CPT table. The Anticipated Schedule grid may reflect the family's proposed schedule, but the CPT table hours must reflect clinical recommendation.
+
+**CRITICAL — 97155 HOURS CALCULATION RULE:**
+The 97155 "Number of Hours Requested" MUST always be calculated as exactly 20% of the 97153 hours. Do NOT pull 97155 hours from the BCBA's notes, the proposed schedule, or any other source. Always compute: 97155 hours = 97153 hours × 0.20. Examples: if 97153 = 30 hrs/week, then 97155 = 6 hrs/week; if 97153 = 40 hrs/week, then 97155 = 8 hrs/week. This applies regardless of what the notes say about supervision hours.
+
 Always include: 97151, 97153, 97155-GT, 97156-GT/U2.
 
 ### Anticipated Schedule
