@@ -560,6 +560,7 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
 
     // callWithRetry: stream one Claude call; retry on premature-close up to maxAttempts
     // Returns the full text output. Throws if all attempts fail or output is too short.
+    const SECTION_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes per section
     const callWithRetry = async (secId, messages, maxAttempts = 4) => {
       let lastErr;
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -575,15 +576,28 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
               system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
               messages,
             });
+
+            // Timeout: if no finalMessage within 5 minutes, abort and retry
+            const timeoutId = setTimeout(() => {
+              try { stream.abort(); } catch {}
+              reject(new Error(`${secId} timed out after 5 minutes — no response from Anthropic API`));
+            }, SECTION_TIMEOUT_MS);
+
+            let firstChunk = true;
             stream.on('text', (chunk) => {
+              if (firstChunk) {
+                console.log(`[generate] ${secId} first chunk received`);
+                firstChunk = false;
+              }
               sectionText += chunk;
               send({ type: 'chunk', text: chunk });
             });
             stream.on('finalMessage', (msg) => {
+              clearTimeout(timeoutId);
               console.log(`[generate] ${secId} done. stop_reason=${msg.stop_reason} output=${sectionText.length} chars`);
               resolve();
             });
-            stream.on('error', reject);
+            stream.on('error', (err) => { clearTimeout(timeoutId); reject(err); });
           });
 
           if (sectionText.trim().length < 100) {
@@ -594,9 +608,11 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
         } catch (err) {
           lastErr = err;
           const isPrematureClose = err.message === 'Premature close' || err.code === 'ERR_STREAM_PREMATURE_CLOSE';
-          if (isPrematureClose && sectionText.length === 0 && attempt < maxAttempts) {
+          const isTimeout = err.message && err.message.includes('timed out after 5 minutes');
+          if ((isPrematureClose || isTimeout) && sectionText.length === 0 && attempt < maxAttempts) {
             const delay = attempt * 5000;
-            console.log(`[generate] ${secId} premature close (no output). Retrying in ${delay/1000}s (attempt ${attempt+1}/${maxAttempts})...`);
+            const reason = isTimeout ? 'timeout (no response)' : 'premature close (no output)';
+            console.log(`[generate] ${secId} ${reason}. Retrying in ${delay/1000}s (attempt ${attempt+1}/${maxAttempts})...`);
             await new Promise(r => setTimeout(r, delay));
             continue;
           }
