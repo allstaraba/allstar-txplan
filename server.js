@@ -498,25 +498,262 @@ function fixMasteryCriteria(text) {
   return { text: fixed, ferbFixed, nonFerbFixed };
 }
 
-app.post('/api/generate', authMiddleware, async (req, res) => {
-  // Ping every 10s — keeps Railway's proxy from closing the connection during long generation.
-  // Do NOT clear on client disconnect; generation continues server-side and the proxy
-  // must stay alive to accept the eventual done/error event.
-  const keepAlive = setInterval(() => { try { res.write(': ping\n\n'); } catch {} }, 10000);
+// runGenerationBackground: runs the full plan generation pipeline independently of any
+// HTTP request. Updates job state (liveText, section, status) so the polling client
+// can track progress and load the plan when done.
+async function runGenerationBackground(userId, { notes, baseMessage, clientName, systemPrompt, uploadedFileIds, userRecord }) {
+  const GOAL_RE = /(\d+)\.\s+(?:\(FERB\)\s+)?Goal Statement:\**\s*\|?\s*(.+?)(?:\s*\|)?\s*$/i;
+  const SECTION_TIMEOUT_MS = 5 * 60 * 1000;
 
+  // Accumulate text and update job state on each chunk
+  const send = (obj) => {
+    if (obj.type === 'chunk') {
+      const cur = generationJobs.get(userId);
+      if (cur) setJob(userId, { liveText: (cur.liveText || '') + obj.text });
+    } else if (obj.type === 'progress') {
+      setJob(userId, { section: obj.section, total: obj.total, label: obj.label });
+    }
+  };
+
+  const callWithRetry = async (secId, messages, maxAttempts = 4) => {
+    let lastErr;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const msgChars = messages.reduce((sum, m) => sum + (m.content ? m.content.length : 0), 0);
+      console.log(`[generate] ${secId} attempt ${attempt}/${maxAttempts}: ${msgChars.toLocaleString()} chars input (~${Math.round(msgChars/4).toLocaleString()} tokens)`);
+
+      let sectionText = '';
+      try {
+        await new Promise((resolve, reject) => {
+          const stream = anthropic.messages.stream({
+            model: CLAUDE_MODEL,
+            max_tokens: 32768,
+            system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
+            messages,
+          });
+
+          const timeoutId = setTimeout(() => {
+            try { stream.abort(); } catch {}
+            reject(new Error(`${secId} timed out after 5 minutes — no response from Anthropic API`));
+          }, SECTION_TIMEOUT_MS);
+
+          let firstChunk = true;
+          stream.on('text', (chunk) => {
+            if (firstChunk) { console.log(`[generate] ${secId} first chunk received`); firstChunk = false; }
+            sectionText += chunk;
+            send({ type: 'chunk', text: chunk });
+          });
+          stream.on('finalMessage', (msg) => {
+            clearTimeout(timeoutId);
+            console.log(`[generate] ${secId} done. stop_reason=${msg.stop_reason} output=${sectionText.length} chars`);
+            resolve();
+          });
+          stream.on('error', (err) => { clearTimeout(timeoutId); reject(err); });
+        });
+
+        if (sectionText.trim().length < 100) {
+          throw new Error(`${secId} returned suspiciously short output (${sectionText.trim().length} chars) — possible empty response`);
+        }
+        return sectionText;
+      } catch (err) {
+        lastErr = err;
+        const isPrematureClose = err.message === 'Premature close' || err.code === 'ERR_STREAM_PREMATURE_CLOSE';
+        const isTimeout = err.message && err.message.includes('timed out after 5 minutes');
+        if ((isPrematureClose || isTimeout) && sectionText.length === 0 && attempt < maxAttempts) {
+          const delay = attempt * 5000;
+          const reason = isTimeout ? 'timeout (no response)' : 'premature close (no output)';
+          console.log(`[generate] ${secId} ${reason}. Retrying in ${delay/1000}s (attempt ${attempt+1}/${maxAttempts})...`);
+          await new Promise(r => setTimeout(r, delay));
+          continue;
+        }
+        console.error(`[generate] ${secId} failed on attempt ${attempt}:`, err.message);
+        throw err;
+      }
+    }
+    throw lastErr;
+  };
+
+  const extractGoalNumbers = (s3aText, s3bText) => {
+    const lines = [];
+    for (const line of (s3aText + '\n' + s3bText).split('\n')) {
+      const m = line.match(GOAL_RE);
+      if (m) lines.push(`${m[1]}. Goal Statement: ${m[2].trim()}`);
+    }
+    console.log(`[generate] Extracted ${lines.length} goal statements for BIP context`);
+    return lines.join('\n');
+  };
+
+  const extractHighestGoalNum = (text) => {
+    let highest = 0;
+    for (const line of text.split('\n')) {
+      const m = line.match(/(\d+)\.\s+(?:\(FERB\)\s+)?Goal Statement/i);
+      if (m) highest = Math.max(highest, parseInt(m[1], 10));
+    }
+    return highest;
+  };
+
+  const buildMessages = (sec, contextBlock) => {
+    const clientPrefix = `You are generating a treatment plan for ${clientName}. Use ONLY "${clientName}" as the client's name throughout — do not use any other client's name.\n\n`;
+    const instruction = clientPrefix + sec.instruction;
+    return contextBlock
+      ? [
+          { role: 'user', content: baseMessage },
+          { role: 'assistant', content: contextBlock },
+          { role: 'user', content: instruction },
+        ]
+      : [{ role: 'user', content: `${baseMessage}\n\n${instruction}` }];
+  };
+
+  console.log("=== STARTING PLAN GENERATION ===");
+
+  send({ type: 'progress', section: 1, total: 4, label: GEN.S1.label });
+  const s1Text = await callWithRetry(GEN.S1.id, buildMessages(GEN.S1, null));
+
+  send({ type: 'progress', section: 2, total: 4, label: GEN.S2.label });
+  const s2Text = await callWithRetry(GEN.S2.id, buildMessages(GEN.S2, s1Text));
+
+  const s1s2Context = s1Text + '\n\n' + s2Text;
+
+  send({ type: 'progress', section: 3, total: 4, label: 'Skill Acquisition Goals (parallel)' });
+  console.log('[generate] Starting S3A and S3B in parallel');
+  const [s3aText, s3bText] = await Promise.all([
+    callWithRetry(GEN.S3A.id, buildMessages(GEN.S3A, s1s2Context)),
+    callWithRetry(GEN.S3B.id, buildMessages(GEN.S3B, s1s2Context)),
+  ]);
+  console.log(`[generate] S3A+S3B complete. S3A=${s3aText.length} chars, S3B=${s3bText.length} chars`);
+
+  const goalList = extractGoalNumbers(s3aText, s3bText);
+  const highestSkillGoalNum = extractHighestGoalNum(s3aText + '\n' + s3bText);
+  const nextGoalNum = highestSkillGoalNum + 1;
+  console.log(`[generate] Highest skill acquisition goal: ${highestSkillGoalNum} → Behavior Reduction starts at ${nextGoalNum}`);
+
+  send({ type: 'progress', section: 4, total: 4, label: 'BIPs & Final Sections (parallel)' });
+  console.log('[generate] Starting S3C and S3D in parallel');
+  const bipContext = s1s2Context + (goalList
+    ? '\n\n=== SKILL ACQUISITION GOALS (reference these numbers for FERB goals) ===\n' + goalList
+    : '');
+  const s3cSec = { id: GEN.S3C.id, instruction: buildS3CInstruction(nextGoalNum) };
+  const [s3cText, s3dText] = await Promise.all([
+    callWithRetry(s3cSec.id, buildMessages(s3cSec, bipContext)),
+    callWithRetry(GEN.S3D.id, buildMessages(GEN.S3D, s1s2Context)),
+  ]);
+  console.log(`[generate] S3C+S3D complete. S3C=${s3cText.length} chars, S3D=${s3dText.length} chars`);
+
+  const GOAL_LINE_RE = /\d+\.\s+(?:\(FERB\)\s+)?Goal Statement/i;
+  const goalCount = (s3aText + '\n' + s3bText + '\n' + s3cText)
+    .split('\n').filter(line => GOAL_LINE_RE.test(line)).length;
+  console.log(`[generate] Goal count for summary table: ${goalCount}`);
+  const debugLines = (s3aText + '\n' + s3bText + '\n' + s3cText).split('\n').filter(l => /Goal Statement/i.test(l)).slice(0, 10);
+  console.log('[generate] GOAL DEBUG: First 10 goal lines found in s3a+s3b+s3c:');
+  debugLines.forEach(l => console.log('  ', l.slice(0, 120)));
+
+  let fullPlanText = [s1Text, s2Text, s3aText, s3bText, s3cText, s3dText].filter(Boolean).join('\n\n');
+  console.log(`[generate] All sections complete. Total: ${fullPlanText.length} chars (${fullPlanText.split('\n').length} lines)`);
+
+  fullPlanText = stripAIPreamble(fullPlanText);
+
+  const { text: planTextFixed, ferbFixed, nonFerbFixed } = fixMasteryCriteria(fullPlanText);
+  fullPlanText = planTextFixed;
+  console.log(`[generate] Mastery criteria: ${ferbFixed} FERB goals fixed to 90%, ${nonFerbFixed} non-FERB goals fixed to 80%`);
+
+  const planNameMatch = fullPlanText.match(/Participant Name[:\s]+([^\n\r]+)/i);
+  if (planNameMatch && clientName === 'Unknown') clientName = planNameMatch[1].trim();
+
+  const bcbaMatch = fullPlanText.match(/(?:Supervising BCBA|BCBA Name)[:\s|]+([^\n\r|]+)/i);
+  const bcbaName = bcbaMatch ? bcbaMatch[1].trim() : '[BCBA NAME]';
+  const dateMatch = fullPlanText.match(/Assessment Date[:\s|]+([^\n\r|]+)/i);
+  const assessmentDate = dateMatch ? dateMatch[1].trim() : '[DATE]';
+
+  const correctGoalTable = buildGoalSummaryTable(goalCount);
+  fullPlanText = fullPlanText.replace(
+    /(##\s+Goal Objective Summary\s*\n)([\s\S]*?)(?=##\s+Response to Treatment)/i,
+    (match, header) => header + '\n' + correctGoalTable + '\n\n'
+  );
+  fullPlanText = fullPlanText.replace(
+    /(Total\s*#?\s*(?:of\s*)?(?:new\s*)?[Gg]oals[:\s|*]+)\d+/g,
+    (match, prefix) => prefix + goalCount
+  );
+
+  const injectedPlanText = injectBoilerplate(fullPlanText, clientName, bcbaName, assessmentDate, goalCount);
+  console.log(`[generate] Boilerplate injected. Raw: ${fullPlanText.length} chars → Final: ${injectedPlanText.length} chars`);
+
+  console.log(`[generate] Saving to DB: ${injectedPlanText.length} chars for plan "${clientName}"`);
+  const planInsert = db.prepare(
+    'INSERT INTO plan_history (user_id, client_name, original_notes) VALUES (?, ?, ?)'
+  ).run(userRecord.id, clientName, notes);
+  const planId = planInsert.lastInsertRowid;
+
+  db.prepare(
+    'INSERT INTO plan_revisions (plan_id, revision_number, text, feedback) VALUES (?, ?, ?, ?)'
+  ).run(planId, 0, injectedPlanText, 'Initial generation');
+  console.log(`[generate] DB save complete. plan_id=${planId}, revision_number=0, text_length=${injectedPlanText.length}`);
+
+  if (notes && Object.keys(notes).length > 0) {
+    // clientInfo saved separately by the POST handler before starting background job
+  }
+
+  if (Array.isArray(uploadedFileIds) && uploadedFileIds.length > 0) {
+    const clientDir = path.join(UPLOADS_DIR, 'clients', String(planId));
+    fs.mkdirSync(clientDir, { recursive: true });
+    for (const f of uploadedFileIds) {
+      try {
+        const tempFiles = fs.readdirSync(TEMP_UPLOADS_DIR).filter(n => n.startsWith(f.fileId + '_'));
+        if (tempFiles.length === 0) continue;
+        const tempFilename = tempFiles[0];
+        const destFilename = `${Date.now()}_${tempFilename.slice(f.fileId.length + 1)}`;
+        fs.renameSync(
+          path.join(TEMP_UPLOADS_DIR, tempFilename),
+          path.join(clientDir, destFilename)
+        );
+        const ext = path.extname(f.originalName).toLowerCase();
+        db.prepare(
+          'INSERT INTO client_documents (plan_id, filename, original_name, file_type, file_size, uploaded_by) VALUES (?,?,?,?,?,?)'
+        ).run(planId, destFilename, f.originalName, ext || f.fileType, f.fileSize || 0, userRecord.id);
+      } catch (e) {
+        console.error(`[generate] Failed to save temp file ${f.fileId}:`, e.message);
+      }
+    }
+  }
+
+  setJob(userId, { status: 'done', planId, clientName });
+  setTimeout(() => { if (generationJobs.get(userId)?.status === 'done') clearJob(userId); }, 60000);
+  logActivity(userRecord.id, userRecord.username, 'generated_plan', 'plan', planId, clientName);
+
+  // Generate clarifying questions after plan is saved
+  setImmediate(async () => {
+    try {
+      const clarifyMsg = await anthropic.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1000,
+        messages: [{
+          role: 'user',
+          content: `You are an ABA treatment plan assistant. A complete treatment plan was just generated from the BCBA notes below. Any missing information was filled with bracketed placeholders like [PHONE NUMBER] or [TO BE DETERMINED].\n\nReview the notes and identify what specific information is missing or unclear that would improve the plan. Ask targeted clarifying questions in a friendly, clinical tone — 3 to 7 questions max. Be specific (e.g., "What is the 97153 hours per week you want to request?" not "Are there any missing hours?"). Do not ask about things that are clearly present in the notes.\n\nBCBA Notes:\n${notes.slice(0, 8000)}`
+        }]
+      });
+      const clarifyText = clarifyMsg.content[0].text;
+      db.prepare('INSERT INTO chat_messages (plan_id, role, content, username) VALUES (?, ?, ?, ?)').run(planId, 'assistant', clarifyText, 'Claude');
+      console.log(`[generate] Posted clarifying questions to chat for plan_id=${planId}`);
+    } catch (e) {
+      console.log('[generate] Could not generate clarifying questions:', e.message);
+    }
+  });
+}
+
+app.post('/api/generate', authMiddleware, async (req, res) => {
   try {
     const { notes, clientInfo, uploadedFileIds } = req.body;
-    if (!notes) {
-      clearInterval(keepAlive);
-      return res.status(400).json({ error: 'Notes are required' });
+    if (!notes) return res.status(400).json({ error: 'Notes are required' });
+
+    const userId = req.user.id;
+
+    // If already running for this user, just acknowledge — client will poll
+    const existing = generationJobs.get(userId);
+    if (existing?.status === 'running') {
+      return res.json({ ok: true, alreadyRunning: true });
     }
 
     const activePrompt = db.prepare('SELECT * FROM prompt_versions WHERE is_active = 1').get();
     const systemPrompt = activePrompt ? activePrompt.text : 'You are an ABA treatment plan generator.';
 
-    // Client name — prefer the structured form field; fall back to notes parsing.
-    // The fallback regex requires an explicit "client" or "child" qualifier so it
-    // never accidentally matches "Mother's name:", "Parent name:", etc.
     let clientName = 'Unknown';
     if (clientInfo?.client_full_name) {
       clientName = clientInfo.client_full_name;
@@ -525,335 +762,48 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
       if (nameMatch) clientName = nameMatch[1].trim();
     }
 
-    // Base user message (verified client info + original notes)
     const baseMessage = clientInfo && Object.keys(clientInfo).length > 0
       ? `${formatClientInfoForPrompt(clientInfo)}\n=== ORIGINAL BCBA NOTES ===\n${notes}`
       : notes;
 
-    // Set up SSE — flush headers immediately so Railway's proxy treats this as
-    // a live stream from the start. Without this, the proxy may buffer and then
-    // close the connection before any data flows, causing clientDisconnected=true.
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('X-Accel-Buffering', 'no');
-    res.flushHeaders();
-    // Disable Nagle algorithm so small writes are sent immediately without
-    // waiting to be batched — critical for SSE streaming through Railway's proxy.
-    if (res.socket) res.socket.setNoDelay(true);
-    res.write(': connected\n\n');
+    // Save client info now (before background job runs, so planId isn't needed yet)
+    // Will be associated with planId inside the background job
+    const pendingClientInfo = (clientInfo && Object.keys(clientInfo).length > 0) ? clientInfo : null;
 
-    // Track this job server-side so user can reconnect and see status
-    const userId = req.user.id;
-    setJob(userId, { status: 'running', section: 1, total: 4, label: 'Client Info & Narrative', planId: null, clientName, error: null, startedAt: Date.now() });
+    setJob(userId, {
+      status: 'running', section: 1, total: 4, label: GEN.S1.label,
+      planId: null, clientName, error: null, startedAt: Date.now(), liveText: '',
+    });
 
-    let clientDisconnected = false;
-    req.on('close', () => { clientDisconnected = true; });
+    // Return immediately — don't make the client wait 6+ minutes for a response
+    res.json({ ok: true });
 
-    let totalChunksSent = 0;
-    let totalCharsSent = 0;
-    // send() never throws — generation continues even if client disconnected
-    const send = (obj) => {
-      if (clientDisconnected) return;
-      if (obj.type === 'chunk') {
-        totalChunksSent++;
-        totalCharsSent += (obj.text || '').length;
-      }
-      try {
-        res.write(`data: ${JSON.stringify(obj)}\n\n`);
-        // res.flush() exists when compression middleware is active; call it if available
-        // to push data through immediately rather than waiting for the buffer to fill.
-        if (typeof res.flush === 'function') res.flush();
-      } catch {}
-    };
-
-    let fullPlanText = '';
-
-    console.log("=== STARTING PLAN GENERATION ===");
-
-    // callWithRetry: stream one Claude call; retry on premature-close up to maxAttempts
-    // Returns the full text output. Throws if all attempts fail or output is too short.
-    const SECTION_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes per section
-    const callWithRetry = async (secId, messages, maxAttempts = 4) => {
-      let lastErr;
-      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        const msgChars = messages.reduce((sum, m) => sum + (m.content ? m.content.length : 0), 0);
-        console.log(`[generate] ${secId} attempt ${attempt}/${maxAttempts}: ${msgChars.toLocaleString()} chars input (~${Math.round(msgChars/4).toLocaleString()} tokens)`);
-
-        let sectionText = '';
-        try {
-          await new Promise((resolve, reject) => {
-            const stream = anthropic.messages.stream({
-              model: CLAUDE_MODEL,
-              max_tokens: 32768,
-              system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
-              messages,
-            });
-
-            // Timeout: if no finalMessage within 5 minutes, abort and retry
-            const timeoutId = setTimeout(() => {
-              try { stream.abort(); } catch {}
-              reject(new Error(`${secId} timed out after 5 minutes — no response from Anthropic API`));
-            }, SECTION_TIMEOUT_MS);
-
-            let firstChunk = true;
-            stream.on('text', (chunk) => {
-              if (firstChunk) {
-                console.log(`[generate] ${secId} first chunk received`);
-                firstChunk = false;
-              }
-              sectionText += chunk;
-              send({ type: 'chunk', text: chunk });
-            });
-            stream.on('finalMessage', (msg) => {
-              clearTimeout(timeoutId);
-              console.log(`[generate] ${secId} done. stop_reason=${msg.stop_reason} output=${sectionText.length} chars`);
-              resolve();
-            });
-            stream.on('error', (err) => { clearTimeout(timeoutId); reject(err); });
-          });
-
-          if (sectionText.trim().length < 100) {
-            throw new Error(`${secId} returned suspiciously short output (${sectionText.trim().length} chars) — possible empty response`);
+    // Run generation in background; catch errors and record them in job state
+    runGenerationBackground(userId, {
+      notes, baseMessage, clientName, systemPrompt, uploadedFileIds,
+      userRecord: { id: req.user.id, username: req.user.username },
+    }).then(() => {
+      // If clientInfo was provided, save it now that we have a planId
+      if (pendingClientInfo) {
+        const job = generationJobs.get(userId);
+        if (job?.planId) {
+          try {
+            db.prepare('INSERT OR REPLACE INTO client_info (plan_id, data, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)')
+              .run(job.planId, JSON.stringify(pendingClientInfo));
+          } catch (e) {
+            console.error('[generate] Failed to save client_info:', e.message);
           }
-
-          return sectionText;
-        } catch (err) {
-          lastErr = err;
-          const isPrematureClose = err.message === 'Premature close' || err.code === 'ERR_STREAM_PREMATURE_CLOSE';
-          const isTimeout = err.message && err.message.includes('timed out after 5 minutes');
-          if ((isPrematureClose || isTimeout) && sectionText.length === 0 && attempt < maxAttempts) {
-            const delay = attempt * 5000;
-            const reason = isTimeout ? 'timeout (no response)' : 'premature close (no output)';
-            console.log(`[generate] ${secId} ${reason}. Retrying in ${delay/1000}s (attempt ${attempt+1}/${maxAttempts})...`);
-            await new Promise(r => setTimeout(r, delay));
-            continue;
-          }
-          console.error(`[generate] ${secId} failed on attempt ${attempt}:`, err.message);
-          throw err;
         }
       }
-      throw lastErr;
-    };
-
-    // extractGoalNumbers: pull "N. Goal Statement: ..." lines from S3A+S3B output
-    // Matches the actual AI format: | **N. Goal Statement:** | text |
-    // Also handles FERB format: | **N. (FERB) Goal Statement:** | text |
-    const GOAL_RE = /(\d+)\.\s+(?:\(FERB\)\s+)?Goal Statement:\**\s*\|?\s*(.+?)(?:\s*\|)?\s*$/i;
-    const extractGoalNumbers = (s3aText, s3bText) => {
-      const lines = [];
-      for (const line of (s3aText + '\n' + s3bText).split('\n')) {
-        const m = line.match(GOAL_RE);
-        if (m) lines.push(`${m[1]}. Goal Statement: ${m[2].trim()}`);
-      }
-      console.log(`[generate] Extracted ${lines.length} goal statements for BIP context`);
-      return lines.join('\n');
-    };
-
-    // extractHighestGoalNum: find the largest goal number in skill acquisition sections
-    // Used to pass the correct starting number for Behavior Reduction goals in S3C.
-    const extractHighestGoalNum = (text) => {
-      let highest = 0;
-      for (const line of text.split('\n')) {
-        const m = line.match(/(\d+)\.\s+(?:\(FERB\)\s+)?Goal Statement/i);
-        if (m) highest = Math.max(highest, parseInt(m[1], 10));
-      }
-      return highest;
-    };
-
-    // Helper: build messages array for a section with optional prior-context block.
-    // Always prepends client name so the AI never bleeds a previous client's name in.
-    const buildMessages = (sec, contextBlock) => {
-      const clientPrefix = `You are generating a treatment plan for ${clientName}. Use ONLY "${clientName}" as the client's name throughout — do not use any other client's name.\n\n`;
-      const instruction = clientPrefix + sec.instruction;
-      return contextBlock
-        ? [
-            { role: 'user', content: baseMessage },
-            { role: 'assistant', content: contextBlock },
-            { role: 'user', content: instruction },
-          ]
-        : [{ role: 'user', content: `${baseMessage}\n\n${instruction}` }];
-    };
-
-    // ── Step 1: S1 — client info & narrative ──────────────────────────────
-    send({ type: 'progress', section: 1, total: 4, label: GEN.S1.label });
-    setJob(userId, { section: 1, label: GEN.S1.label });
-    const s1Text = await callWithRetry(GEN.S1.id, buildMessages(GEN.S1, null));
-
-    // ── Step 2: S2 — assessments & goal summary ───────────────────────────
-    send({ type: 'progress', section: 2, total: 4, label: GEN.S2.label });
-    setJob(userId, { section: 2, label: GEN.S2.label });
-    const s2Text = await callWithRetry(GEN.S2.id, buildMessages(GEN.S2, s1Text));
-
-    const s1s2Context = s1Text + '\n\n' + s2Text;
-
-    // ── Step 3: S3A ‖ S3B — skill acquisition goals in parallel ──────────
-    send({ type: 'progress', section: 3, total: 4, label: 'Skill Acquisition Goals (parallel)' });
-    setJob(userId, { section: 3, label: 'Skill Acquisition Goals (parallel)' });
-    console.log('[generate] Starting S3A and S3B in parallel');
-    const [s3aText, s3bText] = await Promise.all([
-      callWithRetry(GEN.S3A.id, buildMessages(GEN.S3A, s1s2Context)),
-      callWithRetry(GEN.S3B.id, buildMessages(GEN.S3B, s1s2Context)),
-    ]);
-    console.log(`[generate] S3A+S3B complete. S3A=${s3aText.length} chars, S3B=${s3bText.length} chars`);
-
-    // Extract goal list for BIP FERB references and find highest goal number for BR numbering
-    const goalList = extractGoalNumbers(s3aText, s3bText);
-    const highestSkillGoalNum = extractHighestGoalNum(s3aText + '\n' + s3bText);
-    const nextGoalNum = highestSkillGoalNum + 1;
-    console.log(`[generate] Highest skill acquisition goal: ${highestSkillGoalNum} → Behavior Reduction starts at ${nextGoalNum}`);
-
-    // ── Step 4: S3C ‖ S3D — BIPs, BR, PT and final sections in parallel ──────────
-    send({ type: 'progress', section: 4, total: 4, label: 'BIPs & Final Sections (parallel)' });
-    setJob(userId, { section: 4, label: 'BIPs & Final Sections (parallel)' });
-    console.log('[generate] Starting S3C and S3D in parallel');
-    const bipContext = s1s2Context + (goalList
-      ? '\n\n=== SKILL ACQUISITION GOALS (reference these numbers for FERB goals) ===\n' + goalList
-      : '');
-    // S3C instruction is built dynamically with the correct BR starting goal number
-    const s3cSec = { id: GEN.S3C.id, instruction: buildS3CInstruction(nextGoalNum) };
-    const [s3cText, s3dText] = await Promise.all([
-      callWithRetry(s3cSec.id, buildMessages(s3cSec, bipContext)),
-      callWithRetry(GEN.S3D.id, buildMessages(GEN.S3D, s1s2Context)),
-    ]);
-    console.log(`[generate] S3C+S3D complete. S3C=${s3cText.length} chars, S3D=${s3dText.length} chars`);
-
-    // Count goals across all goal sections (S3A + S3B + S3C) after all are complete.
-    // Uses simple regex that matches the actual AI format: | **N. Goal Statement:** |
-    const GOAL_LINE_RE = /\d+\.\s+(?:\(FERB\)\s+)?Goal Statement/i;
-    const goalCount = (s3aText + '\n' + s3bText + '\n' + s3cText)
-      .split('\n')
-      .filter(line => GOAL_LINE_RE.test(line))
-      .length;
-    console.log(`[generate] Goal count for summary table: ${goalCount}`);
-    console.log('[generate] GOAL DEBUG: First 10 goal lines found in s3a+s3b+s3c:');
-    const debugLines = (s3aText + '\n' + s3bText + '\n' + s3cText).split('\n').filter(l => /Goal Statement/i.test(l)).slice(0, 10);
-    debugLines.forEach(l => console.log('  ', l.slice(0, 120)));
-
-    // ── Step 5: concatenate in document order ─────────────────────────────
-    fullPlanText = [s1Text, s2Text, s3aText, s3bText, s3cText, s3dText]
-      .filter(Boolean).join('\n\n');
-
-    console.log(`[generate] All sections complete. Total: ${fullPlanText.length} chars (${fullPlanText.split('\n').length} lines)`);
-    console.log(`[generate] SSE chunks sent: ${totalChunksSent}, total chars streamed: ${totalCharsSent}`);
-
-    clearInterval(keepAlive);
-
-    fullPlanText = stripAIPreamble(fullPlanText);
-
-    // Enforce mastery criteria: FERB=90%, non-FERB=80% — don't trust the AI
-    const { text: planTextFixed, ferbFixed, nonFerbFixed } = fixMasteryCriteria(fullPlanText);
-    fullPlanText = planTextFixed;
-    console.log(`[generate] Mastery criteria: ${ferbFixed} FERB goals fixed to 90%, ${nonFerbFixed} non-FERB goals fixed to 80%`);
-
-    // Try to refine client name from generated text
-    const planNameMatch = fullPlanText.match(/Participant Name[:\s]+([^\n\r]+)/i);
-    if (planNameMatch && clientName === 'Unknown') clientName = planNameMatch[1].trim();
-
-    // Extract BCBA name and assessment date for telehealth checklist injection
-    const bcbaMatch = fullPlanText.match(/(?:Supervising BCBA|BCBA Name)[:\s|]+([^\n\r|]+)/i);
-    const bcbaName = bcbaMatch ? bcbaMatch[1].trim() : '[BCBA NAME]';
-    const dateMatch = fullPlanText.match(/Assessment Date[:\s|]+([^\n\r|]+)/i);
-    const assessmentDate = dateMatch ? dateMatch[1].trim() : '[DATE]';
-
-    // Replace the AI-generated goal summary table with the actual counted goalCount.
-    // The AI never writes [GOAL_SUMMARY_TABLE]; it writes its own table in various formats.
-    // Strategy: find the "## Goal Objective Summary" section and overwrite its table content.
-    const correctGoalTable = buildGoalSummaryTable(goalCount);
-    fullPlanText = fullPlanText.replace(
-      /(##\s+Goal Objective Summary\s*\n)([\s\S]*?)(?=##\s+Response to Treatment)/i,
-      (match, header) => header + '\n' + correctGoalTable + '\n\n'
-    );
-    // Fallback: also replace any inline count patterns the AI may have written elsewhere
-    fullPlanText = fullPlanText.replace(
-      /(Total\s*#?\s*(?:of\s*)?(?:new\s*)?[Gg]oals[:\s|*]+)\d+/g,
-      (match, prefix) => prefix + goalCount
-    );
-
-    // Inject boilerplate markers — keeps system prompt lean but final plan has full text
-    const injectedPlanText = injectBoilerplate(fullPlanText, clientName, bcbaName, assessmentDate, goalCount);
-    console.log(`[generate] Boilerplate injected. Raw: ${fullPlanText.length} chars → Final: ${injectedPlanText.length} chars`);
-
-    // Save injected text to DB
-    console.log(`[generate] Saving to DB: ${injectedPlanText.length} chars for plan "${clientName}"`);
-    const planInsert = db.prepare(
-      'INSERT INTO plan_history (user_id, client_name, original_notes) VALUES (?, ?, ?)'
-    ).run(req.user.id, clientName, notes);
-    const planId = planInsert.lastInsertRowid;
-
-    db.prepare(
-      'INSERT INTO plan_revisions (plan_id, revision_number, text, feedback) VALUES (?, ?, ?, ?)'
-    ).run(planId, 0, injectedPlanText, 'Initial generation');
-    console.log(`[generate] DB save complete. plan_id=${planId}, revision_number=0, text_length=${injectedPlanText.length}`);
-
-    if (clientInfo && Object.keys(clientInfo).length > 0) {
-      db.prepare('INSERT OR REPLACE INTO client_info (plan_id, data, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)')
-        .run(planId, JSON.stringify(clientInfo));
-    }
-
-    // Move any temp-uploaded files into the client's permanent document store
-    if (Array.isArray(uploadedFileIds) && uploadedFileIds.length > 0) {
-      const clientDir = path.join(UPLOADS_DIR, 'clients', String(planId));
-      fs.mkdirSync(clientDir, { recursive: true });
-      for (const f of uploadedFileIds) {
-        try {
-          // Temp files are named: <fileId>_<safeName>
-          const tempFiles = fs.readdirSync(TEMP_UPLOADS_DIR).filter(n => n.startsWith(f.fileId + '_'));
-          if (tempFiles.length === 0) continue;
-          const tempFilename = tempFiles[0];
-          const destFilename = `${Date.now()}_${tempFilename.slice(f.fileId.length + 1)}`;
-          fs.renameSync(
-            path.join(TEMP_UPLOADS_DIR, tempFilename),
-            path.join(clientDir, destFilename)
-          );
-          const ext = path.extname(f.originalName).toLowerCase();
-          db.prepare(
-            'INSERT INTO client_documents (plan_id, filename, original_name, file_type, file_size, uploaded_by) VALUES (?,?,?,?,?,?)'
-          ).run(planId, destFilename, f.originalName, ext || f.fileType, f.fileSize || 0, req.user.id);
-        } catch (e) {
-          console.error(`[generate] Failed to save temp file ${f.fileId}:`, e.message);
-        }
-      }
-    }
-
-    // Keep done event small — client fetches injected text from /api/plans/:id
-    if (!clientDisconnected) {
-      send({ type: 'done', plan_id: planId, client_name: clientName });
-      res.end();
-    }
-    // Mark job done (keep for 60s so polling clients can pick it up, then clear)
-    setJob(userId, { status: 'done', planId, clientName });
-    setTimeout(() => { if (generationJobs.get(userId)?.status === 'done') clearJob(userId); }, 60000);
-    logActivity(req.user.id, req.user.username, 'generated_plan', 'plan', planId, clientName);
-
-    // Generate clarifying questions in the background AFTER the response is closed
-    setImmediate(async () => {
-      try {
-        const clarifyMsg = await anthropic.messages.create({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 1000,
-          messages: [{
-            role: 'user',
-            content: `You are an ABA treatment plan assistant. A complete treatment plan was just generated from the BCBA notes below. Any missing information was filled with bracketed placeholders like [PHONE NUMBER] or [TO BE DETERMINED].\n\nReview the notes and identify what specific information is missing or unclear that would improve the plan. Ask targeted clarifying questions in a friendly, clinical tone — 3 to 7 questions max. Be specific (e.g., "What is the 97153 hours per week you want to request?" not "Are there any missing hours?"). Do not ask about things that are clearly present in the notes.\n\nBCBA Notes:\n${notes.slice(0, 8000)}`
-          }]
-        });
-        const clarifyText = clarifyMsg.content[0].text;
-        db.prepare('INSERT INTO chat_messages (plan_id, role, content, username) VALUES (?, ?, ?, ?)').run(planId, 'assistant', clarifyText, 'Claude');
-        console.log(`[generate] Posted clarifying questions to chat for plan_id=${planId}`);
-      } catch (e) {
-        console.log('[generate] Could not generate clarifying questions:', e.message);
-      }
+    }).catch(err => {
+      console.error('[generate] Background generation failed:', err.message);
+      setJob(userId, { status: 'error', error: err.message });
+      setTimeout(() => { if (generationJobs.get(userId)?.status === 'error') clearJob(userId); }, 30000);
     });
 
   } catch (err) {
-    clearInterval(keepAlive);
     console.error('Generate error:', err);
-    // Mark job as error so polling clients see it
-    if (req.user) setJob(req.user.id, { status: 'error', error: err.message });
-    setTimeout(() => { if (req.user && generationJobs.get(req.user.id)?.status === 'error') clearJob(req.user.id); }, 30000);
-    try {
-      res.write(`data: ${JSON.stringify({ type: 'error', error: err.message })}\n\n`);
-      res.end();
-    } catch {}
+    res.status(500).json({ error: err.message });
   }
 });
 

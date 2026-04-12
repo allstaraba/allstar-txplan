@@ -291,29 +291,7 @@ function Layout({ user, onLogout, currentPlan, setCurrentPlan, injectedText, set
         setGeneratingPlans(prev => { const next = new Map(prev); next.delete(genId); return next; });
         setActiveGenId(prev => prev === genId ? null : prev);
       } else {
-        // SSE connection dropped (network error / proxy timeout). Check if the server
-        // is still generating — if so, switch to polling mode instead of showing an error.
-        try {
-          const job = await getGenerationStatus();
-          if (job.status === 'running') {
-            updateGen(genId, prev => ({ ...prev, status: 'running', label: job.label || prev.label, reconnected: true }));
-            startServerPolling(genId);
-          } else if (job.status === 'done') {
-            // Generation finished just as the connection dropped — load the plan
-            try {
-              const planData = await getPlan(job.planId);
-              const revs = planData.revisions;
-              const planText = revs && revs.length > 0 ? revs[revs.length - 1].text : '';
-              setCurrentPlan({ plan_id: job.planId, text: planText, client_name: job.clientName });
-            } catch {}
-            setGeneratingPlans(prev => { const next = new Map(prev); next.delete(genId); return next; });
-            setActiveGenId(null);
-          } else {
-            updateGen(genId, prev => ({ ...prev, status: 'error', error: err.message }));
-          }
-        } catch {
-          updateGen(genId, prev => ({ ...prev, status: 'error', error: err.message }));
-        }
+        updateGen(genId, prev => ({ ...prev, status: 'error', error: err.message }));
       }
     } finally {
       abortControllersRef.current.delete(genId);

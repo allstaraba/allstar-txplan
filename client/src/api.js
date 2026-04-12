@@ -65,46 +65,63 @@ export async function getGenerationStatus() {
 }
 
 export async function generatePlan(notes, clientInfo, onChunk, onProgress, signal, uploadedFileIds) {
-  const res = await fetch(`${BASE_URL}/api/generate`, {
+  // Start generation — server returns immediately and runs in background
+  const startRes = await fetch(`${BASE_URL}/api/generate`, {
     method: 'POST',
     headers: authHeaders(),
     body: JSON.stringify({ notes, clientInfo, uploadedFileIds }),
     signal,
   });
-  if (!res.ok) {
-    let errMsg = 'Failed to generate plan';
-    try { const d = await res.json(); errMsg = d.error || errMsg; } catch {}
+  if (!startRes.ok) {
+    let errMsg = 'Failed to start generation';
+    try { const d = await startRes.json(); errMsg = d.error || errMsg; } catch {}
     throw new Error(errMsg);
   }
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-  let result = null;
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop();
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        const jsonStr = line.slice(6).trim();
-        if (!jsonStr) continue;
-        let evt;
-        try { evt = JSON.parse(jsonStr); } catch { continue; }
-        if (evt.type === 'chunk' && onChunk) onChunk(evt.text);
-        if (evt.type === 'progress' && onProgress) onProgress({ section: evt.section, total: evt.total, label: evt.label });
-        if (evt.type === 'done') result = { plan_id: evt.plan_id, client_name: evt.client_name };
-        if (evt.type === 'error') throw new Error(evt.error || 'Generation failed');
+
+  // Poll status every 2 seconds until done or error
+  let lastTextLength = 0;
+  let lastSection = 0;
+
+  while (true) {
+    await new Promise((resolve, reject) => {
+      const t = setTimeout(resolve, 2000);
+      if (signal) {
+        const onAbort = () => { clearTimeout(t); reject(new DOMException('Aborted', 'AbortError')); };
+        signal.addEventListener('abort', onAbort, { once: true });
       }
+    });
+
+    let job;
+    try {
+      const statusRes = await fetch(`${BASE_URL}/api/generate/status`, { headers: authHeaders(), signal });
+      job = await statusRes.json();
+    } catch {
+      continue; // transient network hiccup — keep polling
     }
-  } catch (err) {
-    reader.cancel();
-    throw err;
+
+    // Push new liveText to the UI as it accumulates
+    if (job.liveText && job.liveText.length > lastTextLength) {
+      const newText = job.liveText.slice(lastTextLength);
+      lastTextLength = job.liveText.length;
+      if (onChunk) onChunk(newText);
+    }
+
+    // Update section progress
+    if (job.section && job.section !== lastSection) {
+      lastSection = job.section;
+      if (onProgress) onProgress({ section: job.section, total: job.total || 4, label: job.label || '' });
+    }
+
+    if (job.status === 'done') {
+      return { plan_id: job.planId, client_name: job.clientName };
+    }
+    if (job.status === 'error') {
+      throw new Error(job.error || 'Generation failed');
+    }
+    if (job.status === 'idle') {
+      throw new Error('Generation stopped unexpectedly. Please try again.');
+    }
   }
-  if (!result) throw new Error('Failed to generate plan');
-  return result;
 }
 
 export async function revisePlan(plan_id, feedback, onChunk) {
