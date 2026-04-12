@@ -332,7 +332,7 @@ Start numbering at Goal 1. Use this EXACT format for every goal:
 | Projected Mastery: | [date ~6 months out] |
 | Progress Data: | N/A |
 
-Label ALL goals that serve as replacement behaviors for BIP targets with (FERB) prefix. At least 50% of skill acquisition goals should be FERBs.
+CRITICAL FERB RULE: At least 50% of skill acquisition goals MUST be labeled (FERB). The following goal types are ALWAYS FERBs: manding for items, manding for help, manding for break, manding for attention, manding for removal of aversive, manding for personal needs, manding to peers, coping strategies, sensory replacement, transitioning, accepting alternatives/denied access, waiting/delay tolerance, responding to inhibitory no, and task completion/seated attention. If your FERB count is below 50%, go back and add (FERB) to any goal that replaces a behavior targeted in the BIPs.
 
 Write every goal in full. STOP after the last Social goal. Do NOT write Adaptive goals, BIPs, behavior reduction, or any later sections.`,
   },
@@ -349,7 +349,7 @@ Write 5–8 goals for this domain. Start numbering at Goal 25.
 Use the same exact goal table format as Communication and Social goals above.
 Do NOT include hygiene, dressing, or toileting as skill acquisition goals — instead write those as Caregiver Training goals in a later section.
 
-Label ALL goals that serve as replacement behaviors for BIP targets with (FERB) prefix. At least 50% of skill acquisition goals should be FERBs.
+CRITICAL FERB RULE: At least 50% of skill acquisition goals MUST be labeled (FERB). The following goal types are ALWAYS FERBs: manding for items, manding for help, manding for break, manding for attention, manding for removal of aversive, manding for personal needs, manding to peers, coping strategies, sensory replacement, transitioning, accepting alternatives/denied access, waiting/delay tolerance, responding to inhibitory no, and task completion/seated attention. If your FERB count is below 50%, go back and add (FERB) to any goal that replaces a behavior targeted in the BIPs.
 
 Write every goal completely. STOP after the last Adaptive goal. Do NOT write behavior reduction goals, parent training goals, BIPs, or any later sections.`,
   },
