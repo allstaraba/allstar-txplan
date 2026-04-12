@@ -373,10 +373,11 @@ Generate the Anticipated Schedule as a **day-by-day grid** with a row for EVERY 
 Include a row for EVERY CPT code in the plan (97153, 97155, 97156 at minimum; add 97151, 97157 rows if applicable). Use "—" for days with no service. Ensure daily totals across all codes are consistent with the requested weekly hours. Reflect actual caregiver availability from the notes.
 
 ### Supervision Ratio Justification
-Calculate the supervision ratio: 97155 hours ÷ 97153 hours. If this ratio is 15% or higher, you MUST include a dedicated "Supervision Ratio Medical Necessity Justification" paragraph immediately before the CPT codes table. This paragraph must:
+Calculate the supervision ratio: 97155 hours ÷ 97153 hours. ALWAYS include a dedicated "Supervision Ratio Medical Necessity Justification" paragraph immediately before the CPT codes table, regardless of the percentage. This paragraph must:
 - State the supervision ratio explicitly (e.g., "The supervision ratio for this client is X%")
-- Cite the client's SPECIFIC behaviors, clinical complexity, skill deficit profile, and/or caregiver training needs that make this level of supervision medically necessary
-- Reference the client's severity level and any safety-critical behaviors that require more frequent BCBA oversight
+- Cite the client's SPECIFIC challenging behaviors by topography, clinical complexity, skill deficit profile, and/or caregiver training needs that make this level of supervision medically necessary for THIS client
+- Reference the client's severity level and any safety-critical behaviors (aggression, SIB, elopement, etc.) that require this frequency of BCBA oversight
+- Explain why the requested supervision level is clinically appropriate for this client's presentation
 - Explain why a lower supervision ratio would be clinically insufficient for this client
 
 ### Telehealth Split Documentation
