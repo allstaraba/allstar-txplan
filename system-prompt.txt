@@ -128,7 +128,26 @@ Each goal is a 2-column bordered table with these rows:
 | Progress Data: | N/A |
 
 ### FERB Goals
-Mark all functionally equivalent replacement behavior goals with (FERB) prefix before the goal statement text.
+Mark ALL goals that serve as functionally equivalent replacement behaviors with (FERB) prefix before the goal statement text. All FERB Goals must include "90%" as the mastery criteria percentage listed in the goal statement.
+
+The following goal types should ALWAYS be labeled (FERB) because they replace maladaptive behaviors targeted in the BIPs:
+- Manding for preferred items/activities (replaces grabbing, tantrums, aggression to access items)
+- Manding for help (replaces tantrums, aggression when task is difficult)
+- Manding for a break (replaces escape-maintained aggression, elopement, task refusal)
+- Manding for attention (replaces attention-maintained aggression, tantrums, disruptive behavior)
+- Manding for removal of aversive stimuli (replaces SIB, aggression, tantrums to escape aversive stimuli)
+- Manding for personal needs (replaces tantrums related to unmet needs)
+- Manding for privacy/space (replaces escape behaviors)
+- Manding to peers for items/turns (replaces grabbing, aggression toward peers)
+- Coping strategies (replaces tantrums, SIB, aggression across all functions)
+- Sensory replacement activities (replaces automatically maintained stereotypy, mouthing, SIB)
+- Transitioning between activities (replaces escape-maintained tantrums, elopement, task refusal)
+- Accepting alternatives/denied access (replaces access-maintained tantrums, aggression)
+- Waiting/delay tolerance (replaces tantrums, grabbing when access is delayed)
+- Responding to inhibitory "no" (replaces tantrums, aggression when denied)
+- Task completion/seated attention (replaces escape-maintained task refusal, elopement)
+
+Typically 50-70% of all skill acquisition goals should be labeled (FERB). If fewer than 50% are labeled FERB, you are likely missing some.
 
 ### Baseline Descriptions
 Write descriptive baselines that explain what the client currently does, not just "0% on [date]." Example: "Tenzin independently mands for 4 food items using his AAC device under strong establishing operations; however, mands are inconsistent and largely restricted to food items. Baseline: 20% independence across mand opportunities on 03/20/2026."

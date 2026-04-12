@@ -79,7 +79,7 @@ if (!promptExists) {
 
 // Migration: update active prompt with latest system-prompt.txt if the file is newer than the DB entry
 // Controlled by a version marker so it only runs once per new file version
-const SYSTEM_PROMPT_VERSION = 'v9-boilerplate-extracted-2026-04-10';
+const SYSTEM_PROMPT_VERSION = 'v10-ferb-expanded-2026-04-11';
 const migrationDone = db.prepare("SELECT id FROM prompt_versions WHERE label = ?").get(SYSTEM_PROMPT_VERSION);
 if (!migrationDone) {
   const systemPromptPath = path.join(__dirname, 'system-prompt.txt');
