@@ -531,18 +531,13 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
     const userId = req.user.id;
     setJob(userId, { status: 'running', section: 1, total: 4, label: GEN.S1.label, planId: null, clientName, error: null, startedAt: Date.now() });
 
-    let clientDisconnected = false;
-    // NOTE: Railway fires req 'close' as soon as the POST body is fully received,
-    // even though the SSE response is still open. Do NOT use clientDisconnected
-    // to block sends — just try to write and silently catch if it fails.
-    req.on('close', () => {
-      clientDisconnected = true;
-      console.log('[generate] req close event (Railway may fire this early — continuing to send SSE)');
-    });
+    let clientConnected = true;
+    res.on('close', () => { clientConnected = false; });
 
     let totalChunksSent = 0;
     let totalCharsSent = 0;
     const send = (obj) => {
+      if (!clientConnected) return;
       if (obj.type === 'chunk') { totalChunksSent++; totalCharsSent += (obj.text || '').length; }
       try { res.write(`data: ${JSON.stringify(obj)}\n\n`); } catch {}
     };
@@ -758,7 +753,7 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
       }
     }
 
-    if (!clientDisconnected) {
+    if (clientConnected) {
       send({ type: 'done', plan_id: planId, client_name: clientName });
       res.end();
     }
@@ -839,11 +834,12 @@ app.post('/api/revise', authMiddleware, async (req, res) => {
     if (res.socket) res.socket.setNoDelay(true);
     res.write(': connected\n\n');
 
-    let clientDisconnected = false;
+    let clientConnected = true;
     let keepAlive;
-    req.on('close', () => { clientDisconnected = true; clearInterval(keepAlive); });
+    res.on('close', () => { clientConnected = false; clearInterval(keepAlive); });
 
     const send = (obj) => {
+      if (!clientConnected) return;
       try { res.write(`data: ${JSON.stringify(obj)}\n\n`); } catch {}
     };
 
@@ -898,7 +894,7 @@ app.post('/api/revise', authMiddleware, async (req, res) => {
       ).run(plan_id, newRevisionNumber, revisedText, feedback);
       console.log(`[revise] saved revision ${newRevisionNumber} for plan_id=${plan_id}`);
       logActivity(req.user.id, req.user.username, 'revised_plan', 'plan', Number(plan_id), feedback.slice(0, 200));
-      if (!clientDisconnected) {
+      if (clientConnected) {
         send({ type: 'done', revision_number: newRevisionNumber });
         res.end();
       }
@@ -907,7 +903,7 @@ app.post('/api/revise', authMiddleware, async (req, res) => {
     stream.on('error', (err) => {
       clearInterval(keepAlive);
       console.error('Revise stream error:', err);
-      if (!clientDisconnected) {
+      if (clientConnected) {
         send({ type: 'error', error: err.message });
         res.end();
       }
@@ -1743,11 +1739,12 @@ app.post('/api/chat/:plan_id/regenerate', authMiddleware, async (req, res) => {
     if (res.socket) res.socket.setNoDelay(true);
     res.write(': connected\n\n');
 
-    let clientDisconnected = false;
+    let clientConnected = true;
     let keepAlive;
-    req.on('close', () => { clientDisconnected = true; clearInterval(keepAlive); });
+    res.on('close', () => { clientConnected = false; clearInterval(keepAlive); });
 
     const send = (obj) => {
+      if (!clientConnected) return;
       try { res.write(`data: ${JSON.stringify(obj)}\n\n`); } catch {}
     };
 
@@ -1813,7 +1810,7 @@ app.post('/api/chat/:plan_id/regenerate', authMiddleware, async (req, res) => {
       ).run(req.params.plan_id, newRevisionNumber, revisedText, feedbackSummary);
       console.log(`[regenerate] saved revision ${newRevisionNumber} for plan_id=${req.params.plan_id}`);
       logActivity(req.user.id, req.user.username, 'regenerated_plan', 'plan', Number(req.params.plan_id), 'Chat regeneration');
-      if (!clientDisconnected) {
+      if (clientConnected) {
         send({ type: 'done', revision_number: newRevisionNumber });
         res.end();
       }
@@ -1822,7 +1819,7 @@ app.post('/api/chat/:plan_id/regenerate', authMiddleware, async (req, res) => {
     stream.on('error', (err) => {
       clearInterval(keepAlive);
       console.error('Regenerate stream error:', err);
-      if (!clientDisconnected) {
+      if (clientConnected) {
         send({ type: 'error', error: err.message });
         res.end();
       }
