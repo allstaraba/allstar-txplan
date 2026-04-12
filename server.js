@@ -837,6 +837,10 @@ app.post('/api/revise', authMiddleware, async (req, res) => {
     const activePrompt = db.prepare('SELECT * FROM prompt_versions WHERE is_active = 1').get();
     const systemPrompt = activePrompt ? activePrompt.text : 'You are an ABA treatment plan generator.';
 
+    // Client name comes from plan_history — use it to anchor every revision so the
+    // AI never substitutes a hallucinated or bleed-over name from the plan body text.
+    const clientName = plan.client_name || 'the client';
+
     const messages = [
       { role: 'user', content: plan.original_notes },
       { role: 'assistant', content: allRevisions[0].text },
@@ -847,7 +851,7 @@ app.post('/api/revise', authMiddleware, async (req, res) => {
     }
     messages.push({
       role: 'user',
-      content: `${feedback}\n\nIMPORTANT: Return the COMPLETE, full treatment plan with this change incorporated. Do not leave any section blank, do not use placeholders, and do not skip any section — output the entire plan from beginning to end with all original sections fully written out and only the requested change made.`,
+      content: `You are revising a treatment plan for ${clientName}. Use ONLY "${clientName}" as the client's name throughout — do not use any other client's name.\n\n${feedback}\n\nIMPORTANT: Return the COMPLETE, full treatment plan with this change incorporated. Do not leave any section blank, do not use placeholders, and do not skip any section — output the entire plan from beginning to end with all original sections fully written out and only the requested change made.`,
     });
 
     // Stream the response to prevent Railway's request timeout from cutting off long generations
@@ -878,7 +882,30 @@ app.post('/api/revise', authMiddleware, async (req, res) => {
       clearInterval(keepAlive);
       const newRevisionNumber = allRevisions[allRevisions.length - 1].revision_number + 1;
       revisedText = stripAIPreamble(revisedText);
-      console.log(`[revise] done. stop_reason=${msg.stop_reason} output=${revisedText.length.toLocaleString()} chars (${revisedText.split('\n').length} lines)`);
+
+      // Enforce mastery criteria (FERB=90%, non-FERB=80%)
+      const { text: fixedText, ferbFixed, nonFerbFixed } = fixMasteryCriteria(revisedText);
+      revisedText = fixedText;
+      if (ferbFixed + nonFerbFixed > 0) {
+        console.log(`[revise] Mastery criteria: ${ferbFixed} FERB goals fixed to 90%, ${nonFerbFixed} non-FERB goals fixed to 80%`);
+      }
+
+      // Recalculate goal count and update summary table + total line
+      const GOAL_LINE_RE = /\d+\.\s+(?:\(FERB\)\s+)?Goal Statement/i;
+      const goalCount = revisedText.split('\n').filter(line => GOAL_LINE_RE.test(line)).length;
+      if (goalCount > 0) {
+        const correctGoalTable = buildGoalSummaryTable(goalCount);
+        revisedText = revisedText.replace(
+          /(##\s+Goal Objective Summary\s*\n)([\s\S]*?)(?=##\s+Response to Treatment)/i,
+          (match, header) => header + '\n' + correctGoalTable + '\n\n'
+        );
+        revisedText = revisedText.replace(
+          /(Total\s*#?\s*(?:of\s*)?(?:new\s*)?[Gg]oals[:\s|*]+)\d+/g,
+          (match, prefix) => prefix + goalCount
+        );
+      }
+
+      console.log(`[revise] done. stop_reason=${msg.stop_reason} output=${revisedText.length.toLocaleString()} chars (${revisedText.split('\n').length} lines) goals=${goalCount}`);
       db.prepare(
         'INSERT INTO plan_revisions (plan_id, revision_number, text, feedback) VALUES (?, ?, ?, ?)'
       ).run(plan_id, newRevisionNumber, revisedText, feedback);
