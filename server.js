@@ -624,6 +624,12 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
     const dateMatch = fullPlanText.match(/Assessment Date[:\s|]+([^\n\r|]+)/i);
     const assessmentDate = dateMatch ? dateMatch[1].trim() : '[DATE]';
 
+    // Overwrite any AI-guessed goal count with the actual counted value
+    fullPlanText = fullPlanText.replace(
+      /(Total\s*#\s*of\s*(?:new\s*)?goals[:\s|]+)\d+/gi,
+      (match, prefix) => prefix + goalCount
+    );
+
     // Inject boilerplate markers — keeps system prompt lean but final plan has full text
     const injectedPlanText = injectBoilerplate(fullPlanText, clientName, bcbaName, assessmentDate, goalCount);
     console.log(`[generate] Boilerplate injected. Raw: ${fullPlanText.length} chars → Final: ${injectedPlanText.length} chars`);
@@ -1445,6 +1451,25 @@ app.post('/api/chat/:plan_id/regenerate', authMiddleware, async (req, res) => {
         : 'Full regeneration';
       revisedText = stripAIPreamble(revisedText);
       console.log(`[regenerate] done. stop_reason=${msg.stop_reason} output=${revisedText.length.toLocaleString()} chars (${revisedText.split('\n').length} lines)`);
+
+      // Count goals and inject boilerplate (same as initial generate)
+      const regenGoalCount = revisedText
+        .split('\n')
+        .filter(line => /^\s*\d+\.\s+\**(?:\(FERB\)\s+)?\**Goal Statement:/i.test(line))
+        .length;
+      console.log(`[regenerate] Goal count for summary table: ${regenGoalCount}`);
+      const regenClientName = plan.client_name || 'Unknown';
+      const regenBcbaMatch = revisedText.match(/(?:Supervising BCBA|BCBA Name)[:\s|]+([^\n\r|]+)/i);
+      const regenBcbaName = regenBcbaMatch ? regenBcbaMatch[1].trim() : '[BCBA NAME]';
+      const regenDateMatch = revisedText.match(/Assessment Date[:\s|]+([^\n\r|]+)/i);
+      const regenAssessmentDate = regenDateMatch ? regenDateMatch[1].trim() : '[DATE]';
+      revisedText = revisedText.replace(
+        /(Total\s*#\s*of\s*(?:new\s*)?goals[:\s|]+)\d+/gi,
+        (match, prefix) => prefix + regenGoalCount
+      );
+      revisedText = injectBoilerplate(revisedText, regenClientName, regenBcbaName, regenAssessmentDate, regenGoalCount);
+      console.log(`[regenerate] Boilerplate injected. Final: ${revisedText.length.toLocaleString()} chars`);
+
       db.prepare(
         'INSERT INTO plan_revisions (plan_id, revision_number, text, feedback) VALUES (?, ?, ?, ?)'
       ).run(req.params.plan_id, newRevisionNumber, revisedText, feedbackSummary);
