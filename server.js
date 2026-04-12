@@ -532,12 +532,17 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
     setJob(userId, { status: 'running', section: 1, total: 4, label: GEN.S1.label, planId: null, clientName, error: null, startedAt: Date.now() });
 
     let clientDisconnected = false;
-    req.on('close', () => { clientDisconnected = true; });
+    // NOTE: Railway fires req 'close' as soon as the POST body is fully received,
+    // even though the SSE response is still open. Do NOT use clientDisconnected
+    // to block sends — just try to write and silently catch if it fails.
+    req.on('close', () => {
+      clientDisconnected = true;
+      console.log('[generate] req close event (Railway may fire this early — continuing to send SSE)');
+    });
 
     let totalChunksSent = 0;
     let totalCharsSent = 0;
     const send = (obj) => {
-      if (clientDisconnected) return;
       if (obj.type === 'chunk') { totalChunksSent++; totalCharsSent += (obj.text || '').length; }
       try { res.write(`data: ${JSON.stringify(obj)}\n\n`); } catch {}
     };
@@ -839,7 +844,6 @@ app.post('/api/revise', authMiddleware, async (req, res) => {
     req.on('close', () => { clientDisconnected = true; clearInterval(keepAlive); });
 
     const send = (obj) => {
-      if (clientDisconnected) return;
       try { res.write(`data: ${JSON.stringify(obj)}\n\n`); } catch {}
     };
 
@@ -1744,7 +1748,6 @@ app.post('/api/chat/:plan_id/regenerate', authMiddleware, async (req, res) => {
     req.on('close', () => { clientDisconnected = true; clearInterval(keepAlive); });
 
     const send = (obj) => {
-      if (clientDisconnected) return;
       try { res.write(`data: ${JSON.stringify(obj)}\n\n`); } catch {}
     };
 
