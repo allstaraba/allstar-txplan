@@ -123,19 +123,71 @@ function Layout({ user, onLogout, currentPlan, setCurrentPlan, injectedText, set
   const abortControllersRef = useRef(new Map());
   const genCounterRef = useRef(0);
   const pollIntervalRef = useRef(null);
+  const pollCancelledRef = useRef(false);
+
+  // startServerPolling: switch to polling mode when the SSE connection drops mid-generation.
+  // Used both on page mount (to recover from a refresh) and when the SSE stream fails.
+  // genId: the local genId to update (or 'server-reconnect' for mount-time recovery).
+  const startServerPolling = (genId) => {
+    if (pollIntervalRef.current) return; // already polling
+    pollCancelledRef.current = false;
+
+    const POLL_ID = genId;
+
+    pollIntervalRef.current = setInterval(async () => {
+      if (pollCancelledRef.current) return;
+      try {
+        const updated = await getGenerationStatus();
+        if (pollCancelledRef.current) return;
+        if (updated.status === 'running') {
+          setGeneratingPlans(prev => {
+            const next = new Map(prev);
+            const cur = next.get(POLL_ID);
+            if (!cur) return prev;
+            next.set(POLL_ID, { ...cur, status: 'running', section: updated.section || cur.section, label: updated.label || cur.label });
+            return next;
+          });
+        } else if (updated.status === 'done') {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+          try {
+            const planData = await getPlan(updated.planId);
+            const revs = planData.revisions;
+            const planText = revs && revs.length > 0 ? revs[revs.length - 1].text : '';
+            setCurrentPlan({ plan_id: updated.planId, text: planText, client_name: updated.clientName });
+          } catch {}
+          setGeneratingPlans(prev => { const next = new Map(prev); next.delete(POLL_ID); return next; });
+          setActiveGenId(null);
+        } else {
+          // idle or error — stop polling
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+          if (updated.status === 'error') {
+            setGeneratingPlans(prev => {
+              const next = new Map(prev);
+              const cur = next.get(POLL_ID);
+              if (cur) next.set(POLL_ID, { ...cur, status: 'error', error: updated.error || 'Generation failed' });
+              return next;
+            });
+          } else {
+            setGeneratingPlans(prev => { const next = new Map(prev); next.delete(POLL_ID); return next; });
+            setActiveGenId(null);
+          }
+        }
+      } catch {}
+    }, 3000);
+  };
 
   // On mount, check if there's an in-progress generation for this user on the server.
   // This handles page refresh / browser close / navigation away mid-generation.
   useEffect(() => {
-    let cancelled = false;
+    const RECONNECT_GEN_ID = 'server-reconnect';
 
     async function checkServerJob() {
       try {
         const job = await getGenerationStatus();
-        if (cancelled) return;
+        if (pollCancelledRef.current) return;
         if (job.status === 'running') {
-          // Show a reconnected status widget (no SSE stream — just poll for updates)
-          const RECONNECT_GEN_ID = 'server-reconnect';
           setGeneratingPlans(prev => {
             const next = new Map(prev);
             if (!next.has(RECONNECT_GEN_ID)) {
@@ -150,55 +202,15 @@ function Layout({ user, onLogout, currentPlan, setCurrentPlan, injectedText, set
             return next;
           });
           setActiveGenId(RECONNECT_GEN_ID);
-
-          // Poll every 3s until the server reports done or error
-          pollIntervalRef.current = setInterval(async () => {
-            try {
-              const updated = await getGenerationStatus();
-              if (cancelled) return;
-              if (updated.status === 'running') {
-                setGeneratingPlans(prev => {
-                  const next = new Map(prev);
-                  const cur = next.get(RECONNECT_GEN_ID);
-                  if (!cur) return prev;
-                  next.set(RECONNECT_GEN_ID, { ...cur, section: updated.section, label: updated.label });
-                  return next;
-                });
-              } else if (updated.status === 'done') {
-                clearInterval(pollIntervalRef.current);
-                // Load the completed plan
-                try {
-                  const planData = await getPlan(updated.planId);
-                  const revs = planData.revisions;
-                  const planText = revs && revs.length > 0 ? revs[revs.length - 1].text : '';
-                  setCurrentPlan({ plan_id: updated.planId, text: planText, client_name: updated.clientName });
-                } catch {}
-                setGeneratingPlans(prev => { const next = new Map(prev); next.delete(RECONNECT_GEN_ID); return next; });
-                setActiveGenId(null);
-              } else if (updated.status === 'error' || updated.status === 'idle') {
-                clearInterval(pollIntervalRef.current);
-                if (updated.status === 'error') {
-                  setGeneratingPlans(prev => {
-                    const next = new Map(prev);
-                    const cur = next.get(RECONNECT_GEN_ID);
-                    if (cur) next.set(RECONNECT_GEN_ID, { ...cur, status: 'error', error: updated.error || 'Generation failed' });
-                    return next;
-                  });
-                } else {
-                  setGeneratingPlans(prev => { const next = new Map(prev); next.delete(RECONNECT_GEN_ID); return next; });
-                  setActiveGenId(null);
-                }
-              }
-            } catch {}
-          }, 3000);
+          startServerPolling(RECONNECT_GEN_ID);
         }
       } catch {}
     }
 
     checkServerJob();
     return () => {
-      cancelled = true;
-      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+      pollCancelledRef.current = true;
+      if (pollIntervalRef.current) { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null; }
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -279,7 +291,29 @@ function Layout({ user, onLogout, currentPlan, setCurrentPlan, injectedText, set
         setGeneratingPlans(prev => { const next = new Map(prev); next.delete(genId); return next; });
         setActiveGenId(prev => prev === genId ? null : prev);
       } else {
-        updateGen(genId, prev => ({ ...prev, status: 'error', error: err.message }));
+        // SSE connection dropped (network error / proxy timeout). Check if the server
+        // is still generating — if so, switch to polling mode instead of showing an error.
+        try {
+          const job = await getGenerationStatus();
+          if (job.status === 'running') {
+            updateGen(genId, prev => ({ ...prev, status: 'running', label: job.label || prev.label, reconnected: true }));
+            startServerPolling(genId);
+          } else if (job.status === 'done') {
+            // Generation finished just as the connection dropped — load the plan
+            try {
+              const planData = await getPlan(job.planId);
+              const revs = planData.revisions;
+              const planText = revs && revs.length > 0 ? revs[revs.length - 1].text : '';
+              setCurrentPlan({ plan_id: job.planId, text: planText, client_name: job.clientName });
+            } catch {}
+            setGeneratingPlans(prev => { const next = new Map(prev); next.delete(genId); return next; });
+            setActiveGenId(null);
+          } else {
+            updateGen(genId, prev => ({ ...prev, status: 'error', error: err.message }));
+          }
+        } catch {
+          updateGen(genId, prev => ({ ...prev, status: 'error', error: err.message }));
+        }
       }
     } finally {
       abortControllersRef.current.delete(genId);
