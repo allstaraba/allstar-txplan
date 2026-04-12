@@ -1988,39 +1988,58 @@ app.delete('/api/insurance-templates/:id', authMiddleware, adminMiddleware, (req
   }
 });
 
+// ---- COMPLIANCE PLAN DOCUMENT EXTRACTION (all authenticated users) ----
+
+app.post('/api/compliance/extract', authMiddleware, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    const { originalname, mimetype, buffer } = req.file;
+    const ext = path.extname(originalname).toLowerCase();
+    let text = '';
+    if (ext === '.docx' || mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+      const result = await mammoth.extractRawText({ buffer });
+      text = result.value;
+    } else if (ext === '.pdf' || mimetype === 'application/pdf') {
+      const pdfData = await pdfParse(buffer);
+      text = pdfData.text;
+    } else if (ext === '.txt' || mimetype === 'text/plain') {
+      text = buffer.toString('utf-8');
+    } else {
+      return res.status(400).json({ error: 'Unsupported file type. Use PDF, DOCX, or TXT.' });
+    }
+    text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+    console.log(`[compliance extract] ${originalname} → ${text.length.toLocaleString()} chars`);
+    res.json({ text, filename: originalname, chars: text.length });
+  } catch (err) {
+    console.error('Compliance extract error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ---- COMPLIANCE CHECKS ----
 
-app.get('/api/compliance/checks/:plan_id', authMiddleware, (req, res) => {
+app.get('/api/compliance/checks', authMiddleware, (req, res) => {
   try {
     const checks = db.prepare(
-      'SELECT id, template_name, result_text, created_at FROM compliance_checks WHERE plan_id = ? ORDER BY created_at DESC'
-    ).all(req.params.plan_id);
+      'SELECT id, document_name, template_name, result_text, created_at FROM compliance_checks WHERE checked_by = ? ORDER BY created_at DESC LIMIT 50'
+    ).all(req.user.id);
     res.json(checks);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.post('/api/compliance/check/:plan_id', authMiddleware, async (req, res) => {
+app.post('/api/compliance/check', authMiddleware, async (req, res) => {
   try {
-    const { template_id } = req.body;
+    const { template_id, plan_text, document_name } = req.body;
     if (!template_id) return res.status(400).json({ error: 'template_id is required' });
-
-    const plan = db.prepare('SELECT * FROM plan_history WHERE id = ?').get(req.params.plan_id);
-    if (!plan) return res.status(404).json({ error: 'Plan not found' });
-
-    const latestRevision = db.prepare(
-      'SELECT text FROM plan_revisions WHERE plan_id = ? ORDER BY revision_number DESC LIMIT 1'
-    ).get(req.params.plan_id);
-    if (!latestRevision) return res.status(404).json({ error: 'No plan revision found' });
+    if (!plan_text || !plan_text.trim()) return res.status(400).json({ error: 'plan_text is required' });
 
     const template = db.prepare('SELECT * FROM insurance_templates WHERE id = ?').get(template_id);
     if (!template) return res.status(404).json({ error: 'Insurance template not found' });
 
-    // Strip internal markers from plan text before sending to Claude
-    const planText = latestRevision.text
-      .replace(/\[(SECTION|TABLE|\/TABLE|GOAL|\/GOAL|BIP|\/BIP|FADING_PHASE|\/FADING_PHASE|CRISIS_ROW|\/CRISIS_ROW):[^\]]*\]/g, '')
-      .replace(/^\n{3,}/gm, '\n\n').trim();
+    const planText = plan_text.replace(/^\n{3,}/gm, '\n\n').trim();
+    const docLabel = document_name || 'Uploaded Plan';
 
     const complianceSystemPrompt = `You are an expert compliance reviewer for ABA (Applied Behavior Analysis) treatment plans. Your job is to carefully review a treatment plan against insurance company rules and requirements.
 
@@ -2045,7 +2064,7 @@ Review the plan against every rule and requirement in the insurance rules docume
 Format your response exactly as follows:
 
 ## Compliance Check: ${template.name}
-**Plan:** ${plan.client_name || 'Unknown Client'}
+**Document:** ${docLabel}
 
 ### Summary
 [2-3 sentence overall compliance assessment]
@@ -2078,7 +2097,7 @@ For each: **Rule:** [requirement] → **Issue:** [what's unclear or partially me
     };
 
     let resultText = '';
-    console.log(`[compliance] plan_id=${req.params.plan_id} template="${template.name}" plan_chars=${planText.length} rules_chars=${template.text.length}`);
+    console.log(`[compliance] doc="${docLabel}" template="${template.name}" plan_chars=${planText.length} rules_chars=${template.text.length}`);
 
     const stream = anthropic.messages.stream({
       model: CLAUDE_MODEL,
@@ -2097,10 +2116,10 @@ For each: **Rule:** [requirement] → **Issue:** [what's unclear or partially me
     stream.on('finalMessage', (msg) => {
       clearInterval(keepAlive);
       const checkResult = db.prepare(
-        'INSERT INTO compliance_checks (plan_id, template_id, template_name, result_text, checked_by) VALUES (?, ?, ?, ?, ?)'
-      ).run(req.params.plan_id, template_id, template.name, resultText, req.user.id);
+        'INSERT INTO compliance_checks (plan_id, document_name, template_id, template_name, result_text, checked_by) VALUES (NULL, ?, ?, ?, ?, ?)'
+      ).run(docLabel, template_id, template.name, resultText, req.user.id);
       console.log(`[compliance] done. stop_reason=${msg.stop_reason} output=${resultText.length} chars. saved check_id=${checkResult.lastInsertRowid}`);
-      logActivity(req.user.id, req.user.username, 'compliance_check', 'plan', Number(req.params.plan_id), template.name);
+      logActivity(req.user.id, req.user.username, 'compliance_check', 'document', null, `${docLabel} vs ${template.name}`);
       if (clientConnected) {
         send({ type: 'done', check_id: checkResult.lastInsertRowid });
         res.end();
@@ -2124,26 +2143,24 @@ For each: **Rule:** [requirement] → **Issue:** [what's unclear or partially me
 
 // ---- COMPLIANCE CHAT ----
 
-app.post('/api/compliance/chat/:plan_id', authMiddleware, async (req, res) => {
+app.post('/api/compliance/chat', authMiddleware, async (req, res) => {
   try {
-    const { check_result, messages } = req.body;
-    // messages: [{role, content}] — the conversation so far
+    const { check_result, messages, document_name } = req.body;
     if (!check_result) return res.status(400).json({ error: 'check_result is required' });
     if (!Array.isArray(messages) || messages.length === 0) return res.status(400).json({ error: 'messages is required' });
 
-    const plan = db.prepare('SELECT * FROM plan_history WHERE id = ?').get(req.params.plan_id);
-    if (!plan) return res.status(404).json({ error: 'Plan not found' });
+    const docLabel = document_name || 'this plan';
 
     const systemPrompt = `You are a compliance expert helping a BCBA review and fix an ABA treatment plan that has been checked against insurance rules. You have the full compliance check result as context. Help the user understand specific failures, draft corrective language for missing sections, write reports, or answer any questions about the requirements. Be concise and practical.`;
 
     const apiMessages = [
       {
         role: 'user',
-        content: `The compliance check result for ${plan.client_name || 'this client'}:\n\n${check_result}`,
+        content: `The compliance check result for ${docLabel}:\n\n${check_result}`,
       },
       {
         role: 'assistant',
-        content: `I've reviewed the compliance results for ${plan.client_name || 'this client'}. I can help you understand failures, draft corrective text, or generate a summary report. What would you like to work on?`,
+        content: `I've reviewed the compliance results for ${docLabel}. I can help you understand failures, draft corrective text, or generate a summary report. What would you like to work on?`,
       },
       ...messages,
     ];

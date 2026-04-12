@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { getInsuranceTemplates, getComplianceChecks, runComplianceCheck, sendComplianceChatMessage, getPlans } from '../api.js';
+import { getInsuranceTemplates, getComplianceChecks, runComplianceCheck, sendComplianceChatMessage, extractCompliancePlan } from '../api.js';
 
 // ── Compliance result renderer ────────────────────────────────────────────────
 function ComplianceResult({ text }) {
@@ -29,7 +29,6 @@ function ComplianceResult({ text }) {
             </div>
           );
         }
-        // Inline bold
         const parts = t.split(/(\*\*[^*]+\*\*)/g);
         const rendered = parts.map((p, j) =>
           p.startsWith('**') && p.endsWith('**') ? <strong key={j}>{p.slice(2, -2)}</strong> : p
@@ -73,69 +72,102 @@ function TypingDots() {
           animationDelay: `${i * 0.2}s`, display: 'inline-block',
         }} />
       ))}
-      <style>{`@keyframes bounce { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-5px)} } @keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      <style>{`@keyframes bounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-5px)}} @keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
-export default function ComplianceTool({ currentPlan, setCurrentPlan }) {
-  // Plan + template selection
-  const [plans, setPlans] = useState([]);
+export default function ComplianceTool() {
   const [templates, setTemplates] = useState([]);
-  const [selectedPlanId, setSelectedPlanId] = useState('');
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
+
+  // Plan input
+  const [planText, setPlanText] = useState('');
+  const [documentName, setDocumentName] = useState('');
+  const [extracting, setExtracting] = useState(false);
+  const [inputMode, setInputMode] = useState('upload'); // 'upload' | 'paste'
+  const fileInputRef = useRef(null);
 
   // Check state
   const [checking, setChecking] = useState(false);
   const [streamingResult, setStreamingResult] = useState('');
-  const [finalResult, setFinalResult] = useState('');    // saved after streaming completes
+  const [finalResult, setFinalResult] = useState('');
   const [checkHistory, setCheckHistory] = useState([]);
   const [viewingCheck, setViewingCheck] = useState(null);
   const [error, setError] = useState('');
 
   // Chat state
-  const [chatMessages, setChatMessages] = useState([]);  // [{role,content}]
+  const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState('');
   const [chatSending, setChatSending] = useState(false);
   const [streamingChat, setStreamingChat] = useState('');
   const chatEndRef = useRef(null);
   const chatInputRef = useRef(null);
   const resultEndRef = useRef(null);
+  const dropZoneRef = useRef(null);
 
-  // Active result text — either the live streaming, the completed result, or the viewed history item
   const activeResult = viewingCheck ? viewingCheck.result_text : (finalResult || streamingResult);
-  const activePlanId = selectedPlanId || (currentPlan?.plan_id ? String(currentPlan.plan_id) : '');
 
   useEffect(() => {
-    Promise.all([getPlans(), getInsuranceTemplates()])
-      .then(([p, t]) => {
-        setPlans(p);
+    Promise.all([getInsuranceTemplates(), getComplianceChecks()])
+      .then(([t, checks]) => {
         setTemplates(t);
         if (t.length > 0) setSelectedTemplateId(String(t[0].id));
-        // Pre-select current plan if one is loaded
-        if (currentPlan?.plan_id) setSelectedPlanId(String(currentPlan.plan_id));
-        else if (p.length > 0) setSelectedPlanId(String(p[0].id));
+        setCheckHistory(checks);
       })
       .catch(err => setError(err.message));
   }, []);
 
-  // Load check history when plan selection changes
-  useEffect(() => {
-    if (!activePlanId) return;
-    setViewingCheck(null);
-    setFinalResult('');
-    setStreamingResult('');
-    setChatMessages([]);
-    getComplianceChecks(activePlanId).then(setCheckHistory).catch(() => {});
-  }, [activePlanId]);
-
-  // Auto-scroll
   useEffect(() => { resultEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [streamingResult]);
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatMessages, streamingChat]);
 
+  // Drag-and-drop on the drop zone
+  useEffect(() => {
+    const el = dropZoneRef.current;
+    if (!el) return;
+    const onDragOver = (e) => { e.preventDefault(); el.style.borderColor = '#2563eb'; el.style.background = '#eff6ff'; };
+    const onDragLeave = () => { el.style.borderColor = '#cbd5e1'; el.style.background = '#f8fafc'; };
+    const onDrop = (e) => {
+      e.preventDefault();
+      el.style.borderColor = '#cbd5e1';
+      el.style.background = '#f8fafc';
+      const file = e.dataTransfer.files[0];
+      if (file) handleFileExtract(file);
+    };
+    el.addEventListener('dragover', onDragOver);
+    el.addEventListener('dragleave', onDragLeave);
+    el.addEventListener('drop', onDrop);
+    return () => {
+      el.removeEventListener('dragover', onDragOver);
+      el.removeEventListener('dragleave', onDragLeave);
+      el.removeEventListener('drop', onDrop);
+    };
+  }, []);
+
+  const handleFileExtract = async (file) => {
+    setError('');
+    setExtracting(true);
+    try {
+      const result = await extractCompliancePlan(file);
+      setPlanText(result.text);
+      setDocumentName(result.filename);
+      setInputMode('paste'); // switch to text view so user can see/edit
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setExtracting(false);
+    }
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) handleFileExtract(file);
+    e.target.value = '';
+  };
+
   const handleRunCheck = async () => {
-    if (!activePlanId || !selectedTemplateId || checking) return;
+    if (!planText.trim() || !selectedTemplateId || checking) return;
     setError('');
     setStreamingResult('');
     setFinalResult('');
@@ -144,13 +176,13 @@ export default function ComplianceTool({ currentPlan, setCurrentPlan }) {
     setChecking(true);
     let accumulated = '';
     try {
-      await runComplianceCheck(Number(activePlanId), Number(selectedTemplateId), (chunk) => {
+      await runComplianceCheck(planText, Number(selectedTemplateId), documentName || 'Uploaded Plan', (chunk) => {
         accumulated += chunk;
         setStreamingResult(accumulated);
       });
       setFinalResult(accumulated);
       setStreamingResult('');
-      const checks = await getComplianceChecks(activePlanId);
+      const checks = await getComplianceChecks();
       setCheckHistory(checks);
     } catch (err) {
       setError(err.message);
@@ -179,9 +211,9 @@ export default function ComplianceTool({ currentPlan, setCurrentPlan }) {
     let reply = '';
     try {
       await sendComplianceChatMessage(
-        Number(activePlanId),
         result,
         newMessages,
+        documentName || 'this plan',
         (chunk) => { reply += chunk; setStreamingChat(reply); }
       );
       setChatMessages(prev => [...prev, { role: 'assistant', content: reply }]);
@@ -198,34 +230,29 @@ export default function ComplianceTool({ currentPlan, setCurrentPlan }) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleChatSend(); }
   };
 
-  const selectedPlan = plans.find(p => String(p.id) === activePlanId);
+  const clearPlan = () => {
+    setPlanText('');
+    setDocumentName('');
+    setInputMode('upload');
+    setFinalResult('');
+    setStreamingResult('');
+    setViewingCheck(null);
+    setChatMessages([]);
+  };
 
-  // ── Layout: left = controls + result, right = chat ────────────────────────
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
 
       {/* Top bar */}
-      <div style={{ background: '#fff', borderBottom: '1px solid #e2e8f0', padding: '12px 24px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <span style={{ fontWeight: '700', fontSize: '15px', color: '#0f172a', marginRight: '4px' }}>Compliance Check</span>
-
-        {/* Plan picker */}
-        <select
-          value={activePlanId}
-          onChange={e => setSelectedPlanId(e.target.value)}
-          disabled={checking}
-          style={{ padding: '7px 10px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '13px', color: '#0f172a', background: '#fff', maxWidth: '220px' }}
-        >
-          {plans.map(p => (
-            <option key={p.id} value={String(p.id)}>{p.client_name || `Plan #${p.id}`}</option>
-          ))}
-        </select>
+      <div style={{ background: '#fff', borderBottom: '1px solid #e2e8f0', padding: '12px 24px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+        <span style={{ fontWeight: '700', fontSize: '15px', color: '#0f172a', marginRight: '4px', whiteSpace: 'nowrap' }}>Compliance Check</span>
 
         {/* Template picker */}
         <select
           value={selectedTemplateId}
           onChange={e => setSelectedTemplateId(e.target.value)}
           disabled={checking || templates.length === 0}
-          style={{ padding: '7px 10px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '13px', color: '#0f172a', background: '#fff', maxWidth: '220px' }}
+          style={{ padding: '7px 10px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '13px', color: '#0f172a', background: '#fff', maxWidth: '240px' }}
         >
           {templates.length === 0
             ? <option>No templates — admin must add one</option>
@@ -235,27 +262,129 @@ export default function ComplianceTool({ currentPlan, setCurrentPlan }) {
 
         <button
           onClick={handleRunCheck}
-          disabled={checking || !activePlanId || !selectedTemplateId || templates.length === 0}
+          disabled={checking || !planText.trim() || !selectedTemplateId || templates.length === 0}
           style={{
-            padding: '8px 20px', background: checking ? '#e2e8f0' : '#2563eb',
-            border: 'none', borderRadius: '6px', color: checking ? '#94a3b8' : '#fff',
+            padding: '8px 20px',
+            background: checking ? '#e2e8f0' : (!planText.trim() ? '#e2e8f0' : '#2563eb'),
+            border: 'none', borderRadius: '6px',
+            color: checking || !planText.trim() ? '#94a3b8' : '#fff',
             fontSize: '13px', fontWeight: '600',
-            cursor: checking ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap',
+            cursor: checking || !planText.trim() ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap',
           }}
         >
           {checking ? `Checking… ${streamingResult.length > 0 ? `· ${streamingResult.length.toLocaleString()} chars` : ''}` : 'Run Compliance Check'}
         </button>
 
-        {error && (
-          <span style={{ fontSize: '12px', color: '#dc2626', marginLeft: '8px' }}>{error}</span>
-        )}
+        {error && <span style={{ fontSize: '12px', color: '#dc2626' }}>{error}</span>}
       </div>
 
-      {/* Body: left (results) + right (chat) */}
+      {/* Body: left panel (upload + results) + right panel (chat) */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
-        {/* Left: result + history (60%) */}
+        {/* Left: upload/paste + results (60%) */}
         <div style={{ flex: '0 0 60%', display: 'flex', flexDirection: 'column', borderRight: '1px solid #e2e8f0', overflow: 'hidden' }}>
+
+          {/* Plan input section */}
+          {!checking && !finalResult && !streamingResult && !viewingCheck && (
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
+              {/* Mode toggle */}
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '14px', alignItems: 'center' }}>
+                <span style={{ fontSize: '13px', fontWeight: '600', color: '#374151' }}>Plan document:</span>
+                <button
+                  onClick={() => setInputMode('upload')}
+                  style={{
+                    padding: '5px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: '600',
+                    border: '1px solid', cursor: 'pointer',
+                    borderColor: inputMode === 'upload' ? '#2563eb' : '#e2e8f0',
+                    background: inputMode === 'upload' ? '#eff6ff' : '#fff',
+                    color: inputMode === 'upload' ? '#2563eb' : '#64748b',
+                  }}
+                >
+                  Upload File
+                </button>
+                <button
+                  onClick={() => setInputMode('paste')}
+                  style={{
+                    padding: '5px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: '600',
+                    border: '1px solid', cursor: 'pointer',
+                    borderColor: inputMode === 'paste' ? '#2563eb' : '#e2e8f0',
+                    background: inputMode === 'paste' ? '#eff6ff' : '#fff',
+                    color: inputMode === 'paste' ? '#2563eb' : '#64748b',
+                  }}
+                >
+                  Paste Text
+                </button>
+                {planText && (
+                  <span style={{ fontSize: '12px', color: '#16a34a', marginLeft: '4px' }}>
+                    ✓ {documentName || 'Plan text'} · {planText.length.toLocaleString()} chars
+                  </span>
+                )}
+                {planText && (
+                  <button onClick={clearPlan} style={{ marginLeft: 'auto', background: 'none', border: 'none', fontSize: '12px', color: '#94a3b8', cursor: 'pointer' }}>
+                    ✕ Clear
+                  </button>
+                )}
+              </div>
+
+              {inputMode === 'upload' && (
+                <div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pdf,.docx,.txt"
+                    onChange={handleFileChange}
+                    style={{ display: 'none' }}
+                  />
+                  <div
+                    ref={dropZoneRef}
+                    onClick={() => !extracting && fileInputRef.current?.click()}
+                    style={{
+                      border: '2px dashed #cbd5e1', borderRadius: '10px',
+                      padding: '36px 24px', textAlign: 'center',
+                      background: '#f8fafc', cursor: extracting ? 'default' : 'pointer',
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    {extracting ? (
+                      <div style={{ color: '#2563eb', fontSize: '14px' }}>
+                        <span style={{ display: 'inline-block', width: '16px', height: '16px', border: '2px solid #bfdbfe', borderTopColor: '#2563eb', borderRadius: '50%', animation: 'spin 0.8s linear infinite', verticalAlign: 'middle', marginRight: '8px' }} />
+                        Extracting text…
+                      </div>
+                    ) : planText ? (
+                      <div>
+                        <div style={{ fontSize: '20px', marginBottom: '6px' }}>✓</div>
+                        <div style={{ fontSize: '14px', fontWeight: '600', color: '#16a34a' }}>{documentName}</div>
+                        <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>{planText.length.toLocaleString()} characters extracted · click to replace</div>
+                      </div>
+                    ) : (
+                      <div>
+                        <div style={{ fontSize: '32px', marginBottom: '8px' }}>📄</div>
+                        <div style={{ fontSize: '14px', fontWeight: '600', color: '#374151', marginBottom: '4px' }}>Drop a plan here or click to upload</div>
+                        <div style={{ fontSize: '12px', color: '#94a3b8' }}>PDF, DOCX, or TXT</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {inputMode === 'paste' && (
+                <textarea
+                  value={planText}
+                  onChange={e => { setPlanText(e.target.value); if (!documentName) setDocumentName('Pasted Plan'); }}
+                  placeholder="Paste the full treatment plan text here…"
+                  rows={10}
+                  style={{
+                    width: '100%', padding: '12px', border: '1.5px solid #e2e8f0',
+                    borderRadius: '8px', fontSize: '13px', resize: 'vertical',
+                    fontFamily: 'inherit', lineHeight: '1.6', color: '#1e293b',
+                    boxSizing: 'border-box', outline: 'none',
+                  }}
+                  onFocus={e => e.target.style.borderColor = '#2563eb'}
+                  onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+                />
+              )}
+            </div>
+          )}
 
           {/* History bar */}
           {checkHistory.length > 0 && !checking && (
@@ -273,7 +402,7 @@ export default function ComplianceTool({ currentPlan, setCurrentPlan }) {
                     fontSize: '12px', whiteSpace: 'nowrap', cursor: 'pointer',
                   }}
                 >
-                  {c.template_name} · {new Date(c.created_at).toLocaleDateString()}
+                  {c.document_name || 'Plan'} · {c.template_name} · {new Date(c.created_at).toLocaleDateString()}
                 </button>
               ))}
             </div>
@@ -282,16 +411,16 @@ export default function ComplianceTool({ currentPlan, setCurrentPlan }) {
           {/* Result area */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '28px 32px' }}>
             {!activeResult && !checking && (
-              <div style={{ textAlign: 'center', paddingTop: '80px', color: '#94a3b8' }}>
-                <div style={{ fontSize: '40px', marginBottom: '12px' }}>📋</div>
-                <div style={{ fontSize: '16px', fontWeight: '600', color: '#374151', marginBottom: '8px' }}>
-                  {selectedPlan ? `Ready to check ${selectedPlan.client_name || `Plan #${selectedPlan.id}`}` : 'Select a plan and template'}
-                </div>
-                <div style={{ fontSize: '13px' }}>
+              <div style={{ textAlign: 'center', paddingTop: '60px', color: '#94a3b8' }}>
+                <div style={{ fontSize: '36px', marginBottom: '12px' }}>📋</div>
+                <div style={{ fontSize: '15px', fontWeight: '600', color: '#374151', marginBottom: '8px' }}>
                   {templates.length === 0
-                    ? 'An admin needs to add insurance templates first.'
-                    : 'Pick a plan and insurance template above, then click Run Compliance Check.'}
+                    ? 'An admin needs to add insurance templates first'
+                    : planText ? 'Ready — click Run Compliance Check' : 'Upload or paste a plan to get started'}
                 </div>
+                {templates.length > 0 && !planText && (
+                  <div style={{ fontSize: '13px' }}>Drop a PDF/DOCX or paste the plan text, select an insurance template, then run the check.</div>
+                )}
               </div>
             )}
             {checking && !streamingResult && (
@@ -302,8 +431,20 @@ export default function ComplianceTool({ currentPlan, setCurrentPlan }) {
                 {viewingCheck && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px', padding: '8px 12px', background: '#eff6ff', borderRadius: '6px' }}>
                     <span style={{ fontSize: '12px', color: '#2563eb', fontWeight: '600' }}>Viewing past check:</span>
-                    <span style={{ fontSize: '12px', color: '#64748b' }}>{viewingCheck.template_name} · {new Date(viewingCheck.created_at).toLocaleString()}</span>
+                    <span style={{ fontSize: '12px', color: '#64748b' }}>
+                      {viewingCheck.document_name && `${viewingCheck.document_name} · `}{viewingCheck.template_name} · {new Date(viewingCheck.created_at).toLocaleString()}
+                    </span>
                     <button onClick={() => { setViewingCheck(null); setChatMessages([]); }} style={{ marginLeft: 'auto', background: 'none', border: 'none', fontSize: '12px', color: '#64748b', cursor: 'pointer' }}>✕ Close</button>
+                  </div>
+                )}
+                {(finalResult || streamingResult) && (
+                  <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', alignItems: 'center' }}>
+                    <button
+                      onClick={clearPlan}
+                      style={{ padding: '6px 14px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '12px', color: '#374151', cursor: 'pointer', fontWeight: '600' }}
+                    >
+                      ← Check Another Plan
+                    </button>
                   </div>
                 )}
                 <ComplianceResult text={activeResult} />
@@ -330,9 +471,7 @@ export default function ComplianceTool({ currentPlan, setCurrentPlan }) {
             )}
             {activeResult && chatMessages.length === 0 && !chatSending && (
               <div>
-                <p style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '12px' }}>
-                  Ask about the results or request help fixing issues:
-                </p>
+                <p style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '12px' }}>Ask about the results or request help fixing issues:</p>
                 {[
                   'What are the most critical failures I need to fix?',
                   'Draft corrective text for the failed requirements',

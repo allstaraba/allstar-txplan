@@ -484,7 +484,7 @@ function Layout({ user, onLogout, currentPlan, setCurrentPlan, injectedText, set
           <Route path="/plans" element={<PlanHistory setCurrentPlan={setCurrentPlan} />} />
           <Route path="/template" element={<EditTemplate user={user} />} />
           <Route path="/history" element={<VersionHistory />} />
-          <Route path="/compliance" element={<ComplianceTool currentPlan={currentPlan} setCurrentPlan={setCurrentPlan} />} />
+          <Route path="/compliance" element={<ComplianceTool />} />
           {user.role === 'Admin' && <Route path="/insurance" element={<InsuranceTemplates />} />}
           {user.role === 'Admin' && <Route path="/users" element={<ManageUsers user={user} />} />}
           {user.role === 'Admin' && <Route path="/activity" element={<ActivityLog />} />}

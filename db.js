@@ -179,14 +179,46 @@ db.exec(`CREATE TABLE IF NOT EXISTS insurance_template_versions (
 
 db.exec(`CREATE TABLE IF NOT EXISTS compliance_checks (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  plan_id INTEGER NOT NULL,
+  plan_id INTEGER,
+  document_name TEXT,
   template_id INTEGER,
   template_name TEXT NOT NULL,
   result_text TEXT NOT NULL,
   checked_by INTEGER NOT NULL,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (plan_id) REFERENCES plan_history(id),
   FOREIGN KEY (checked_by) REFERENCES users(id)
 )`);
+
+// Migration: add document_name column if it doesn't exist (for existing DBs)
+try {
+  db.exec(`ALTER TABLE compliance_checks ADD COLUMN document_name TEXT`);
+} catch {}
+// Migration: drop plan_id NOT NULL constraint — SQLite doesn't support ALTER COLUMN,
+// so we recreate the table only if it still has the old NOT NULL schema.
+try {
+  const cols = db.prepare(`PRAGMA table_info(compliance_checks)`).all();
+  const planIdCol = cols.find(c => c.name === 'plan_id');
+  if (planIdCol && planIdCol.notnull === 1) {
+    db.exec(`
+      BEGIN;
+      ALTER TABLE compliance_checks RENAME TO compliance_checks_old;
+      CREATE TABLE compliance_checks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        plan_id INTEGER,
+        document_name TEXT,
+        template_id INTEGER,
+        template_name TEXT NOT NULL,
+        result_text TEXT NOT NULL,
+        checked_by INTEGER NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (checked_by) REFERENCES users(id)
+      );
+      INSERT INTO compliance_checks (id, plan_id, template_id, template_name, result_text, checked_by, created_at)
+        SELECT id, plan_id, template_id, template_name, result_text, checked_by, created_at FROM compliance_checks_old;
+      DROP TABLE compliance_checks_old;
+      COMMIT;
+    `);
+  }
+} catch {}
 
 module.exports = db;

@@ -480,18 +480,33 @@ export async function deleteInsuranceTemplate(id) {
 
 // ---- COMPLIANCE CHECKS ----
 
-export async function getComplianceChecks(plan_id) {
-  const res = await apiFetch(`${BASE_URL}/api/compliance/checks/${plan_id}`, { headers: authHeaders() });
+export async function extractCompliancePlan(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+  const headers = authHeaders();
+  delete headers['Content-Type']; // let browser set multipart boundary
+  const res = await fetch(`${BASE_URL}/api/compliance/extract`, {
+    method: 'POST',
+    headers,
+    body: formData,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to extract plan text');
+  return data; // { text, filename, chars }
+}
+
+export async function getComplianceChecks() {
+  const res = await apiFetch(`${BASE_URL}/api/compliance/checks`, { headers: authHeaders() });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'Failed to get compliance checks');
   return data;
 }
 
-export async function sendComplianceChatMessage(plan_id, check_result, messages, onChunk) {
-  const res = await fetch(`${BASE_URL}/api/compliance/chat/${plan_id}`, {
+export async function sendComplianceChatMessage(check_result, messages, document_name, onChunk) {
+  const res = await fetch(`${BASE_URL}/api/compliance/chat`, {
     method: 'POST',
     headers: authHeaders(),
-    body: JSON.stringify({ check_result, messages }),
+    body: JSON.stringify({ check_result, messages, document_name }),
   });
   if (!res.ok) {
     const data = await res.json();
@@ -518,11 +533,11 @@ export async function sendComplianceChatMessage(plan_id, check_result, messages,
   }
 }
 
-export async function runComplianceCheck(plan_id, template_id, onChunk) {
-  const res = await fetch(`${BASE_URL}/api/compliance/check/${plan_id}`, {
+export async function runComplianceCheck(plan_text, template_id, document_name, onChunk) {
+  const res = await fetch(`${BASE_URL}/api/compliance/check`, {
     method: 'POST',
     headers: authHeaders(),
-    body: JSON.stringify({ template_id }),
+    body: JSON.stringify({ plan_text, template_id, document_name }),
   });
   if (!res.ok) {
     const data = await res.json();
