@@ -544,7 +544,7 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
     const extractGoalNumbers = (s3aText, s3bText) => {
       const lines = [];
       for (const line of (s3aText + '\n' + s3bText).split('\n')) {
-        const m = line.match(/^[\s|]*(\d+)\.\s+(?:\*\*)?(?:\(FERB\)\s+)?(?:\*\*)?Goal Statement:\**\s*\|?\s*(.+?)(?:\s*\|)?\s*$/i);
+        const m = line.match(/(\d+)\.\s+(?:\*\*)?(?:\(FERB\)\s+)?(?:\*\*)?Goal Statement:\**\s*\|?\s*(.+?)(?:\s*\|)?\s*$/i);
         if (m) lines.push(`${m[1]}. Goal Statement: ${m[2].trim()}`);
       }
       console.log(`[generate] Extracted ${lines.length} goal statements for BIP context`);
@@ -600,7 +600,7 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
 
     // Count goals across all goal sections (S3A + S3B + S3C) after all are complete.
     // Handles both pipe-table format "| N. Goal Statement: |" and bold "N. **Goal Statement:**"
-    const GOAL_LINE_RE = /^[\s|]*\d+\.\s+(?:\*\*)?(?:\(FERB\)\s+)?(?:\*\*)?Goal Statement:/i;
+    const GOAL_LINE_RE = /(\d+)\.\s+(?:\*\*)?(?:\(FERB\)\s+)?(?:\*\*)?Goal Statement:/i;
     const goalCount = (s3aText + '\n' + s3bText + '\n' + s3cText)
       .split('\n')
       .filter(line => GOAL_LINE_RE.test(line))
@@ -1468,7 +1468,7 @@ app.post('/api/chat/:plan_id/regenerate', authMiddleware, async (req, res) => {
       console.log(`[regenerate] done. stop_reason=${msg.stop_reason} output=${revisedText.length.toLocaleString()} chars (${revisedText.split('\n').length} lines)`);
 
       // Count goals — same regex as generate route, handles pipe-table and bold formats
-      const REGEN_GOAL_LINE_RE = /^[\s|]*\d+\.\s+(?:\*\*)?(?:\(FERB\)\s+)?(?:\*\*)?Goal Statement:/i;
+      const REGEN_GOAL_LINE_RE = /(\d+)\.\s+(?:\*\*)?(?:\(FERB\)\s+)?(?:\*\*)?Goal Statement:/i;
       const regenGoalCount = revisedText
         .split('\n')
         .filter(line => REGEN_GOAL_LINE_RE.test(line))
