@@ -510,12 +510,14 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
     const activePrompt = db.prepare('SELECT * FROM prompt_versions WHERE is_active = 1').get();
     const systemPrompt = activePrompt ? activePrompt.text : 'You are an ABA treatment plan generator.';
 
-    // Client name
+    // Client name — prefer the structured form field; fall back to notes parsing.
+    // The fallback regex requires an explicit "client" or "child" qualifier so it
+    // never accidentally matches "Mother's name:", "Parent name:", etc.
     let clientName = 'Unknown';
     if (clientInfo?.client_full_name) {
       clientName = clientInfo.client_full_name;
     } else {
-      const nameMatch = notes.match(/(?:client|name)\s*:\s*([^\n,]+)/i);
+      const nameMatch = notes.match(/(?:client(?:'?s)?(?:\s+(?:full\s+)?name)?|child(?:'?s)?(?:\s+name)?)\s*:\s*([^\n,]+)/i);
       if (nameMatch) clientName = nameMatch[1].trim();
     }
 
