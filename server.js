@@ -336,6 +336,12 @@ Label goals that serve as functionally equivalent replacement behaviors with (FE
 
 MASTERY CRITERIA: FERB goals = 90%. Non-FERB goals = 80%. No exceptions.
 
+DSM-5 CRITERION RULE FOR MEDICAL NECESSITY RATIONALE:
+- Language/Communication goals → ALWAYS cite Criterion A: Persistent deficits in social communication and social interaction
+- Social goals → ALWAYS cite Criterion A: Persistent deficits in social communication and social interaction
+- Social domain goals (making friends, interest in peers, social approach, sharing play, joint attention, social reciprocity) MUST NEVER cite Criterion B. Social deficits are Criterion A without exception.
+- Goals targeting restricted/repetitive behaviors (stereotypy, insistence on sameness, sensory seeking) → cite Criterion B: Restricted, repetitive patterns of behavior, interests, or activities
+
 Write every goal in full. STOP after the last Social goal. Do NOT write Adaptive goals, BIPs, behavior reduction, or any later sections.`,
   },
 
@@ -354,6 +360,11 @@ Do NOT include hygiene, dressing, or toileting as skill acquisition goals — in
 Label goals that serve as functionally equivalent replacement behaviors with (FERB) prefix. FERB goals use 90% mastery criteria. Non-FERB goals use 80% mastery criteria.
 
 MASTERY CRITERIA: FERB goals = 90%. Non-FERB goals = 80%. No exceptions.
+
+DSM-5 CRITERION RULE FOR MEDICAL NECESSITY RATIONALE:
+- Adaptive/Self-Care goals may cite Criterion A or Criterion B depending on the specific goal — use clinical judgment based on whether the deficit is primarily communicative/social (Criterion A) or related to restricted/inflexible patterns (Criterion B)
+- Goals targeting restricted/repetitive behaviors (stereotypy, insistence on sameness, sensory seeking) → cite Criterion B: Restricted, repetitive patterns of behavior, interests, or activities
+- Social domain goals MUST NEVER cite Criterion B. Social deficits are Criterion A without exception.
 
 Write every goal completely. STOP after the last Adaptive goal. Do NOT write behavior reduction goals, parent training goals, BIPs, or any later sections.`,
   },
@@ -394,9 +405,11 @@ Generate sections 19 through 26 in order. Do not write skill acquisition goals, 
     - Post-Crisis Procedures cell: '[POST_CRISIS_PROCEDURES]'
 
 22. Recommendations for ABA Services:
-    - Medical necessity cell: '[MEDICAL_NECESSITY_LANGUAGE]'
-    - CPT codes table (CPT Code | Number of Hours Requested | Total Units | Place of Service) — calculate Total Units as hours/week × 26 weeks × 4, show calculation inline; include 97151, 97153, 97155-GT, 97156-GT/U2
-    - Anticipated Schedule table reflecting caregiver availability from BCBA notes, matching total hours to requested dosage
+    - Write the participant-specific Medical Necessity Rationale paragraph (reference actual Vineland scores, VB-MAPP scores, specific challenging behaviors, and justify intensity and location for THIS client — do NOT use generic boilerplate)
+    - Write the Supervision Ratio Medical Necessity Justification paragraph: calculate 97155 hours ÷ 97153 hours, state the ratio explicitly, cite the client's specific behaviors and clinical complexity, and explain why this supervision level is appropriate for this client
+    - CPT codes table (CPT Code | Number of Hours Requested | Total Units | Time Period | Place of Service) — calculate Total Units as hours/week × 26 weeks × 4, show calculation inline; include 97151, 97153, 97155-GT, 97156-GT/U2; for Time Period use checkboxes: ☑ per week ☐ per month ☐ per auth
+    - If any CPT code uses the GT modifier, add a Telehealth Service Delivery Documentation paragraph stating the in-person vs telehealth percentage split for each GT code, and state: "Per PT 60-26 effective April 1, 2026, a minimum of 25% of 97155, 97156, and 97157 services will be rendered in-person."
+    - Anticipated Schedule grid with columns: Code | Sunday | Monday | Tuesday | Wednesday | Thursday | Friday | Saturday. Include one row for EACH CPT code being requested (97153, 97155, 97156 at minimum). Use "—" for days with no service for that code. Ensure row totals match the requested weekly hours.
 
 23. Provider Information table (Provider Name, Credentials, Signature, Date, NPI). Attestation cell: '[ATTESTATION_LANGUAGE]'. Clinical Reviewer table with signature line.
 
@@ -440,6 +453,8 @@ Write BIPs in this order:
 CRITICAL: Every goal labeled (FERB) in the skill acquisition section MUST be referenced in at least one BIP's Functionally Equivalent Replacement Behaviors row. After writing all BIPs, verify that every FERB goal number appears in at least one BIP. If a FERB goal is not referenced, add it to the BIP whose function it replaces.
 
 ## Section 17: Behavior Reduction Goals
+
+CRITICAL — ONE GOAL PER BEHAVIOR: Every target behavior listed in any BIP MUST have its own corresponding behavior reduction goal. Count the target behaviors across all BIPs and write exactly that many behavior reduction goals — one per behavior, no more, no less. Do NOT combine multiple behaviors into a single reduction goal. Do NOT skip any behavior. If the BIPs list 5 target behaviors (e.g., Tantrum, SIB, Aggression, Screaming, Throwing), there must be exactly 5 behavior reduction goals.
 
 Start numbering at Goal ${nextGoalNum}. Write one goal per target behavior identified in the BCBA notes using this format:
 | Medical Necessity Rationale: | Core Deficit of ASD Addressed: A. ... B. ... |
