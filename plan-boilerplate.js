@@ -37,7 +37,18 @@ const DISCHARGE_CRITERIA = `Discharge will be considered when:
 - If we are not able to reconcile important issues in treatment planning and service delivery.
 
 Discharge planning will be a part of regular treatment planning that occurs throughout the course of treatment and will involve all members of the treatment team. Upon discharge, a report including recommendations for continuity of care will be provided.
-Anticipated Discharge Date from All Star ABA: To be determined`;
+Anticipated Discharge Date from All Star ABA: To be determined
+
+How the Family Can Contact the Provider After Discharge:
+Following discharge, the family may contact All Star ABA with any questions or concerns at any time. Phone: 410-541-1316. Office: 1777 Reisterstown Road, Pikesville, MD 21208. A discharge summary report with recommendations for continuity of care will be provided to the family at the time of discharge.
+
+Community Resources Available to the Family:
+- Autism Society of Maryland: autism-society.org/chapters/maryland | 410-655-7933
+- The Arc of Maryland: thearcmd.org | advocacy and support for individuals with intellectual and developmental disabilities
+- Maryland Developmental Disabilities Administration (DDA): dda.health.maryland.gov | community-based waiver services and supports
+- Kennedy Krieger Institute Community Programs: kennedykrieger.org | specialized outpatient and community support services
+- Maryland's Children's Behavioral Health: mbhp.com | behavioral health resources and care coordination
+- Local recreational and social skills programs for individuals with ASD — contact your school district's Special Education office for referrals to community-based social skills groups and recreational programs`;
 
 const POST_CRISIS = `- Contact clinical supervisor as soon as feasible.
 - Submit a completed Incident Report within 24 hours.
@@ -47,6 +58,13 @@ const POST_CRISIS = `- Contact clinical supervisor as soon as feasible.
 - Update Behavior Intervention Plan (BIP) and crisis plan accordingly.`;
 
 const FADING_INTRO = `All Star ABA wishes to support clients through any possible transitions that may occur during treatment (e.g., transition to summer programming, change of schools/grades/academic programming, change of address, family dynamic changes, etc.). Transition planning will be a part of regular treatment planning that occurs throughout the course of treatment and will involve all members of the treatment team.`;
+
+const DIAGNOSIS_SECTION = `| Diagnosis | |
+| ICD-10 Code: | [TO BE COMPLETED BY BCBA] |
+| Date of Diagnosis: | [TO BE COMPLETED BY BCBA] |
+| Diagnosing Professional — Name: | [TO BE COMPLETED BY BCBA] |
+| Diagnosing Professional — Title: | [TO BE COMPLETED BY BCBA] |
+| Diagnosing Professional — Credentials: | [TO BE COMPLETED BY BCBA] |`;
 
 const COORDINATION_CARE = `Coordination of care will involve the deliberate organization of patient care activities between All Star ABA and other members involved in the patient's care to facilitate appropriate health care services. All Star ABA requested consent to coordinate care with all members of the care team, as indicated below. Written consent will be obtained prior to sharing information with other health care providers and all HIPAA regulations will be adhered to at all times.`;
 
@@ -123,6 +141,7 @@ function injectBoilerplate(text, clientName = '', bcbaName = '[BCBA NAME]', asse
     .replace(/\[STANDARD_MAINTENANCE_STEPS\]/g, MAINTENANCE_STEPS)
     .replace(/\[DATA_COLLECTION_LANGUAGE\]/g,
       DATA_COLLECTION_TEMPLATE.replace(/%%CLIENT%%/g, clientPossessive))
+    .replace(/\[DIAGNOSIS_SECTION\]/g, DIAGNOSIS_SECTION)
     .replace(/\[DISCHARGE_CRITERIA\]/g, DISCHARGE_CRITERIA)
     .replace(/\[POST_CRISIS_PROCEDURES\]/g, POST_CRISIS)
     .replace(/\[FADING_PLAN_INTRO\]/g, FADING_INTRO)

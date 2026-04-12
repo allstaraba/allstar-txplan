@@ -20,12 +20,12 @@ Several sections use fixed boilerplate text that is automatically injected after
 - `[STANDARD_GENERALIZATION_STEPS]` — 6-step generalization protocol
 - `[STANDARD_MAINTENANCE_STEPS]` — 4-step maintenance protocol
 - `[DATA_COLLECTION_LANGUAGE]` — data collection standard paragraph
-- `[DISCHARGE_CRITERIA]` — discharge criteria list and closing paragraphs
+- `[DIAGNOSIS_SECTION]` — diagnosis table with ICD-10, date of diagnosis, and diagnosing professional fields
+- `[DISCHARGE_CRITERIA]` — discharge criteria list and closing paragraphs (you must also add client-specific expanded content after this marker — see DISCHARGE CRITERIA RULES)
 - `[POST_CRISIS_PROCEDURES]` — post-crisis procedure bullets
 - `[FADING_PLAN_INTRO]` — transition planning intro paragraph
 - `[COORDINATION_CARE_LANGUAGE]` — coordination of care paragraph
 - `[COORDINATION_NOTES_LANGUAGE]` — coordination notes paragraph
-- `[MEDICAL_NECESSITY_LANGUAGE]` — medical necessity paragraph
 - `[ATTESTATION_LANGUAGE]` — attestation text
 - `[CONSENT_LANGUAGE]` — consent paragraph
 - `[TELEHEALTH_CHECKLIST]` — full Maryland Medicaid Telehealth Readiness Checklist
@@ -58,30 +58,43 @@ Several sections use fixed boilerplate text that is automatically injected after
 
 1. "ABA Treatment Plan" title header
 2. ☐ Review checkbox: "☐ I reviewed the ABA treatment plan requirements before submitting this report."
-3. Client Information table (Name, DOB, Assessment Date, Reassessment Date, Guardian Contact)
-4. Biopsychosocial Information — Current Family Structure table (including Environmental Factors and Safety Concerns rows), Medications table, Medical History table (including Birth History), School Placement table
-5. History of ABA Services table
-6. Other Mental Health Services and Other Services tables
-7. Coordination of Care — write `[COORDINATION_CARE_LANGUAGE]` in the bordered text cell, then provider table. Write `[COORDINATION_NOTES_LANGUAGE]` in the coordination notes cell.
-8. Major Life Changes table
-9. Narrative section — Direct Observation table, then Clinical Narrative with domain sub-headers: Communication, Social, Adaptive/Safety Skills, Challenging Behaviors
-10. Strengths/Challenges/Severity Level — 2-column table, four domain rows
-11. Standardized Assessment — Vineland-3 (see VINELAND SECTION RULES)
-12. Criterion-Referenced Assessment — VB-MAPP or ABLLS-R (see CRITERION ASSESSMENT RULES)
-13. Goal Objective Summary table
-14. Response to Treatment/Authorization Summary (N/A for initial plans)
-15. Skill Acquisition Goals — organized by domain (see SKILL ACQUISITION LAYOUT)
-16. Behavior Intervention Plans — organized by FUNCTION (see BIP RULES)
-17. Behavior Reduction Goals — each in its own goal table, using count targets
-18. Parent or Caregiver Training — always 2+ goals, each in its own goal table
-19. Generalization Plan — see GENERALIZATION LAYOUT
-20. Transition and Fading Plan — see FADING PLAN LAYOUT
-21. Discharge Criteria — write `[DISCHARGE_CRITERIA]` in the discharge cell
-22. Crisis Plan — see CRISIS PLAN LAYOUT
-23. Recommendations for ABA Services — write `[MEDICAL_NECESSITY_LANGUAGE]` then CPT codes table
-24. Provider Information table + write `[ATTESTATION_LANGUAGE]` + Clinical Reviewer table
-25. Consent — write `[CONSENT_LANGUAGE]` followed by exactly three signature lines
-26. Maryland Medicaid Telehealth Readiness Checklist — write `[TELEHEALTH_CHECKLIST]`
+3. Client Information table — must include ALL of the following rows:
+   - Name
+   - Date of Birth
+   - **Age: Calculate from the DOB and state explicitly as "X years, X months" (e.g., "Age: 5 years, 3 months"). Do not leave this blank or write just a date.**
+   - Medicaid ID: [TO BE COMPLETED BY BCBA]
+   - Service Address: [TO BE COMPLETED BY BCBA]
+   - Current Report Date: [TO BE COMPLETED BY BCBA]
+   - Assessor: Name: [TO BE COMPLETED BY BCBA] | Title: [TO BE COMPLETED BY BCBA] | Credentials: [TO BE COMPLETED BY BCBA]
+   - Assessment Date
+   - Reassessment Date
+   - Guardian Contact (phone number)
+   - Guardian Email: (include if stated in notes, otherwise write [TO BE COMPLETED BY BCBA])
+4. Diagnosis section — write `[DIAGNOSIS_SECTION]` immediately after the Client Information table.
+5. Biopsychosocial Information — Current Family Structure table (including Environmental Factors and Safety Concerns rows), Medications table, Medical History table (including Birth History), School Placement table
+6. History of ABA Services table
+7. Other Mental Health Services and Other Services tables
+8. Coordination of Care — write `[COORDINATION_CARE_LANGUAGE]` in the bordered text cell, then the provider table. Write `[COORDINATION_NOTES_LANGUAGE]` in the coordination notes cell. **See COORDINATION OF CARE RULES below.**
+9. Major Life Changes table
+10. Narrative section — Direct Observation table, then Clinical Narrative with domain sub-headers: Communication, Social, Adaptive/Safety Skills, Challenging Behaviors
+11. Strengths/Challenges/Severity Level — 2-column table, four domain rows
+12. Standardized Assessment — Vineland-3 (see VINELAND SECTION RULES)
+13. Criterion-Referenced Assessment — VB-MAPP or ABLLS-R (see CRITERION ASSESSMENT RULES)
+14. Current Problem Areas / Skills Deficits — see CURRENT PROBLEM AREAS RULES below (insert between Criterion Assessment and Goal Objective Summary)
+15. Goal Objective Summary table
+16. Response to Treatment/Authorization Summary (N/A for initial plans)
+17. Skill Acquisition Goals — organized by domain (see SKILL ACQUISITION LAYOUT)
+18. Behavior Intervention Plans — organized by FUNCTION (see BIP RULES)
+19. Behavior Reduction Goals — each in its own goal table, using count targets
+20. Parent or Caregiver Training — always 2+ goals, each in its own goal table
+21. Generalization Plan — see GENERALIZATION LAYOUT
+22. Transition and Fading Plan — see FADING PLAN LAYOUT
+23. Discharge Criteria — write `[DISCHARGE_CRITERIA]` in the discharge cell. **See DISCHARGE CRITERIA RULES below for additional required content.**
+24. Crisis Plan — see CRISIS PLAN LAYOUT
+25. Recommendations for ABA Services — write the participant-specific Medical Necessity rationale paragraph (see MEDICAL NECESSITY RULES), then CPT codes table (see CPT CODE FORMAT & SCHEDULE RULES)
+26. Provider Information table + write `[ATTESTATION_LANGUAGE]` + Clinical Reviewer table
+27. Consent — write `[CONSENT_LANGUAGE]` followed by exactly three signature lines
+28. Maryland Medicaid Telehealth Readiness Checklist — write `[TELEHEALTH_CHECKLIST]`
 
 ---
 
@@ -272,13 +285,106 @@ In the post-crisis procedures cell, write only: `[POST_CRISIS_PROCEDURES]`
 
 ---
 
+## COORDINATION OF CARE RULES
+
+Scan the ENTIRE input notes — every sentence — for any mention of a provider, doctor, therapist, specialist, or service. This includes but is not limited to: PCP, pediatrician, psychiatrist, psychologist, occupational therapist (OT), speech-language pathologist (SLP), special instructor, developmental pediatrician, neurologist, physical therapist, school-based services, or any named clinician. Include EVERY provider found in the Coordination of Care table. Do not omit any provider mentioned in the notes.
+
+For each provider in the table, include a note column stating one of:
+- "Communication has occurred — [brief description of what was shared/discussed]"
+- "Communication is planned for [timeframe, e.g., within this authorization period]"
+- "Family declined coordination with this provider"
+
+If a provider is mentioned but no coordination detail is given in the notes, write "Communication is planned within this authorization period."
+
+---
+
+## CURRENT PROBLEM AREAS / SKILLS DEFICITS RULES
+
+Immediately after the Criterion-Referenced Assessment (VB-MAPP or ABLLS-R) and before the Goal Objective Summary, insert a dedicated "Current Problem Areas / Skills Deficits" section in a bordered table. This section is required for Carelon (Beacon Health Options) compliance.
+
+Address ALL ELEVEN of the following skill areas. For each area, write 1–3 sentences describing the client's current deficit based on the assessment data. If no deficit exists in an area, write "Within normal limits" or "Further assessment required" as appropriate. Do NOT skip or omit any area.
+
+The eleven required areas are:
+(a) Cognitive/Pre-academic Skills — attention, memory, concept formation, pre-academic readiness
+(b) Language/Communication Skills — receptive, expressive, functional communication, AAC use
+(c) Reduction of Interfering Behaviors — frequency, intensity, and function of maladaptive behaviors
+(d) Severe Behavior — aggression, SIB, elopement, property destruction (if applicable; if not, state "Not identified at this time")
+(e) Safety Skills — awareness of danger, response to safety cues, unsafe behavior (e.g., elopement, mouthing objects)
+(f) Social Skills — peer interaction, turn taking, joint attention, social reciprocity
+(g) Play and Leisure — functional play, independent leisure, play with peers
+(h) Independent Living/Self-Help — dressing, hygiene, toileting, feeding, daily living skills
+(i) Community Integration — behavior in public settings, community safety, following rules outside the home
+(j) Coping and Tolerance — response to change, frustration tolerance, transitions, sensory regulation
+(k) Other — any additional clinically significant deficit not captured above (or write "No additional deficits identified")
+
+---
+
+## DISCHARGE CRITERIA RULES
+
+The Discharge Criteria section uses the `[DISCHARGE_CRITERIA]` boilerplate marker for the standard list. After the marker, you MUST also add a client-specific table or paragraph addressing ALL FOUR of the following — generate these based on the client's specific profile:
+
+(a) **Anticipated Next Level of Care after Discharge:** Based on the client's current severity and trajectory, describe the anticipated next level of care (e.g., less intensive outpatient ABA, school-based services, parent training only, no further ABA needed, etc.).
+
+(b) **Linkages with Other Services:** Identify specific services the family can transition to after discharge — school IEP services, community mental health, speech/language services, OT, social skills groups, etc. Name specific types of resources relevant to this client.
+
+(c) **How the Family Can Contact the Provider After Discharge:** State that the family may contact All Star ABA at 410-541-1316 or at the office address (1777 Reisterstown Road, Pikesville, MD 21208) with any questions or concerns following discharge.
+
+(d) **Community Resources Available to the Family:** List relevant Maryland community resources such as the Autism Society of Maryland (autism-society.org/chapters/maryland), The Arc of Maryland, Maryland Developmental Disabilities Administration (DDA), Kennedy Krieger Institute community programs, local recreational/social skills programs for individuals with ASD, and any other relevant resources for this client's profile.
+
+---
+
+## MEDICAL NECESSITY RULES
+
+Do NOT use the `[MEDICAL_NECESSITY_LANGUAGE]` boilerplate marker. Instead, write a PARTICIPANT-SPECIFIC medical necessity rationale paragraph that is individualized to THIS client. The paragraph must:
+
+1. Reference the client's SPECIFIC Vineland-3 scores by domain (e.g., "Communication Domain SS: X, ABC: Y") and what they indicate about functional impairment
+2. Reference the client's SPECIFIC VB-MAPP or ABLLS-R level/scores and what skill deficits they document
+3. Name the client's SPECIFIC challenging behaviors by topography and note their frequency, intensity, or impact on daily functioning
+4. Explicitly state why the requested service INTENSITY (hours per week) is medically necessary for THIS client — connect hours to severity, number of deficit areas, and behavioral complexity
+5. Explicitly state why the requested LOCATION(S) of service (home, clinic, school, community) are appropriate for THIS client's needs
+6. Reference the 11 Carelon skill areas that are impaired for this client specifically
+
+Follow the participant-specific paragraph with the CPT codes table.
+
+---
+
 ## CPT CODE FORMAT & SCHEDULE RULES
 
-CPT codes table: CPT Code | Number of Hours Requested | Total Units | Place of Service. Unit calculation: 1 hour = 4 units. Total Units = Hours per week × 26 weeks × 4. Show the calculation (e.g., "2,080 (20 hrs/wk × 26 wks × 4)").
+### CPT Codes Table
+Format: CPT Code | Number of Hours Requested | Total Units | **Time Period** | Place of Service
+
+Unit calculation: 1 hour = 4 units. Total Units = Hours per week × 26 weeks × 4. Show the calculation (e.g., "2,080 (20 hrs/wk × 26 wks × 4)").
+
+**Time Period column:** For each code row, include checkboxes as follows and check the appropriate one:
+☑ per week ☐ per month ☐ per auth
+(Standard for all codes is "per week" unless otherwise specified in the notes.)
 
 Always include: 97151, 97153, 97155-GT, 97156-GT/U2.
 
-Anticipated Schedule table must reflect actual caregiver availability while ensuring total weekly hours match the requested treatment dosage.
+### Anticipated Schedule
+Generate the Anticipated Schedule as a **day-by-day grid** with a row for EVERY CPT code being requested. Format:
+
+| CPT Code | Sunday | Monday | Tuesday | Wednesday | Thursday | Friday | Saturday |
+|---|---|---|---|---|---|---|---|
+| 97153 | [hrs or —] | [hrs or —] | ... | ... | ... | ... | [hrs or —] |
+| 97155 | [hrs or —] | [hrs or —] | ... | ... | ... | ... | [hrs or —] |
+| 97156 | [hrs or —] | [hrs or —] | ... | ... | ... | ... | [hrs or —] |
+
+Include a row for EVERY CPT code in the plan (97153, 97155, 97156 at minimum; add 97151, 97157 rows if applicable). Use "—" for days with no service. Ensure daily totals across all codes are consistent with the requested weekly hours. Reflect actual caregiver availability from the notes.
+
+### Supervision Ratio Justification
+Calculate the supervision ratio: 97155 hours ÷ 97153 hours. If this ratio is 15% or higher, you MUST include a dedicated "Supervision Ratio Medical Necessity Justification" paragraph immediately before the CPT codes table. This paragraph must:
+- State the supervision ratio explicitly (e.g., "The supervision ratio for this client is X%")
+- Cite the client's SPECIFIC behaviors, clinical complexity, skill deficit profile, and/or caregiver training needs that make this level of supervision medically necessary
+- Reference the client's severity level and any safety-critical behaviors that require more frequent BCBA oversight
+- Explain why a lower supervision ratio would be clinically insufficient for this client
+
+### Telehealth Split Documentation
+When ANY CPT code uses the GT modifier (telehealth), you MUST include a "Telehealth Service Delivery Documentation" paragraph immediately following the CPT codes table. This paragraph must:
+- Explicitly state the anticipated percentage split between in-person and telehealth for EACH code that uses the GT modifier
+- State: "Per PT 60-26 effective April 1, 2026, a minimum of 25% of 97155, 97156, and 97157 services will be rendered in-person."
+- Document that the in-person percentage for each applicable code meets or exceeds this 25% minimum
+- Example format: "97155-GT: Anticipated delivery is [X]% in-person and [Y]% via telehealth. 97156-GT: Anticipated delivery is [X]% in-person and [Y]% via telehealth."
 
 ---
 
