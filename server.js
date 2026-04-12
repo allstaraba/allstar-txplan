@@ -539,10 +539,12 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
     };
 
     // extractGoalNumbers: pull "N. Goal Statement: ..." lines from S3A+S3B output
+    // Handles both pipe-table format "| N. Goal Statement: | text |"
+    // and bold standalone format "N. **Goal Statement:** text"
     const extractGoalNumbers = (s3aText, s3bText) => {
       const lines = [];
       for (const line of (s3aText + '\n' + s3bText).split('\n')) {
-        const m = line.match(/^\s*(\d+)\.\s+\**(?:\(FERB\)\s+)?\**Goal Statement:\**\s*(.+)/i);
+        const m = line.match(/^[\s|]*(\d+)\.\s+(?:\*\*)?(?:\(FERB\)\s+)?(?:\*\*)?Goal Statement:\**\s*\|?\s*(.+?)(?:\s*\|)?\s*$/i);
         if (m) lines.push(`${m[1]}. Goal Statement: ${m[2].trim()}`);
       }
       console.log(`[generate] Extracted ${lines.length} goal statements for BIP context`);
@@ -596,10 +598,12 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
     ]);
     console.log(`[generate] S3C+S3D complete. S3C=${s3cText.length} chars, S3D=${s3dText.length} chars`);
 
-    // Count goals across all goal sections (S3A + S3B + S3C) after all are complete
+    // Count goals across all goal sections (S3A + S3B + S3C) after all are complete.
+    // Handles both pipe-table format "| N. Goal Statement: |" and bold "N. **Goal Statement:**"
+    const GOAL_LINE_RE = /^[\s|]*\d+\.\s+(?:\*\*)?(?:\(FERB\)\s+)?(?:\*\*)?Goal Statement:/i;
     const goalCount = (s3aText + '\n' + s3bText + '\n' + s3cText)
       .split('\n')
-      .filter(line => /^\s*\d+\.\s+\**(?:\(FERB\)\s+)?\**Goal Statement:/i.test(line))
+      .filter(line => GOAL_LINE_RE.test(line))
       .length;
     console.log(`[generate] Goal count for summary table: ${goalCount}`);
     console.log('[generate] GOAL DEBUG: First 10 goal lines found in s3a+s3b+s3c:');
@@ -1463,12 +1467,15 @@ app.post('/api/chat/:plan_id/regenerate', authMiddleware, async (req, res) => {
       revisedText = stripAIPreamble(revisedText);
       console.log(`[regenerate] done. stop_reason=${msg.stop_reason} output=${revisedText.length.toLocaleString()} chars (${revisedText.split('\n').length} lines)`);
 
-      // Count goals and inject boilerplate (same as initial generate)
+      // Count goals — same regex as generate route, handles pipe-table and bold formats
+      const REGEN_GOAL_LINE_RE = /^[\s|]*\d+\.\s+(?:\*\*)?(?:\(FERB\)\s+)?(?:\*\*)?Goal Statement:/i;
       const regenGoalCount = revisedText
         .split('\n')
-        .filter(line => /^\s*\d+\.\s+\**(?:\(FERB\)\s+)?\**Goal Statement:/i.test(line))
+        .filter(line => REGEN_GOAL_LINE_RE.test(line))
         .length;
       console.log(`[regenerate] Goal count for summary table: ${regenGoalCount}`);
+      console.log('[regenerate] GOAL DEBUG: First 10 goal lines found in revisedText:');
+      revisedText.split('\n').filter(l => /Goal Statement/i.test(l)).slice(0, 10).forEach(l => console.log('  ', l.slice(0, 120)));
       const regenClientName = plan.client_name || 'Unknown';
       const regenBcbaMatch = revisedText.match(/(?:Supervising BCBA|BCBA Name)[:\s|]+([^\n\r|]+)/i);
       const regenBcbaName = regenBcbaMatch ? regenBcbaMatch[1].trim() : '[BCBA NAME]';
