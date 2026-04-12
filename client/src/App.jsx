@@ -250,6 +250,7 @@ function Layout({ user, onLogout, currentPlan, setCurrentPlan, injectedText, set
   const startGeneration = async (notes, uploadedFileIds = []) => {
     const genId = ++genCounterRef.current;
     const initEntry = { text: '', status: 'running', section: 1, total: 4, label: 'Client Info & Narrative', error: null, clientName: '' };
+    setCurrentPlan(null); // clear any previous plan so the live streaming view shows immediately
     setGeneratingPlans(prev => new Map(prev).set(genId, initEntry));
     setActiveGenId(genId);
     navigate('/review');
