@@ -130,6 +130,11 @@ Each goal is a 2-column bordered table with these rows:
 ### FERB Goals
 Mark ALL goals that serve as functionally equivalent replacement behaviors with (FERB) prefix before the goal statement text. All FERB Goals must include "90%" as the mastery criteria percentage listed in the goal statement.
 
+MASTERY CRITERIA RULE — NO EXCEPTIONS:
+- FERB goals: 90% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.
+- Non-FERB goals: 80% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.
+Never use 90% for a non-FERB goal. Never use 80% for a FERB goal.
+
 The following goal types should ALWAYS be labeled (FERB) because they replace maladaptive behaviors targeted in the BIPs:
 - Manding for preferred items/activities (replaces grabbing, tantrums, aggression to access items)
 - Manding for help (replaces tantrums, aggression when task is difficult)
