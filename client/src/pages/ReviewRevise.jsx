@@ -404,7 +404,14 @@ export default function ReviewRevise({ user, currentPlan, setCurrentPlan, inject
         <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
           {liveText
             ? renderPlanText(liveText)
-            : <span style={{ color: '#94a3b8', fontSize: '14px' }}>Waiting for Claude…</span>}
+            : generatingPlan.reconnected
+              ? <div style={{ color: '#64748b', fontSize: '14px', lineHeight: '1.6' }}>
+                  <div style={{ marginBottom: '8px', fontWeight: '600', color: '#374151' }}>Generation is running on the server.</div>
+                  <div>The connection was interrupted but the plan is still being generated. It will load automatically when complete — you do not need to do anything.</div>
+                </div>
+              : <div style={{ color: '#94a3b8', fontSize: '14px', lineHeight: '1.6' }}>
+                  <div>Sending request to Claude — this usually takes 20–30 seconds to start…</div>
+                </div>}
         </div>
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
