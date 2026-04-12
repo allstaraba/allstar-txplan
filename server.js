@@ -335,6 +335,8 @@ CRITICAL FERB RULE: At least 60% of skill acquisition goals MUST be labeled (FER
 
 SELF-CHECK: After writing all goals, count your FERBs. If fewer than 60% of skill acquisition goals are labeled (FERB), review every goal and ask: does this goal replace a behavior targeted in any BIP? If yes, add (FERB).
 
+MASTERY CRITERIA: FERB goals = 90%. Non-FERB goals = 80%. No exceptions.
+
 Write every goal in full. STOP after the last Social goal. Do NOT write Adaptive goals, BIPs, behavior reduction, or any later sections.`,
   },
 
@@ -353,6 +355,8 @@ Do NOT include hygiene, dressing, or toileting as skill acquisition goals — in
 CRITICAL FERB RULE: At least 60% of skill acquisition goals MUST be labeled (FERB). The following goal types are ALWAYS FERBs: manding for items, manding for help, manding for break, manding for attention, manding for removal of aversive, manding for personal needs, manding to peers, coping strategies, sensory replacement, transitioning, accepting alternatives/denied access, waiting/delay tolerance, responding to inhibitory no, task completion/seated attention, following instructions/compliance (when client has escape-maintained BIP), tolerating demands without maladaptive behavior, and remaining in designated area/staying seated. If your FERB count is below 60%, go back and add (FERB) to any goal that replaces a behavior targeted in the BIPs.
 
 SELF-CHECK: After writing all goals, count your FERBs. If fewer than 60% of skill acquisition goals are labeled (FERB), review every goal and ask: does this goal replace a behavior targeted in any BIP? If yes, add (FERB).
+
+MASTERY CRITERIA: FERB goals = 90%. Non-FERB goals = 80%. No exceptions.
 
 Write every goal completely. STOP after the last Adaptive goal. Do NOT write behavior reduction goals, parent training goals, BIPs, or any later sections.`,
   },
