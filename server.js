@@ -542,7 +542,7 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
     const extractGoalNumbers = (s3aText, s3bText) => {
       const lines = [];
       for (const line of (s3aText + '\n' + s3bText).split('\n')) {
-        const m = line.match(/^\s*\|?\s*(\d+)\.\s+Goal Statement:\s*\|?\s*(.+)/);
+        const m = line.match(/^\s*(\d+)\.\s+\**(?:\(FERB\)\s+)?\**Goal Statement:\**\s*(.+)/i);
         if (m) lines.push(`${m[1]}. Goal Statement: ${m[2].trim()}`);
       }
       console.log(`[generate] Extracted ${lines.length} goal statements for BIP context`);
@@ -599,7 +599,7 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
     // Count goals across all goal sections (S3A + S3B + S3C) after all are complete
     const goalCount = (s3aText + '\n' + s3bText + '\n' + s3cText)
       .split('\n')
-      .filter(line => /^\s*\|?\s*\d+\.\s+Goal Statement:/i.test(line))
+      .filter(line => /^\s*\d+\.\s+\**(?:\(FERB\)\s+)?\**Goal Statement:/i.test(line))
       .length;
     console.log(`[generate] Goal count for summary table: ${goalCount}`);
 
