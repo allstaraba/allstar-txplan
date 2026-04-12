@@ -606,7 +606,9 @@ export default function ReviewRevise({ user, currentPlan, setCurrentPlan, inject
               ))}
             </select>
             {regenerating && (
-              <span style={{ fontSize: '12px', color: '#2563eb', fontStyle: 'italic' }}>Regenerating plan…</span>
+              <span style={{ fontSize: '12px', color: '#2563eb', fontStyle: 'italic' }}>
+                Regenerating plan…{streamingPlanText.length > 0 && ` · ${streamingPlanText.length.toLocaleString()} chars`}
+              </span>
             )}
             <span style={{ marginLeft: 'auto', fontSize: '12px', color: '#94a3b8' }}>
               {revisions.length} revision{revisions.length !== 1 ? 's' : ''}
