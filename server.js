@@ -14,6 +14,7 @@ const { Packer } = require('docx');
 const { buildDocx } = require('./docx-builder');
 const XLSX = require('xlsx');
 const { injectBoilerplate } = require('./plan-boilerplate');
+const { REAUTH_SYSTEM_PROMPT } = require('./reauth-prompt');
 const { runBackup, latestBackup, BACKUP_DIR } = require('./backup');
 const db = require('./db');
 
@@ -1282,6 +1283,110 @@ app.put('/api/clients/:id/auth-periods/:period_id', authMiddleware, (req, res) =
   }
 });
 
+// POST /api/clients/:id/auth-periods/:period_id/start-reauth
+app.post('/api/clients/:id/auth-periods/:period_id/start-reauth', authMiddleware, async (req, res) => {
+  try {
+    const planId = req.params.id;
+    const periodId = req.params.period_id;
+
+    // Validate the period
+    const period = db.prepare('SELECT * FROM authorization_periods WHERE id=? AND plan_id=?').get(periodId, planId);
+    if (!period) return res.status(404).json({ error: 'Period not found' });
+    if (period.period_type !== 'reauth') return res.status(400).json({ error: 'This period is not a reauth period' });
+    if (period.status !== 'active') return res.status(400).json({ error: 'Period is not active' });
+
+    // Get client info from plan_history
+    const plan = db.prepare('SELECT * FROM plan_history WHERE id=?').get(planId);
+    if (!plan) return res.status(404).json({ error: 'Client plan not found' });
+
+    // Get previous plan's latest revision
+    const latestRevision = db.prepare(
+      'SELECT * FROM plan_revisions WHERE plan_id=? ORDER BY revision_number DESC LIMIT 1'
+    ).get(planId);
+    const previousPlanText = latestRevision ? latestRevision.text : '';
+
+    // Extract goals from previous plan using the same regex as generate route
+    const goalLines = previousPlanText.split('\n')
+      .filter(line => /^\s*\d+\.\s+\**(?:\(FERB\)\s+)?\**Goal Statement:/i.test(line));
+    const goalCount = goalLines.length;
+    const goalSummary = goalLines.length > 0
+      ? goalLines.join('\n')
+      : 'No goals found in previous plan.';
+
+    // Get documents tagged to this reauth period
+    const periodDocs = db.prepare(
+      'SELECT * FROM client_documents WHERE plan_id=? AND authorization_period_id=?'
+    ).all(planId, periodId);
+
+    // Extract text from each document
+    const docTexts = [];
+    for (const doc of periodDocs) {
+      try {
+        const filePath = path.join(UPLOADS_DIR, 'clients', planId, doc.filename);
+        const buffer = fs.readFileSync(filePath);
+        const ext = path.extname(doc.original_name).toLowerCase();
+        const isPDF = buffer[0] === 0x25 && buffer[1] === 0x50 && buffer[2] === 0x44 && buffer[3] === 0x46;
+        let text = '';
+        if (isPDF) { const data = await pdfParse(buffer); text = data.text; }
+        else if (ext === '.docx') { const r = await mammoth.extractRawText({ buffer }); text = r.value; }
+        else { text = buffer.toString('utf8'); }
+        docTexts.push(`--- ${doc.original_name} ---\n${text.trim()}`);
+      } catch (e) {
+        docTexts.push(`--- ${doc.original_name} --- [Error extracting: ${e.message}]`);
+      }
+    }
+
+    // Build the reauth context stored as original_notes
+    const reauthContext = [
+      `=== PREVIOUS TREATMENT PLAN GOALS (${goalCount} goal${goalCount !== 1 ? 's' : ''}) ===`,
+      goalSummary,
+      '',
+      `=== NEW ASSESSMENT DOCUMENTS (${docTexts.length} file${docTexts.length !== 1 ? 's' : ''}) ===`,
+      docTexts.length > 0 ? docTexts.join('\n\n') : 'No documents uploaded for this reauth period.',
+    ].join('\n');
+
+    // Create a new plan_history entry for this reauth session
+    const insertResult = db.prepare(
+      'INSERT INTO plan_history (user_id, client_name, original_notes, plan_type) VALUES (?, ?, ?, ?)'
+    ).run(req.user.id, plan.client_name, reauthContext, 'reauth');
+    const reauthPlanId = insertResult.lastInsertRowid;
+
+    // Save the previous plan as revision 0 so ReviewRevise has content to display
+    db.prepare(
+      'INSERT INTO plan_revisions (plan_id, revision_number, text, feedback) VALUES (?, ?, ?, ?)'
+    ).run(
+      reauthPlanId,
+      0,
+      previousPlanText || '# Reauth Plan\n\nUse the chat to generate the reauthorization treatment plan.',
+      'Previous plan reference'
+    );
+
+    // Seed the chat with a pre-loaded assistant greeting
+    const greeting = `I've reviewed the previous treatment plan for **${plan.client_name}** and the reauth documents.\n\n` +
+      `**Summary:**\n` +
+      `- ${goalCount} goal${goalCount !== 1 ? 's' : ''} from the previous authorization period\n` +
+      `- ${docTexts.length} new assessment document${docTexts.length !== 1 ? 's' : ''} (${periodDocs.map(d => d.original_name).join(', ') || 'none'})\n\n` +
+      `I can help you:\n` +
+      `1. Analyze each previous goal (Mastered / Partially Met / Not Met) based on the new data\n` +
+      `2. Write a Response to Treatment and Authorization Summary\n` +
+      `3. Recommend which goals to continue, modify, or discontinue\n` +
+      `4. Propose new goals based on the updated assessment scores\n` +
+      `5. Generate the complete reauth treatment plan when ready\n\n` +
+      `What would you like to start with?`;
+
+    db.prepare('INSERT INTO chat_messages (plan_id, role, content, username) VALUES (?, ?, ?, ?)')
+      .run(reauthPlanId, 'assistant', greeting, 'Claude');
+
+    logActivity(req.user.id, req.user.username, 'started_reauth', 'plan', Number(reauthPlanId), plan.client_name);
+    console.log(`[reauth] Created reauth plan_id=${reauthPlanId} for client "${plan.client_name}", period_id=${periodId}, ${goalCount} goals, ${docTexts.length} docs`);
+
+    res.json({ plan_id: reauthPlanId, client_name: plan.client_name });
+  } catch (err) {
+    console.error('Start reauth error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/clients/:id/documents — upload a document
 app.post('/api/clients/:id/documents', authMiddleware, uploadClient.single('file'), (req, res) => {
   try {
@@ -1390,27 +1495,48 @@ app.post('/api/chat/:plan_id', authMiddleware, async (req, res) => {
     ).get(req.params.plan_id);
     if (!latestRevision) return res.status(404).json({ error: 'No plan revision found' });
 
-    const activePrompt = db.prepare('SELECT * FROM prompt_versions WHERE is_active = 1').get();
-    const systemPrompt = activePrompt ? activePrompt.text : 'You are an ABA treatment plan generator.';
+    const isReauth = plan.plan_type === 'reauth';
 
     // Load prior chat messages
     const priorMessages = db.prepare(
       'SELECT role, content FROM chat_messages WHERE plan_id = ? ORDER BY created_at ASC'
     ).all(req.params.plan_id);
 
-    // Build conversation: context injection + prior chat + new message
-    const messages = [
-      {
-        role: 'user',
-        content: `Here is the current treatment plan for ${plan.client_name || 'this client'}:\n\n${latestRevision.text}\n\nOriginal client notes:\n${plan.original_notes}`,
-      },
-      {
-        role: 'assistant',
-        content: `I've reviewed the treatment plan for ${plan.client_name || 'this client'}. What changes would you like to make?`,
-      },
-      ...priorMessages.map(m => ({ role: m.role, content: m.content })),
-      { role: 'user', content: message },
-    ];
+    let activeSystemPrompt;
+    let messages;
+
+    if (isReauth) {
+      // Reauth: inject previous plan + context (goals + new docs) from original_notes
+      activeSystemPrompt = REAUTH_SYSTEM_PROMPT;
+      messages = [
+        {
+          role: 'user',
+          content: `Here is the previous treatment plan for ${plan.client_name || 'this client'}:\n\n${latestRevision.text}\n\nReauth context (previous goals and new assessment documents):\n${plan.original_notes}`,
+        },
+        {
+          role: 'assistant',
+          content: `I've reviewed the previous treatment plan and new assessment documents for ${plan.client_name || 'this client'}. What would you like to start with?`,
+        },
+        ...priorMessages.map(m => ({ role: m.role, content: m.content })),
+        { role: 'user', content: message },
+      ];
+    } else {
+      const activePrompt = db.prepare('SELECT * FROM prompt_versions WHERE is_active = 1').get();
+      const systemPrompt = activePrompt ? activePrompt.text : 'You are an ABA treatment plan generator.';
+      activeSystemPrompt = `${systemPrompt}\n\n---\nYou are in CONVERSATION MODE helping a BCBA refine a treatment plan. Respond conversationally and concisely. When the user asks for changes, describe what you would change and confirm. Do NOT output the entire treatment plan. Address only the specific request. The user can click "Regenerate Full Plan" when ready to apply all changes at once.`;
+      messages = [
+        {
+          role: 'user',
+          content: `Here is the current treatment plan for ${plan.client_name || 'this client'}:\n\n${latestRevision.text}\n\nOriginal client notes:\n${plan.original_notes}`,
+        },
+        {
+          role: 'assistant',
+          content: `I've reviewed the treatment plan for ${plan.client_name || 'this client'}. What changes would you like to make?`,
+        },
+        ...priorMessages.map(m => ({ role: m.role, content: m.content })),
+        { role: 'user', content: message },
+      ];
+    }
 
     // Save the user message
     db.prepare('INSERT INTO chat_messages (plan_id, role, content, username) VALUES (?, ?, ?, ?)').run(
@@ -1423,12 +1549,10 @@ app.post('/api/chat/:plan_id', authMiddleware, async (req, res) => {
     res.setHeader('X-Accel-Buffering', 'no');
 
     let replyText = '';
-    const conversationSystemPrompt = `${systemPrompt}\n\n---\nYou are in CONVERSATION MODE helping a BCBA refine a treatment plan. Respond conversationally and concisely. When the user asks for changes, describe what you would change and confirm. Do NOT output the entire treatment plan. Address only the specific request. The user can click "Regenerate Full Plan" when ready to apply all changes at once.`;
-
     const stream = anthropic.messages.stream({
       model: CLAUDE_MODEL,
-      max_tokens: 2000,
-      system: [{ type: 'text', text: conversationSystemPrompt, cache_control: { type: 'ephemeral' } }],
+      max_tokens: isReauth ? 8000 : 2000,
+      system: [{ type: 'text', text: activeSystemPrompt, cache_control: { type: 'ephemeral' } }],
       messages,
     });
 
@@ -1473,8 +1597,15 @@ app.post('/api/chat/:plan_id/regenerate', authMiddleware, async (req, res) => {
     ).all(req.params.plan_id);
     if (!allRevisions.length) return res.status(404).json({ error: 'No revisions found' });
 
-    const activePrompt = db.prepare('SELECT * FROM prompt_versions WHERE is_active = 1').get();
-    const systemPrompt = activePrompt ? activePrompt.text : 'You are an ABA treatment plan generator.';
+    const isReauth = plan.plan_type === 'reauth';
+
+    let regenSystemPrompt;
+    if (isReauth) {
+      regenSystemPrompt = REAUTH_SYSTEM_PROMPT;
+    } else {
+      const activePrompt = db.prepare('SELECT * FROM prompt_versions WHERE is_active = 1').get();
+      regenSystemPrompt = activePrompt ? activePrompt.text : 'You are an ABA treatment plan generator.';
+    }
 
     // Collect all user chat messages as the feedback list
     const userChatMessages = db.prepare(
@@ -1484,9 +1615,16 @@ app.post('/api/chat/:plan_id/regenerate', authMiddleware, async (req, res) => {
     const feedbackList = userChatMessages.map((m, i) => `${i + 1}. ${m.content}`).join('\n');
     const latestRevision = allRevisions[allRevisions.length - 1];
 
-    const userContent = feedbackList
-      ? `${plan.original_notes}\n\nThe BCBA has requested the following changes during our conversation:\n${feedbackList}\n\nPlease regenerate the COMPLETE treatment plan incorporating ALL of these changes. Do not leave any section blank, do not use placeholders — output the entire plan from beginning to end with every requested change applied.`
-      : `${plan.original_notes}\n\nIMPORTANT: Generate the COMPLETE treatment plan. Do not leave any section blank, do not use placeholders, and do not skip any section.`;
+    let userContent;
+    if (isReauth) {
+      userContent = feedbackList
+        ? `${plan.original_notes}\n\nThe BCBA has provided the following guidance during our conversation:\n${feedbackList}\n\nPlease generate the COMPLETE reauthorization treatment plan incorporating all of this guidance. Use the same format and structure as the initial treatment plan. Do not leave any section blank.`
+        : `${plan.original_notes}\n\nPlease generate the COMPLETE reauthorization treatment plan. Use the same format and structure as the initial treatment plan. Include all continued, modified, and new goals. Do not leave any section blank.`;
+    } else {
+      userContent = feedbackList
+        ? `${plan.original_notes}\n\nThe BCBA has requested the following changes during our conversation:\n${feedbackList}\n\nPlease regenerate the COMPLETE treatment plan incorporating ALL of these changes. Do not leave any section blank, do not use placeholders — output the entire plan from beginning to end with every requested change applied.`
+        : `${plan.original_notes}\n\nIMPORTANT: Generate the COMPLETE treatment plan. Do not leave any section blank, do not use placeholders, and do not skip any section.`;
+    }
 
     // Stream the full plan
     res.setHeader('Content-Type', 'text/event-stream');
@@ -1503,12 +1641,12 @@ app.post('/api/chat/:plan_id/regenerate', authMiddleware, async (req, res) => {
     };
 
     let revisedText = '';
-    console.log(`[regenerate] plan_id=${req.params.plan_id} input: ${userContent.length.toLocaleString()} chars (~${Math.round(userContent.length/4).toLocaleString()} tokens)`);
+    console.log(`[regenerate] plan_id=${req.params.plan_id} plan_type=${plan.plan_type} input: ${userContent.length.toLocaleString()} chars (~${Math.round(userContent.length/4).toLocaleString()} tokens)`);
 
     const stream = anthropic.messages.stream({
       model: CLAUDE_MODEL,
       max_tokens: 32768,
-      system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
+      system: [{ type: 'text', text: regenSystemPrompt, cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content: userContent }],
     });
 

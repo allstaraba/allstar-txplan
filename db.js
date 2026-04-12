@@ -94,6 +94,7 @@ if (!migrationDone) {
 // Add new columns and tables for Client Records feature
 try { db.exec("ALTER TABLE plan_history ADD COLUMN status TEXT DEFAULT 'Draft'"); } catch(e) {}
 try { db.exec("ALTER TABLE plan_history ADD COLUMN notes TEXT DEFAULT ''"); } catch(e) {}
+try { db.exec("ALTER TABLE plan_history ADD COLUMN plan_type TEXT DEFAULT 'initial'"); } catch(e) {}
 try { db.exec("ALTER TABLE chat_messages ADD COLUMN username TEXT DEFAULT ''"); } catch(e) {}
 
 // Chat messages for conversational revision

@@ -10,6 +10,7 @@ import {
   getAuthPeriods,
   createAuthPeriod,
   updateAuthPeriod,
+  startReauth,
 } from '../api.js';
 import ReviewRevise from './ReviewRevise.jsx';
 
@@ -101,6 +102,7 @@ export default function ClientProfile({ currentPlan, setCurrentPlan, injectedTex
   const [creatingPeriod, setCreatingPeriod] = useState(false);
   const [editingPeriod, setEditingPeriod] = useState(null); // { id, start_date, end_date, status }
   const [periodError, setPeriodError] = useState('');
+  const [startingReauthId, setStartingReauthId] = useState(null); // period id currently starting
 
   const loadClient = () => {
     getClient(id)
@@ -214,6 +216,19 @@ export default function ClientProfile({ currentPlan, setCurrentPlan, injectedTex
       setAuthPeriods(prev => prev.map(p => p.id === period.id ? updated : p));
     } catch (err) {
       setPeriodError(err.message);
+    }
+  };
+
+  const handleStartReauth = async (period) => {
+    setStartingReauthId(period.id);
+    setPeriodError('');
+    try {
+      const result = await startReauth(id, period.id);
+      setCurrentPlan({ plan_id: result.plan_id, client_name: result.client_name });
+      navigate('/review');
+    } catch (err) {
+      setPeriodError('Failed to start reauth: ' + err.message);
+      setStartingReauthId(null);
     }
   };
 
@@ -493,9 +508,30 @@ export default function ClientProfile({ currentPlan, setCurrentPlan, injectedTex
                         </div>
 
                         {/* Doc count for this period */}
-                        <div style={{ marginLeft: 'auto', fontSize: '12px', color: '#94a3b8' }}>
+                        <div style={{ fontSize: '12px', color: '#94a3b8', marginLeft: 'auto' }}>
                           {documents.filter(d => d.authorization_period_id === p.id).length} doc(s)
                         </div>
+
+                        {/* Start Reauth button — only for active reauth periods */}
+                        {p.period_type === 'reauth' && p.status === 'active' && (
+                          <button
+                            onClick={() => handleStartReauth(p)}
+                            disabled={startingReauthId === p.id}
+                            style={{
+                              padding: '5px 14px',
+                              background: startingReauthId === p.id ? '#a78bfa' : '#7c3aed',
+                              border: 'none',
+                              borderRadius: '6px',
+                              color: '#fff',
+                              fontSize: '12px',
+                              fontWeight: '600',
+                              cursor: startingReauthId === p.id ? 'not-allowed' : 'pointer',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {startingReauthId === p.id ? 'Starting…' : 'Start Reauth'}
+                          </button>
+                        )}
                       </div>
                     );
                   })}

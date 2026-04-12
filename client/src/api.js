@@ -329,6 +329,16 @@ export async function updateAuthPeriod(id, periodId, body) {
   return data;
 }
 
+export async function startReauth(clientId, periodId) {
+  const res = await fetch(`${BASE_URL}/api/clients/${clientId}/auth-periods/${periodId}/start-reauth`, {
+    method: 'POST',
+    headers: authHeaders(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to start reauth');
+  return data;
+}
+
 export async function deleteClientDocument(id, docId) {
   const res = await fetch(`${BASE_URL}/api/clients/${id}/documents/${docId}`, { method: 'DELETE', headers: authHeaders() });
   return res.json();
