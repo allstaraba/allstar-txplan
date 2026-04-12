@@ -15,11 +15,11 @@ function ComplianceResult({ text }) {
         }
         if (t.startsWith('### ')) {
           const heading = t.slice(4);
-          const color = heading.includes('❌') || heading.toLowerCase().includes('fail') ? '#dc2626'
+          const color = heading.includes('❌') || heading.toLowerCase().includes('needs revision') || heading.toLowerCase().includes('fail') ? '#dc2626'
             : heading.includes('⚠️') || heading.toLowerCase().includes('warn') ? '#d97706'
             : heading.includes('✅') || heading.toLowerCase().includes('pass') ? '#16a34a'
             : '#374151';
-          const bg = heading.includes('❌') ? '#fef2f2'
+          const bg = heading.includes('❌') || heading.toLowerCase().includes('needs revision') ? '#fef2f2'
             : heading.includes('⚠️') ? '#fffbeb'
             : heading.includes('✅') ? '#f0fdf4'
             : '#f8fafc';
@@ -459,24 +459,24 @@ export default function ComplianceTool() {
           <div style={{ padding: '13px 20px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc', flexShrink: 0 }}>
             <div style={{ fontSize: '14px', fontWeight: '600', color: '#0f172a' }}>Compliance Chat</div>
             <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '1px' }}>
-              {activeResult ? 'Ask about failures, request fix text, or draft a report' : 'Run a check first to enable chat'}
+              {activeResult ? 'Ask about recommendations, request fix text, or draft a report' : 'Run a check first to enable chat'}
             </div>
           </div>
 
           <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
             {!activeResult && (
               <div style={{ fontSize: '13px', color: '#94a3b8', paddingTop: '20px' }}>
-                After running a compliance check, you can chat here to get help with specific failures, have Claude draft corrective text, or generate a summary report of what's missing.
+                After running a compliance check, you can chat here to get help with specific recommendations, have Claude draft corrective text, or generate a summary report of what to strengthen before submission.
               </div>
             )}
             {activeResult && chatMessages.length === 0 && !chatSending && (
               <div>
                 <p style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '12px' }}>Ask about the results or request help fixing issues:</p>
                 {[
-                  'What are the most critical failures I need to fix?',
-                  'Draft corrective text for the failed requirements',
-                  'Write a report summarizing what\'s missing',
-                  'Which failures would cause an immediate denial?',
+                  'What are the highest priority items to address before submission?',
+                  'Draft corrective text for the items needing revision',
+                  'Write a report summarizing the recommendations',
+                  'Which items are highest priority to fix before submission?',
                 ].map((prompt, i) => (
                   <button
                     key={i}

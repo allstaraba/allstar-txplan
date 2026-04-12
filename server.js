@@ -2060,10 +2060,12 @@ app.post('/api/compliance/check', authMiddleware, async (req, res) => {
 
 For each requirement in the insurance rules, determine if the treatment plan:
 - PASSES: The plan clearly and fully meets this requirement
-- FAILS: The plan is missing, incomplete, or violates this requirement
+- NEEDS REVISION: The plan is missing or incomplete for this requirement — provide a specific recommendation for what to add or change
 - WARNING: The plan partially meets this requirement, or it is ambiguous and may need clarification
 
-Be thorough and specific. Cite exact sections or quotes from the plan when relevant. For failures and warnings, provide a clear recommendation for what needs to be added or changed.`;
+IMPORTANT: These are clinical recommendations to help the BCBA strengthen the plan before submission — NOT determinations of denial or approval. Frame all feedback as guidance for improvement, not as authorization decisions. Never use the words "denial," "denied," or "deny." Instead use language like "recommend adding," "suggest clarifying," "this section needs," or "consider including."
+
+Be thorough and specific. Cite exact sections or quotes from the plan when relevant. For each item needing revision or clarification, provide a clear, actionable recommendation.`;
 
     const userMessage = `Please review the following ABA treatment plan for compliance with the insurance rules provided.
 
@@ -2084,15 +2086,15 @@ Format your response exactly as follows:
 ### Summary
 [2-3 sentence overall compliance assessment]
 
-### ❌ Failed Requirements
-[List each failure. If none, write "None identified."]
-For each: **Rule:** [requirement] → **Issue:** [what's missing or wrong] → **Fix:** [specific recommendation]
+### ❌ Needs Revision
+[List each requirement needing revision. If none, write "None identified."]
+For each: **Rule:** [requirement] → **Issue:** [what's missing or incomplete] → **Recommendation:** [specific suggestion for what to add or change]
 
-### ⚠️ Warnings / Needs Clarification
-[List each warning. If none, write "None identified."]
-For each: **Rule:** [requirement] → **Issue:** [what's unclear or partially met] → **Recommendation:** [what to clarify or add]
+### ⚠️ Needs Clarification
+[List each item that is partially met or ambiguous. If none, write "None identified."]
+For each: **Rule:** [requirement] → **Issue:** [what's unclear or partially met] → **Recommendation:** [what to clarify or strengthen]
 
-### ✅ Passed Requirements
+### ✅ Meets Requirements
 [List each requirement that is clearly met, with brief confirmation]`;
 
     // SSE setup
@@ -2166,7 +2168,7 @@ app.post('/api/compliance/chat', authMiddleware, async (req, res) => {
 
     const docLabel = document_name || 'this plan';
 
-    const systemPrompt = `You are a compliance expert helping a BCBA review and fix an ABA treatment plan that has been checked against insurance rules. You have the full compliance check result as context. Help the user understand specific failures, draft corrective language for missing sections, write reports, or answer any questions about the requirements. Be concise and practical.`;
+    const systemPrompt = `You are a compliance expert helping a BCBA strengthen an ABA treatment plan before submission. You have the full compliance review result as context. Help the user understand what needs revision, draft corrective language for incomplete sections, write summary reports, or answer any questions about the requirements. Be concise and practical. Frame all feedback as recommendations for improvement — never as denials or authorization decisions. Never use the words "denial," "denied," or "deny."`;
 
     const apiMessages = [
       {
