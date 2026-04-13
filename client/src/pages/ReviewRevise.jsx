@@ -507,29 +507,22 @@ export default function ReviewRevise({ user, currentPlan, setCurrentPlan, inject
     }
   };
 
-  // Apply only the specific changes mentioned in chat — keep everything else identical
+  // Apply only the specific changes mentioned in chat — find/replace, no full rewrite
   const handleChatRevise = async () => {
     if (revising || regenerating || sending) return;
     setError('');
     setRevising(true);
-    setStreamingPlanText('');
 
-    setMessages(prev => [...prev, { role: 'assistant', content: 'Applying only the specific changes from our chat. Everything else will remain exactly the same…', username: 'Claude', created_at: new Date().toISOString() }]);
+    setMessages(prev => [...prev, { role: 'assistant', content: 'Applying targeted changes…', username: 'Claude', created_at: new Date().toISOString() }]);
 
-    let newPlanText = '';
     try {
-      const { revision_number } = await chatRevisePlan(currentPlan.plan_id, (chunk) => {
-        newPlanText += chunk;
-        setStreamingPlanText(newPlanText);
-      });
+      const { revision_number } = await chatRevisePlan(currentPlan.plan_id);
       const updatedRevisions = await getPlanRevisions(currentPlan.plan_id);
       setRevisions(updatedRevisions);
       setSelectedRevIdx(updatedRevisions.length - 1);
-      setStreamingPlanText('');
       setMessages(prev => [...prev, { role: 'assistant', content: `Done — revision ${revision_number} saved with only your requested changes applied.`, username: 'Claude', created_at: new Date().toISOString() }]);
     } catch (err) {
       setError(err.message);
-      setStreamingPlanText('');
       setMessages(prev => [...prev, { role: 'assistant', content: `Revision failed: ${err.message}`, username: 'Claude', created_at: new Date().toISOString() }]);
     } finally {
       setRevising(false);

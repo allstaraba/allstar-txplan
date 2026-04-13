@@ -568,38 +568,14 @@ export async function runComplianceCheck(plan_text, template_id, document_name, 
 }
 
 // Regenerates the full plan incorporating all chat feedback (SSE streaming)
-export async function chatRevisePlan(plan_id, onChunk) {
+export async function chatRevisePlan(plan_id) {
   const res = await fetch(`${BASE_URL}/api/chat/${plan_id}/targeted-revise`, {
     method: 'POST',
     headers: authHeaders(),
   });
-  if (!res.ok) {
-    let errMsg = 'Failed to revise plan';
-    try { const d = await res.json(); errMsg = d.error || errMsg; } catch {}
-    throw new Error(errMsg);
-  }
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-  let revision_number = null;
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
-    buffer = lines.pop();
-    for (const line of lines) {
-      if (!line.startsWith('data: ')) continue;
-      const jsonStr = line.slice(6).trim();
-      if (!jsonStr) continue;
-      let evt;
-      try { evt = JSON.parse(jsonStr); } catch { continue; }
-      if (evt.type === 'chunk' && onChunk) onChunk(evt.text);
-      if (evt.type === 'done') revision_number = evt.revision_number;
-      if (evt.type === 'error') throw new Error(evt.error || 'Revision failed');
-    }
-  }
-  return { revision_number };
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to revise plan');
+  return { revision_number: data.revision_number };
 }
 
 export async function regeneratePlan(plan_id, onChunk) {

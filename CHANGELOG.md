@@ -12,6 +12,12 @@ Each entry includes a commit hash. To roll back to any point, say **"rollback to
 
 ---
 
+### `(pending)` — Revise: true surgical edits via find/replace (no full rewrite)
+- Revise now asks Claude for only the changed text as find/replace pairs (tiny JSON response), then applies them programmatically to the existing plan — Claude never rewrites the full document
+- Whitespace-normalized fallback matching for robustness
+- Falls back with a clear error if changes can't be applied (user can then use Regenerate)
+- Removed SSE streaming from Revise — it's now a simple JSON request that completes in seconds
+
 ### `(pending)` — Two-button revision: Revise vs Regenerate
 - Added **Revise** button (blue): applies only the specific changes mentioned in chat — keeps everything else exactly the same; single Claude call, much faster
 - **Regenerate** button (dark): existing full-plan regeneration, renamed from "Regenerate Full Plan"
