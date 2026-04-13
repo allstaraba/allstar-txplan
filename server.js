@@ -1846,6 +1846,119 @@ app.post('/api/chat/:plan_id/regenerate', authMiddleware, async (req, res) => {
   }
 });
 
+// POST /api/chat/:plan_id/targeted-revise — apply only the specific changes from chat, keep everything else identical
+app.post('/api/chat/:plan_id/targeted-revise', authMiddleware, async (req, res) => {
+  try {
+    const plan = db.prepare('SELECT * FROM plan_history WHERE id = ?').get(req.params.plan_id);
+    if (!plan) return res.status(404).json({ error: 'Plan not found' });
+
+    const latestRevision = db.prepare(
+      'SELECT * FROM plan_revisions WHERE plan_id = ? ORDER BY revision_number DESC LIMIT 1'
+    ).get(req.params.plan_id);
+    if (!latestRevision) return res.status(404).json({ error: 'No revisions found' });
+
+    const chatHistory = db.prepare(
+      'SELECT role, content FROM chat_messages WHERE plan_id = ? ORDER BY created_at ASC'
+    ).all(req.params.plan_id);
+
+    const userRequests = chatHistory
+      .filter(m => m.role === 'user')
+      .map((m, i) => `${i + 1}. ${m.content}`)
+      .join('\n');
+
+    if (!userRequests) return res.status(400).json({ error: 'No chat messages to revise from' });
+
+    const clientName = plan.client_name || 'the client';
+
+    const systemPrompt = `You are a surgical plan editor. Your job is to apply ONLY the specific changes requested by the user — nothing more. Do not rephrase, reformat, restructure, or improve any other part of the plan. Every sentence, table, and section that is NOT directly affected by the requested changes must remain exactly as written in the original. Use ONLY "${clientName}" as the client's name throughout.`;
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+    if (res.socket) res.socket.setNoDelay(true);
+    res.write(': connected\n\n');
+
+    let clientConnected = true;
+    let keepAlive;
+    res.on('close', () => { clientConnected = false; clearInterval(keepAlive); });
+
+    const send = (obj) => {
+      if (!clientConnected) return;
+      try { res.write(`data: ${JSON.stringify(obj)}\n\n`); } catch {}
+    };
+
+    let revisedText = '';
+    const stream = anthropic.messages.stream({
+      model: CLAUDE_MODEL,
+      max_tokens: 32768,
+      system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
+      messages: [
+        {
+          role: 'user',
+          content: `Here is the current treatment plan:\n\n${latestRevision.text}\n\n---\n\nApply ONLY these specific changes (do not change anything else):\n${userRequests}\n\nReturn the complete plan with ONLY those changes made.`,
+        },
+      ],
+    });
+
+    keepAlive = setInterval(() => { try { res.write(': ping\n\n'); } catch {} }, 20000);
+
+    stream.on('text', (chunk) => {
+      revisedText += chunk;
+      send({ type: 'chunk', text: chunk });
+    });
+
+    stream.on('finalMessage', async (msg) => {
+      clearInterval(keepAlive);
+      revisedText = stripAIPreamble(revisedText);
+
+      const { text: fixedText, ferbFixed, nonFerbFixed } = fixMasteryCriteria(revisedText);
+      revisedText = fixedText;
+      if (ferbFixed + nonFerbFixed > 0) {
+        console.log(`[targeted-revise] Mastery criteria: ${ferbFixed} FERB goals fixed, ${nonFerbFixed} non-FERB goals fixed`);
+      }
+
+      const GOAL_LINE_RE = /\d+\.\s+(?:\(FERB\)\s+)?Goal Statement/i;
+      const goalCount = revisedText.split('\n').filter(line => GOAL_LINE_RE.test(line)).length;
+      if (goalCount > 0) {
+        const correctGoalTable = buildGoalSummaryTable(goalCount);
+        revisedText = revisedText.replace(
+          /(##\s+Goal Objective Summary\s*\n)([\s\S]*?)(?=##\s+Response to Treatment)/i,
+          (match, header) => header + '\n' + correctGoalTable + '\n\n'
+        );
+        revisedText = revisedText.replace(
+          /(Total\s*#?\s*(?:of\s*)?(?:new\s*)?[Gg]oals[:\s|*]+)\d+/g,
+          (match, prefix) => prefix + goalCount
+        );
+      }
+
+      const newRevisionNumber = latestRevision.revision_number + 1;
+      db.prepare(
+        'INSERT INTO plan_revisions (plan_id, revision_number, text, feedback) VALUES (?, ?, ?, ?)'
+      ).run(req.params.plan_id, newRevisionNumber, revisedText, `[Targeted revision] ${userRequests.slice(0, 200)}`);
+      logActivity(req.user.id, req.user.username, 'revised_plan', 'plan', Number(req.params.plan_id), `targeted revision`);
+      console.log(`[targeted-revise] saved revision ${newRevisionNumber} for plan_id=${req.params.plan_id}`);
+      if (clientConnected) {
+        send({ type: 'done', revision_number: newRevisionNumber });
+        res.end();
+      }
+    });
+
+    stream.on('error', (err) => {
+      clearInterval(keepAlive);
+      console.error('Targeted revise error:', err);
+      if (clientConnected) {
+        send({ type: 'error', error: err.message });
+        res.end();
+      }
+    });
+
+  } catch (err) {
+    console.error('Targeted revise error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ---- BACKUP ROUTES ----
 
 app.get('/api/admin/backup', authMiddleware, adminMiddleware, (req, res) => {

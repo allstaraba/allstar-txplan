@@ -4,6 +4,17 @@ Each entry includes a commit hash. To roll back to any point, say **"rollback to
 
 ---
 
+## 2026-04-13 (latest)
+
+### `(pending)` — Two-button revision: Revise vs Regenerate
+- Added **Revise** button (blue): applies only the specific changes mentioned in chat — keeps everything else exactly the same; single Claude call, much faster
+- **Regenerate** button (dark): existing full-plan regeneration, renamed from "Regenerate Full Plan"
+- New `POST /api/chat/:plan_id/targeted-revise` server endpoint with surgical edit system prompt
+- Status bar shows "Applying targeted changes…" vs "Regenerating plan…" during each operation
+- Empty chat hint text updated to explain the difference between the two buttons
+
+---
+
 ## 2026-04-13
 
 ### `92c01db` — Fix client name extraction and DOCX export filename

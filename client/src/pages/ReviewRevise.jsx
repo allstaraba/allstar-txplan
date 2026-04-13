@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getPlanRevisions, getExportUrl, getChatHistory, sendChatMessage, regeneratePlan } from '../api.js';
+import { getPlanRevisions, getExportUrl, getChatHistory, sendChatMessage, regeneratePlan, chatRevisePlan } from '../api.js';
 
 // ── Plan text renderer ──────────────────────────────────────────────────────────
 
@@ -322,6 +322,7 @@ export default function ReviewRevise({ user, currentPlan, setCurrentPlan, inject
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
+  const [revising, setRevising] = useState(false);
   const [error, setError] = useState('');
   const [copySuccess, setCopySuccess] = useState(false);
   const [streamingPlanText, setStreamingPlanText] = useState('');
@@ -506,6 +507,35 @@ export default function ReviewRevise({ user, currentPlan, setCurrentPlan, inject
     }
   };
 
+  // Apply only the specific changes mentioned in chat — keep everything else identical
+  const handleChatRevise = async () => {
+    if (revising || regenerating || sending) return;
+    setError('');
+    setRevising(true);
+    setStreamingPlanText('');
+
+    setMessages(prev => [...prev, { role: 'assistant', content: 'Applying only the specific changes from our chat. Everything else will remain exactly the same…', username: 'Claude', created_at: new Date().toISOString() }]);
+
+    let newPlanText = '';
+    try {
+      const { revision_number } = await chatRevisePlan(currentPlan.plan_id, (chunk) => {
+        newPlanText += chunk;
+        setStreamingPlanText(newPlanText);
+      });
+      const updatedRevisions = await getPlanRevisions(currentPlan.plan_id);
+      setRevisions(updatedRevisions);
+      setSelectedRevIdx(updatedRevisions.length - 1);
+      setStreamingPlanText('');
+      setMessages(prev => [...prev, { role: 'assistant', content: `Done — revision ${revision_number} saved with only your requested changes applied.`, username: 'Claude', created_at: new Date().toISOString() }]);
+    } catch (err) {
+      setError(err.message);
+      setStreamingPlanText('');
+      setMessages(prev => [...prev, { role: 'assistant', content: `Revision failed: ${err.message}`, username: 'Claude', created_at: new Date().toISOString() }]);
+    } finally {
+      setRevising(false);
+    }
+  };
+
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -611,9 +641,9 @@ export default function ReviewRevise({ user, currentPlan, setCurrentPlan, inject
                 <option key={rev.id} value={idx}>{revisionLabel(rev)}</option>
               ))}
             </select>
-            {regenerating && (
+            {(regenerating || revising) && (
               <span style={{ fontSize: '12px', color: '#2563eb', fontStyle: 'italic' }}>
-                Regenerating plan…{streamingPlanText.length > 0 && ` · ${streamingPlanText.length.toLocaleString()} chars`}
+                {revising ? 'Applying targeted changes…' : 'Regenerating plan…'}{streamingPlanText.length > 0 && ` · ${streamingPlanText.length.toLocaleString()} chars`}
               </span>
             )}
             <span style={{ marginLeft: 'auto', fontSize: '12px', color: '#94a3b8' }}>
@@ -637,22 +667,40 @@ export default function ReviewRevise({ user, currentPlan, setCurrentPlan, inject
               <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '1px' }}>Chat about changes · Enter sends · Shift+Enter = new line</div>
             </div>
             {hasUserMessages && (
-              <button
-                onClick={handleRegenerate}
-                disabled={regenerating || sending}
-                title="Regenerate the full plan incorporating all your chat feedback"
-                style={{
-                  padding: '7px 13px',
-                  background: regenerating || sending ? '#e2e8f0' : '#0f172a',
-                  border: 'none', borderRadius: '6px',
-                  color: regenerating || sending ? '#94a3b8' : '#fff',
-                  fontSize: '12px', fontWeight: '600',
-                  cursor: regenerating || sending ? 'not-allowed' : 'pointer',
-                  whiteSpace: 'nowrap', transition: 'background 0.15s',
-                }}
-              >
-                {regenerating ? 'Regenerating…' : 'Regenerate Full Plan'}
-              </button>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <button
+                  onClick={handleChatRevise}
+                  disabled={revising || regenerating || sending}
+                  title="Apply only the specific changes from this chat — everything else stays exactly the same (fast)"
+                  style={{
+                    padding: '7px 13px',
+                    background: revising || regenerating || sending ? '#e2e8f0' : '#2563eb',
+                    border: 'none', borderRadius: '6px',
+                    color: revising || regenerating || sending ? '#94a3b8' : '#fff',
+                    fontSize: '12px', fontWeight: '600',
+                    cursor: revising || regenerating || sending ? 'not-allowed' : 'pointer',
+                    whiteSpace: 'nowrap', transition: 'background 0.15s',
+                  }}
+                >
+                  {revising ? 'Revising…' : 'Revise'}
+                </button>
+                <button
+                  onClick={handleRegenerate}
+                  disabled={regenerating || revising || sending}
+                  title="Regenerate the full plan from scratch incorporating all chat feedback (thorough, takes 1–2 min)"
+                  style={{
+                    padding: '7px 13px',
+                    background: regenerating || revising || sending ? '#e2e8f0' : '#0f172a',
+                    border: 'none', borderRadius: '6px',
+                    color: regenerating || revising || sending ? '#94a3b8' : '#fff',
+                    fontSize: '12px', fontWeight: '600',
+                    cursor: regenerating || revising || sending ? 'not-allowed' : 'pointer',
+                    whiteSpace: 'nowrap', transition: 'background 0.15s',
+                  }}
+                >
+                  {regenerating ? 'Regenerating…' : 'Regenerate'}
+                </button>
+              </div>
             )}
           </div>
 
@@ -661,7 +709,7 @@ export default function ReviewRevise({ user, currentPlan, setCurrentPlan, inject
             {messages.length === 0 && !sending ? (
               <div>
                 <p style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '14px' }}>
-                  Chat about changes to the plan. When you're ready to apply all changes, click "Regenerate Full Plan".
+                  Chat about changes to the plan. Use <strong>Revise</strong> to apply only what you mentioned (fast), or <strong>Regenerate</strong> to fully rewrite the plan with all changes (thorough).
                 </p>
                 <p style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '12px', fontWeight: '500' }}>Try an example:</p>
                 {EXAMPLE_PROMPTS.map((prompt, i) => (
