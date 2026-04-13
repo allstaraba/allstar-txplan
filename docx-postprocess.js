@@ -914,9 +914,11 @@ function postProcessDocxBuffer(inputBuffer) {
     // -----------------------------------------------------------------------
     // Serialize and repack
     // -----------------------------------------------------------------------
-    const serialized = new XMLSerializer().serializeToString(doc);
-    const newXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' + serialized;
-    zip.updateFile('word/document.xml', Buffer.from(newXml, 'utf8'));
+    const serializer = new XMLSerializer();
+    let xmlOut = serializer.serializeToString(doc);
+    // Strip duplicate XML declarations added by XMLSerializer
+    xmlOut = xmlOut.replace(/^(\s*<\?xml[^?]*\?>\s*)+/, '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n');
+    zip.updateFile('word/document.xml', Buffer.from(xmlOut, 'utf8'));
     return zip.toBuffer();
 
   } catch (err) {
