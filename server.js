@@ -527,8 +527,19 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
     if (clientInfo?.client_full_name) {
       clientName = clientInfo.client_full_name;
     } else {
-      const nameMatch = notes.match(/(?:client(?:'?s)?(?:\s+(?:full\s+)?name)?|child(?:'?s)?(?:\s+name)?)\s*:\s*([^\n,]+)/i);
-      if (nameMatch) clientName = nameMatch[1].trim().replace(/^[_*\s]+|[_*\s]+$/g, '');
+      // Try progressively broader patterns to extract client name from notes
+      const namePatterns = [
+        /(?:client(?:'?s)?(?:\s+(?:full\s+)?name)?|child(?:'?s)?(?:\s+name)?|patient(?:'?s)?(?:\s+name)?|participant(?:'?s)?(?:\s+name)?)\s*:\s*([^\n,]+)/i,
+        /(?:^|\n)\s*(?:name|full name)\s*:\s*([^\n,]+)/i,
+        /(?:^|\n)\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3})\s*(?:is a |was referred|presents|DOB|Date of Birth)/,
+      ];
+      for (const re of namePatterns) {
+        const m = notes.match(re);
+        if (m) {
+          clientName = m[1].trim().replace(/^[_*\s]+|[_*\s]+$/g, '');
+          break;
+        }
+      }
     }
 
     const baseMessage = clientInfo && Object.keys(clientInfo).length > 0
@@ -709,7 +720,13 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
     console.log(`[generate] Mastery criteria: ${ferbFixed} FERB goals fixed to 90%, ${nonFerbFixed} non-FERB goals fixed to 80%`);
 
     const planNameMatch = fullPlanText.match(/Participant Name[:\s]+([^\n\r]+)/i);
-    if (planNameMatch && clientName === 'Unknown') clientName = planNameMatch[1].trim().replace(/^[_*|\s]+|[_*|\s]+$/g, '');
+    if (planNameMatch && clientName === 'Unknown') {
+      clientName = planNameMatch[1].trim().replace(/^[_*|\s]+|[_*|\s]+$/g, '');
+    }
+    // If name was Unknown during generation, replace it throughout the plan text now
+    if (clientName !== 'Unknown') {
+      fullPlanText = fullPlanText.replace(/\bUnknown\b/g, clientName);
+    }
 
     const bcbaMatch = fullPlanText.match(/(?:Supervising BCBA|BCBA Name)[:\s|]+([^\n\r|]+)/i);
     const bcbaName = bcbaMatch ? bcbaMatch[1].trim() : '[BCBA NAME]';

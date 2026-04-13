@@ -6,6 +6,12 @@ Each entry includes a commit hash. To roll back to any point, say **"rollback to
 
 ## 2026-04-13 (latest)
 
+### `(pending)` — Fix "Unknown" client name appearing in BIP/fading plan sections
+- Broader pre-generation name extraction: now tries client/child/patient/participant name patterns, plain "Name:" field, and a first-sentence proper-noun pattern
+- Post-generation text fix: if name was "Unknown" during generation but the real name is found in the plan text afterward, replaces all occurrences of "Unknown" in the plan body before saving
+
+---
+
 ### `(pending)` — Two-button revision: Revise vs Regenerate
 - Added **Revise** button (blue): applies only the specific changes mentioned in chat — keeps everything else exactly the same; single Claude call, much faster
 - **Regenerate** button (dark): existing full-plan regeneration, renamed from "Regenerate Full Plan"
