@@ -14,6 +14,7 @@ const { Packer } = require('docx');
 const { buildDocx } = require('./docx-builder');
 const XLSX = require('xlsx');
 const { injectBoilerplate, buildGoalSummaryTable } = require('./plan-boilerplate');
+const { postProcessDocxBuffer } = require('./docx-postprocess');
 const { REAUTH_SYSTEM_PROMPT } = require('./reauth-prompt');
 const { runBackup, latestBackup, BACKUP_DIR } = require('./backup');
 const db = require('./db');
@@ -1271,8 +1272,10 @@ app.get('/api/export/:plan_id/:revision_number', authMiddleware, async (req, res
     console.log(`[export] plan_id=${plan_id} rev=${revision_number} text_length=${revision.text.length} chars (${revision.text.split('\n').length} lines)`);
     const logoBuffer = fs.existsSync(LOGO_PATH) ? fs.readFileSync(LOGO_PATH) : null;
     const doc = buildDocx(revision.text, plan.client_name, logoBuffer);
-    const buffer = await Packer.toBuffer(doc);
-    console.log(`[export] docx buffer size: ${buffer.length} bytes`);
+    let buffer = await Packer.toBuffer(doc);
+    console.log(`[export] docx buffer size before post-processing: ${buffer.length} bytes`);
+    buffer = postProcessDocxBuffer(buffer);
+    console.log(`[export] docx buffer size after post-processing: ${buffer.length} bytes`);
     const safeName = (plan.client_name || 'treatment-plan').replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, '-');
     const filename = `treatment-plan-${safeName}-rev${revision_number}.docx`;
 

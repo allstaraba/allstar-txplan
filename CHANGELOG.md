@@ -6,6 +6,11 @@ Each entry includes a commit hash. To roll back to any point, say **"rollback to
 
 ## 2026-04-13 (latest)
 
+### `(pending)` — DOCX post-processing: 13-fix XML pass on every export
+- Ported Python lxml post-processing script to JavaScript (`docx-postprocess.js`)
+- Applied automatically on every DOCX export via `postProcessDocxBuffer()` injected into the export route
+- Fixes include: table/row/cell cleanup, paragraph normalization, spacing fixes, and structural repairs to the generated Word XML
+
 ### `(pending)` — Fix "Unknown" client name appearing in BIP/fading plan sections
 - Broader pre-generation name extraction: now tries client/child/patient/participant name patterns, plain "Name:" field, and a first-sentence proper-noun pattern
 - Post-generation text fix: if name was "Unknown" during generation but the real name is found in the plan text afterward, replaces all occurrences of "Unknown" in the plan body before saving
