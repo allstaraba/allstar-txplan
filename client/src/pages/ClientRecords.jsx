@@ -92,7 +92,9 @@ export default function ClientRecords() {
       const blob = await res.blob();
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
-      link.download = `${client.client_name || 'treatment-plan'}-rev${latestRev.revision_number}.docx`;
+      const safeName = (client.client_name || 'treatment-plan')
+        .replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/^-+|-+$/g, '') || 'treatment-plan';
+      link.download = `treatment-plan-${safeName}-rev${latestRev.revision_number}.docx`;
       link.click();
       URL.revokeObjectURL(link.href);
     } catch (err) {

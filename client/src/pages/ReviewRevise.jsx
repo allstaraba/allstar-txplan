@@ -542,7 +542,9 @@ export default function ReviewRevise({ user, currentPlan, setCurrentPlan, inject
       const blob = await res.blob();
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
-      link.download = `${currentPlan.client_name || 'treatment-plan'}-rev${revNum}.docx`;
+      const safeName = (currentPlan.client_name || 'treatment-plan')
+        .replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/^-+|-+$/g, '') || 'treatment-plan';
+      link.download = `treatment-plan-${safeName}-rev${revNum}.docx`;
       link.click();
       URL.revokeObjectURL(link.href);
     } catch (err) {

@@ -869,10 +869,9 @@ function fix1MedNecGoal(arr) {
 }
 
 // ── Fix 2: Prepend standalone domain header row into the following table ────────
-// Detects: 1-row Table whose text matches domain names, followed by any table.
-// Inserts that row as row 0 of the following table.
+// Detects: 1-row Table whose text looks like a goal domain header (ends with "Goals"),
+// followed by a goal/content table. Inserts that row as row 0 of the following table.
 function fix2DomainHeaders(arr) {
-  const DOMAIN_RE = /communication|social|adaptive|self-care|behavior reduction|parent|caregiver|training/i;
   const out = [];
   let i = 0;
   while (i < arr.length) {
@@ -880,7 +879,7 @@ function fix2DomainHeaders(arr) {
     if (el instanceof Table) {
       const rows = getRows(el);
       const firstText = rows.length ? rowText(rows[0]) : '';
-      if (rows.length === 1 && DOMAIN_RE.test(firstText)) {
+      if (rows.length === 1 && /Goals?$/i.test(firstText) && firstText.length < 100) {
         const j = skipParas(arr, i + 1);
         if (j < arr.length && arr[j] instanceof Table) {
           const nextRows = getRows(arr[j]);

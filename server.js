@@ -528,7 +528,7 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
       clientName = clientInfo.client_full_name;
     } else {
       const nameMatch = notes.match(/(?:client(?:'?s)?(?:\s+(?:full\s+)?name)?|child(?:'?s)?(?:\s+name)?)\s*:\s*([^\n,]+)/i);
-      if (nameMatch) clientName = nameMatch[1].trim();
+      if (nameMatch) clientName = nameMatch[1].trim().replace(/^[_*\s]+|[_*\s]+$/g, '');
     }
 
     const baseMessage = clientInfo && Object.keys(clientInfo).length > 0
@@ -709,7 +709,7 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
     console.log(`[generate] Mastery criteria: ${ferbFixed} FERB goals fixed to 90%, ${nonFerbFixed} non-FERB goals fixed to 80%`);
 
     const planNameMatch = fullPlanText.match(/Participant Name[:\s]+([^\n\r]+)/i);
-    if (planNameMatch && clientName === 'Unknown') clientName = planNameMatch[1].trim();
+    if (planNameMatch && clientName === 'Unknown') clientName = planNameMatch[1].trim().replace(/^[_*|\s]+|[_*|\s]+$/g, '');
 
     const bcbaMatch = fullPlanText.match(/(?:Supervising BCBA|BCBA Name)[:\s|]+([^\n\r|]+)/i);
     const bcbaName = bcbaMatch ? bcbaMatch[1].trim() : '[BCBA NAME]';
