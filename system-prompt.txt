@@ -246,26 +246,29 @@ Paragraph 2: "The decision to fade services will be regularly evaluated based on
 
 ### Phase Criteria Rules
 
-Each phase must include goals based on the client's skill deficits with at least 1 goal per domain (communication, social, adaptive). Goals in fading phases are NOT copies of skill acquisition goals — they are rewritten as longer-term, more generalized, more complex versions of those skills. Each phase should have progressively more advanced goals than the previous phase.
+CRITICAL: Fading phase goals are NOT the same skill acquisition goals repeated with higher percentages. Each phase must describe BROADER, MORE GENERALIZED, LESS SPECIFIC skills that build on and expand beyond the treatment plan goals. Goals should be member-specific, measurable, medically necessary, age-appropriate, and achievable. Include at least 1 goal per domain (communication, social, adaptive).
+
+Example of WRONG approach: Phase 1 says "functional play with 5 toys" → Phase 2 says "functional play with 5 toys in 90%"
+Example of CORRECT approach: Phase 1 says "functional play with 5 toys" → Phase 2 says "engage in an age-appropriate game with a peer including setting up the game, taking turns, and participating for the entire duration"
 
 Phase 1 — 5 short-term goals. "When the following short-term goals are met, maintained and generalized across multiple people and multiple environments for 80% of opportunities across 3 months direct hours will titrate:"
-- 5 foundational goals at the client's current skill level (e.g., basic manding, simple directions, short conversations, basic play, basic transitions)
-- Each goal: specific, measurable, no mastery percentage needed in the goal text itself
+- 5 foundational goals at the client's current skill level
 - Service levels: [current direct hours] per week/Direct ABA, 1 hour per week/Parent Training
 
 Phase 2 — 4-5 long-term goals. "When two of the following long-term goals are met for three consecutive months, direct hours will further titrate:"
-- 4-5 goals that are more advanced versions of the skills from Phase 1 (e.g., answering open-ended WH questions, retelling stories, age-appropriate games with peers, multi-step directions)
+- Goals must be MORE ADVANCED and BROADER than Phase 1 (e.g., instead of "respond yes/no" write "answer a variety of open-ended WH questions using full sentences"; instead of "play with 5 toys" write "engage in age-appropriate cooperative game with peer for full duration")
 - Each goal ends with: "in 90% of opportunities for 3 months"
 - Service levels: reduced direct hours, 1 hour per week/Parent Training
 
 Phase 3 — 3-5 long-term goals. "When the following long-term goals are met, direct hours will further titrate to 50% of direct services:"
-- 3-5 goals that are even more advanced (e.g., following social rules, independent transitions, daily routines)
+- Goals must be even MORE ADVANCED than Phase 2 (e.g., following social rules independently, transitioning without maladaptive behavior, sustained interactive play for 20+ minutes)
 - MUST include: "All maladaptive behaviors will be on levels of extinction for 3 months"
 - Each goal ends with: "in 90% of opportunities for 3 months"
 - Service levels: further reduced direct hours, 1 hour per week/Parent Training
 
 Phase 4 — 3-5 long-term goals. "Discharge will be considered when the following long-term goals are met:"
-- 3-5 goals representing full independence (e.g., sustained conversations on varied topics, spontaneous problem-solving in group play, independent daily routines)
+- Goals describe the specific skills the client needs to be successful OUTSIDE of ABA services — full independence in natural settings
+- Examples: sustained conversations on varied topics with peers and adults, spontaneous problem-solving during group activities, independent daily routines without prompting
 - MUST include: "All maladaptive behaviors will be on levels of extinction and client independently engages in appropriate replacement behavior for 3 months"
 - Each goal ends with: "in 90% of opportunities for 3 months"
 - Service levels: 0 hours per week/Direct ABA, 1 hour per week/Parent Training
