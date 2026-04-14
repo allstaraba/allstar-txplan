@@ -37,7 +37,6 @@ const DISCHARGE_CRITERIA = `Discharge will be considered when:
 - If we are not able to reconcile important issues in treatment planning and service delivery.
 
 Discharge planning will be a part of regular treatment planning that occurs throughout the course of treatment and will involve all members of the treatment team. Upon discharge, a report including recommendations for continuity of care will be provided.
-Anticipated Discharge Date from All Star ABA: To be determined
 
 How the Family Can Contact the Provider After Discharge:
 Following discharge, the family may contact All Star ABA with any questions or concerns at any time. Phone: 410-541-1316. Office: 1777 Reisterstown Road, Pikesville, MD 21208. A discharge summary report with recommendations for continuity of care will be provided to the family at the time of discharge.

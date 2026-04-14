@@ -421,9 +421,11 @@ Generate sections 19 through 26 in order. Do not write skill acquisition goals, 
     - Transition table: Description of Transition | Anticipated Date | Plan (all N/A)
     - Bordered fading rationale: write BOTH paragraphs individualized with actual client name and hours per week from the BCBA notes
     - 4-phase fading table (Phase | Service Levels | Status) — use the exact phase criteria from your instructions, reference specific skill acquisition goal numbers from the BCBA notes
-    - Discharge Criteria section: Write '[DISCHARGE_CRITERIA]' in the content cell. Immediately after that marker (in the same cell or a continuation bordered table), write TWO client-specific paragraphs:
-      (a) Anticipated Next Level of Care: Based on this client's current severity, trajectory, and goals, describe the anticipated level of care after discharge from comprehensive ABA (e.g., reduced-intensity outpatient ABA, school-based behavioral supports only, parent training only, community-based services, no further ABA services anticipated).
-      (b) Linkages with Other Services: Identify the specific services relevant to THIS client's profile that the family should be connected with upon discharge — name service types such as school IEP/special education, community mental health, SLP, OT, social skills groups, or recreational programs as appropriate.
+    - Discharge Criteria section: TWO separate bordered tables:
+      Table 1 — one cell containing only: [DISCHARGE_CRITERIA]
+      Table 2 — directly below Table 1, two rows:
+        Row 1: "(a) Anticipated Next Level of Care" — based on this client's current severity, trajectory, and goals, describe the anticipated level of care after discharge (e.g., reduced-intensity ABA, school-based supports, parent training only, no further ABA).
+        Row 2: "(b) Linkages with Other Services" — name the specific services relevant to THIS client upon discharge (school IEP/special education, community mental health, SLP, OT, social skills groups, recreational programs, etc.).
 
 21. Crisis Plan:
     - Crisis intro bordered cell

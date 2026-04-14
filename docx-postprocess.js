@@ -600,7 +600,7 @@ function postProcessDocxBuffer(inputBuffer) {
     // FIX 9: Merge content rows of "Generalization Protocol" / "Discharge Criteria" tables
     // -----------------------------------------------------------------------
     {
-      const MERGE_TABLE_HEADERS = ['Generalization Protocol', 'Discharge Criteria'];
+      const MERGE_TABLE_HEADERS = ['Generalization Protocol', 'Maintenance Protocol', 'Discharge Criteria'];
       const tables = Array.from(root.getElementsByTagNameNS(W, 'tbl'));
       for (const tbl of tables) {
         const txt = allText(tbl);
