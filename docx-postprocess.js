@@ -912,6 +912,140 @@ function postProcessDocxBuffer(inputBuffer) {
     }
 
     // -----------------------------------------------------------------------
+    // FIX 14: Merge standalone 1-row shaded header tables into the table below
+    // -----------------------------------------------------------------------
+    // Root cause: docx-builder flushSection() and Fix 2 both create standalone
+    // 1-row D9D9D9-shaded tables that should be the first row of the data table
+    // that follows them.  We iterate the snapshot in REVERSE so that consecutive
+    // standalone headers (e.g. "Biopsychosocial" then "Current Family Structure"
+    // then the data table) end up in the correct top-to-bottom order after merging.
+    {
+      const snapshot = getBodyChildren(body);
+      for (let i = snapshot.length - 1; i >= 0; i--) {
+        const el = snapshot[i];
+
+        // Must still be attached to body (a prior iteration may have removed it)
+        if (el.parentNode !== body) continue;
+
+        // Must be a table with exactly one row
+        if (localName(el) !== 'tbl') continue;
+        const elRows = directChildrenNS(el, 'tr');
+        if (elRows.length !== 1) continue;
+
+        // Must have at least one cell shaded D9D9D9
+        const elCells = directChildrenNS(elRows[0], 'tc');
+        let isShaded = false;
+        for (const cell of elCells) {
+          const shd = findNS(cell, 'shd');
+          if (shd && getWAttr(shd, 'fill') === 'D9D9D9') { isShaded = true; break; }
+        }
+        if (!isShaded) continue;
+
+        // Walk the LIVE DOM forward to find the next real table (skipping
+        // non-element nodes and empty paragraphs).  Collect empty paragraphs
+        // in between so we can remove them after the merge.
+        const emptyParasBetween = [];
+        let targetTbl = null;
+        let sib = el.nextSibling;
+        while (sib) {
+          if (sib.nodeType !== 1) { sib = sib.nextSibling; continue; }
+          if (isEmptyPara(sib)) { emptyParasBetween.push(sib); sib = sib.nextSibling; continue; }
+          // First real non-empty-paragraph element
+          if (localName(sib) === 'tbl' && directChildrenNS(sib, 'tr').length > 0) {
+            targetTbl = sib;
+          }
+          break; // stop regardless — we only merge if the very next real element is a table
+        }
+        if (!targetTbl) continue;
+
+        // Duplicate check: skip if the target's first row already carries the same text
+        const headerText = allText(el).trim();
+        const firstTargetRow = directChildrenNS(targetTbl, 'tr')[0];
+        if (allText(firstTargetRow).trim() === headerText) continue;
+
+        // Determine column count from target table's tblGrid
+        const targetGrid = findNS(targetTbl, 'tblGrid');
+        const targetGridCols = targetGrid ? directChildrenNS(targetGrid, 'gridCol') : [];
+        const colCount = targetGridCols.length || 1;
+
+        // Ensure the header row's first cell has a gridSpan matching colCount
+        const headerRow = elRows[0];
+        const firstHeaderCell = directChildrenNS(headerRow, 'tc')[0];
+        if (firstHeaderCell) {
+          let tcPr = directChildNS(firstHeaderCell, 'tcPr');
+          if (!tcPr) {
+            tcPr = doc.createElementNS(W, 'w:tcPr');
+            firstHeaderCell.insertBefore(tcPr, firstHeaderCell.firstChild);
+          }
+          let gs = directChildNS(tcPr, 'gridSpan');
+          if (!gs) {
+            gs = doc.createElementNS(W, 'w:gridSpan');
+            tcPr.appendChild(gs);
+          }
+          setWVal(gs, String(colCount));
+        }
+
+        // Splice the header row as the new first row of the target table
+        targetTbl.insertBefore(headerRow, firstTargetRow);
+
+        // Remove the now-empty standalone table and any empty paras between them
+        body.removeChild(el);
+        for (const ep of emptyParasBetween) {
+          if (ep.parentNode === body) body.removeChild(ep);
+        }
+      }
+    }
+
+    // -----------------------------------------------------------------------
+    // FIX 15: Merge MNR empty-left-cell content rows into the MNR header cell
+    // -----------------------------------------------------------------------
+    // Root cause: buildGoalTable() creates each MNR content line as its own
+    // w:tr with 2 cells — empty left cell, content in right cell.  Fix 5 merges
+    // the MNR header row into one cell but leaves the content rows as separate
+    // 2-cell rows.  This fix moves those paragraphs up into the header cell and
+    // removes the now-redundant rows.
+    {
+      const tables = Array.from(root.getElementsByTagNameNS(W, 'tbl'));
+      for (const tbl of tables) {
+        const rows = directChildrenNS(tbl, 'tr');
+        let mnrRowIdx = -1;
+        let mnrCell = null;
+
+        // Find the MNR header row
+        for (let ri = 0; ri < rows.length; ri++) {
+          if (allText(rows[ri]).startsWith('Medical Necessity Rationale')) {
+            mnrRowIdx = ri;
+            mnrCell = directChildrenNS(rows[ri], 'tc')[0];
+            break;
+          }
+        }
+        if (mnrRowIdx === -1 || !mnrCell) continue;
+
+        // Collect subsequent rows whose left cell is empty (MNR content rows)
+        const rowsToRemove = [];
+        for (let rj = mnrRowIdx + 1; rj < rows.length; rj++) {
+          const nextRow = rows[rj];
+          const nextCells = directChildrenNS(nextRow, 'tc');
+          // Stop if not a 2-cell row or if the first cell has content
+          if (nextCells.length !== 2) break;
+          if (allText(nextCells[0]).trim() !== '') break;
+
+          // Append paragraphs from the right cell into the MNR cell
+          const contentParas = directChildrenNS(nextCells[1], 'p');
+          for (const p of contentParas) {
+            mnrCell.appendChild(p.cloneNode(true));
+          }
+          rowsToRemove.push(nextRow);
+        }
+
+        // Remove the merged content rows
+        for (const r of rowsToRemove) {
+          if (r.parentNode === tbl) tbl.removeChild(r);
+        }
+      }
+    }
+
+    // -----------------------------------------------------------------------
     // Serialize and repack
     // -----------------------------------------------------------------------
     const serializer = new XMLSerializer();
