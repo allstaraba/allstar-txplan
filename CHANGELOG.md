@@ -6,7 +6,7 @@ Each entry includes a commit hash. To roll back to any point, say **"rollback to
 
 ## 2026-04-13 (latest)
 
-### `(pending)` — DOCX post-processing: 13-fix XML pass on every export
+### `6ed2056` — DOCX post-processing: 13-fix XML pass on every export
 - Ported Python lxml post-processing script to JavaScript (`docx-postprocess.js`)
 - Applied automatically on every DOCX export via `postProcessDocxBuffer()` injected into the export route
 - Fixes include: table/row/cell cleanup, paragraph normalization, spacing fixes, and structural repairs to the generated Word XML

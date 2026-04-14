@@ -270,7 +270,8 @@ const GEN = {
 
 1. "ABA Treatment Plan" title header
 2. ☐ Review checkbox: "☐ I reviewed the ABA treatment plan requirements before submitting this report."
-3. Client Information table (Name, DOB, Assessment Date, Reassessment Date, Guardian Contact)
+3. Client Information table (Name, DOB, Age calculated as X years X months, Assessment Date, Reassessment Date, Guardian Contact, Guardian Email, Medicaid ID, Service Address, Current Report Date, Assessor — Guardian Email, Medicaid ID, Service Address, Current Report Date, and Assessor all as [TO BE COMPLETED BY BCBA])
+3a. Diagnosis section (ICD-10 Code, Date of Diagnosis, Diagnosing Professional — all as [TO BE COMPLETED BY BCBA] placeholders)
 4. Biopsychosocial Information: Current Family Structure table (include Environmental Factors and Safety Concerns rows), Medications table, Medical History table including Birth History, School Placement table
 5. History of ABA Services table
 6. Other Mental Health Services table and Other Services table
@@ -304,6 +305,8 @@ a) Header table
 b) Boilerplate intro
 c) Bordered table cell containing EXACTLY: [INSERT VB-MAPP/ABLLS-R SCORING GRID GRAPHIC HERE]
 d) Assessment narrative — all domains in one cell, no bold headings, smooth transitions
+
+12b. Current Problem Areas / Skills Deficits section addressing all 11 Carelon domains
 
 13. Goal Objective Summary — write ONLY: [GOAL_SUMMARY_TABLE]
 
@@ -407,9 +410,9 @@ Generate sections 19 through 26 in order. Do not write skill acquisition goals, 
 
 22. Recommendations for ABA Services:
     - Write the participant-specific Medical Necessity Rationale paragraph (reference actual Vineland scores, VB-MAPP scores, specific challenging behaviors, and justify intensity and location for THIS client — do NOT use generic boilerplate)
-    - Write the Supervision Ratio Medical Necessity Justification paragraph: calculate 97155 hours ÷ 97153 hours, state the ratio explicitly, cite the client's specific behaviors and clinical complexity, and explain why this supervision level is appropriate for this client
+    - Supervision Ratio Medical Necessity Justification paragraph (before the CPT table): calculate 97155 hours ÷ 97153 hours, state the ratio explicitly, cite the client's specific behaviors and clinical complexity, and explain why this supervision level is appropriate for this client
     - CPT codes table (CPT Code | Number of Hours Requested | Total Units | Time Period | Place of Service) — calculate Total Units as hours/week × 26 weeks × 4, show calculation inline; include 97151, 97153, 97155-GT, 97156-GT/U2; for Time Period use checkboxes: ☑ per week ☐ per month ☐ per auth
-    - If any CPT code uses the GT modifier, add a Telehealth Service Delivery Documentation paragraph stating the in-person vs telehealth percentage split for each GT code, and state: "Per PT 60-26 effective April 1, 2026, a minimum of 25% of 97155, 97156, and 97157 services will be rendered in-person."
+    - Telehealth Split Documentation paragraph (after the CPT table): state the in-person vs telehealth percentage split for each GT code, and state: "Per PT 60-26 effective April 1, 2026, a minimum of 25% of 97155, 97156, and 97157 services will be rendered in-person."
     - Anticipated Schedule grid with columns: Code | Sunday | Monday | Tuesday | Wednesday | Thursday | Friday | Saturday. Include one row for EACH CPT code being requested (97153, 97155, 97156 at minimum). Use "—" for days with no service for that code. Ensure row totals match the requested weekly hours.
 
 23. Provider Information table (Provider Name, Credentials, Signature, Date, NPI). Attestation cell: '[ATTESTATION_LANGUAGE]'. Clinical Reviewer table with signature line.
