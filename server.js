@@ -317,7 +317,7 @@ b) Boilerplate intro
 c) Bordered table cell containing EXACTLY: [INSERT VB-MAPP/ABLLS-R SCORING GRID GRAPHIC HERE]
 d) Assessment narrative — all domains in one cell, no bold headings, smooth transitions
 
-12b. Current Problem Areas / Skills Deficits — Required Carelon compliance section. Insert a bordered table immediately after the Criterion-Referenced Assessment and before the Goal Objective Summary. Include a header row and one content row for EACH of the following 11 domains — write 1–3 client-specific sentences describing the deficit based on the BCBA notes and assessment data. If no deficit exists, write "Within normal limits." Do NOT skip or omit any domain:
+12b. Current Problem Areas / Skills Deficits — Required compliance section. Insert a bordered table immediately after the Criterion-Referenced Assessment and before the Goal Objective Summary. Include a header row and one content row for EACH of the following 11 domains — write 1–3 client-specific sentences describing the deficit based on the BCBA notes and assessment data. If no deficit exists, write "Within normal limits." Do NOT skip or omit any domain:
 (a) Cognitive/Pre-academic Skills
 (b) Language/Communication Skills
 (c) Reduction of Interfering Behaviors

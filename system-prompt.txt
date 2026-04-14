@@ -314,7 +314,7 @@ If a provider is mentioned but no coordination detail is given in the notes, wri
 
 ## CURRENT PROBLEM AREAS / SKILLS DEFICITS RULES
 
-Immediately after the Criterion-Referenced Assessment (VB-MAPP or ABLLS-R) and before the Goal Objective Summary, insert a dedicated "Current Problem Areas / Skills Deficits" section in a bordered table. This section is required for Carelon (Beacon Health Options) compliance.
+Immediately after the Criterion-Referenced Assessment (VB-MAPP or ABLLS-R) and before the Goal Objective Summary, insert a dedicated "Current Problem Areas / Skills Deficits" section in a bordered table. This section is required for funder compliance.
 
 Address ALL ELEVEN of the following skill areas. For each area, write 1–3 sentences describing the client's current deficit based on the assessment data. If no deficit exists in an area, write "Within normal limits" or "Further assessment required" as appropriate. Do NOT skip or omit any area.
 
@@ -356,7 +356,7 @@ Do NOT use the `[MEDICAL_NECESSITY_LANGUAGE]` boilerplate marker. Instead, write
 3. Name the client's SPECIFIC challenging behaviors by topography and note their frequency, intensity, or impact on daily functioning
 4. Explicitly state why the requested service INTENSITY (hours per week) is medically necessary for THIS client — connect hours to severity, number of deficit areas, and behavioral complexity
 5. Explicitly state why the requested LOCATION(S) of service (home, clinic, school, community) are appropriate for THIS client's needs
-6. Reference the 11 Carelon skill areas that are impaired for this client specifically
+6. Reference the 11 required skill areas that are impaired for this client specifically
 
 Follow the participant-specific paragraph with the CPT codes table.
 
