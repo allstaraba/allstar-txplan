@@ -270,8 +270,19 @@ const GEN = {
 
 1. "ABA Treatment Plan" title header
 2. ☐ Review checkbox: "☐ I reviewed the ABA treatment plan requirements before submitting this report."
-3. Client Information table (Name, DOB, Age calculated as X years X months, Assessment Date, Reassessment Date, Guardian Contact, Guardian Email, Medicaid ID, Service Address, Current Report Date, Assessor — Guardian Email, Medicaid ID, Service Address, Current Report Date, and Assessor all as [TO BE COMPLETED BY BCBA])
-3a. Diagnosis section (ICD-10 Code, Date of Diagnosis, Diagnosing Professional — all as [TO BE COMPLETED BY BCBA] placeholders)
+3. Client Information table — include ALL of the following rows, in this order:
+   - Name
+   - Date of Birth
+   - Age: calculate from DOB and write as "X years, X months" (e.g., "5 years, 3 months"). Do not leave blank or repeat DOB.
+   - Medicaid ID: [TO BE COMPLETED BY BCBA]
+   - Service Address: [TO BE COMPLETED BY BCBA]
+   - Current Report Date: [TO BE COMPLETED BY BCBA]
+   - Assessor — Name: [TO BE COMPLETED BY BCBA] | Title: [TO BE COMPLETED BY BCBA] | Credentials: [TO BE COMPLETED BY BCBA]
+   - Assessment Date
+   - Reassessment Date
+   - Guardian Contact (phone number)
+   - Guardian Email: use the email from the notes if present; otherwise write [TO BE COMPLETED BY BCBA]
+3a. Immediately after the Client Information table, write exactly: [DIAGNOSIS_SECTION]
 4. Biopsychosocial Information: Current Family Structure table (include Environmental Factors and Safety Concerns rows), Medications table, Medical History table including Birth History, School Placement table
 5. History of ABA Services table
 6. Other Mental Health Services table and Other Services table
@@ -306,7 +317,18 @@ b) Boilerplate intro
 c) Bordered table cell containing EXACTLY: [INSERT VB-MAPP/ABLLS-R SCORING GRID GRAPHIC HERE]
 d) Assessment narrative — all domains in one cell, no bold headings, smooth transitions
 
-12b. Current Problem Areas / Skills Deficits section addressing all 11 Carelon domains
+12b. Current Problem Areas / Skills Deficits — Required Carelon compliance section. Insert a bordered table immediately after the Criterion-Referenced Assessment and before the Goal Objective Summary. Include a header row and one content row for EACH of the following 11 domains — write 1–3 client-specific sentences describing the deficit based on the BCBA notes and assessment data. If no deficit exists, write "Within normal limits." Do NOT skip or omit any domain:
+(a) Cognitive/Pre-academic Skills
+(b) Language/Communication Skills
+(c) Reduction of Interfering Behaviors
+(d) Severe Behavior
+(e) Safety Skills
+(f) Social Skills
+(g) Play and Leisure
+(h) Independent Living/Self-Help
+(i) Community Integration
+(j) Coping and Tolerance
+(k) Other
 
 13. Goal Objective Summary — write ONLY: [GOAL_SUMMARY_TABLE]
 
@@ -399,7 +421,9 @@ Generate sections 19 through 26 in order. Do not write skill acquisition goals, 
     - Transition table: Description of Transition | Anticipated Date | Plan (all N/A)
     - Bordered fading rationale: write BOTH paragraphs individualized with actual client name and hours per week from the BCBA notes
     - 4-phase fading table (Phase | Service Levels | Status) — use the exact phase criteria from your instructions, reference specific skill acquisition goal numbers from the BCBA notes
-    - Discharge Criteria section whose content cell contains: '[DISCHARGE_CRITERIA]'
+    - Discharge Criteria section: Write '[DISCHARGE_CRITERIA]' in the content cell. Immediately after that marker (in the same cell or a continuation bordered table), write TWO client-specific paragraphs:
+      (a) Anticipated Next Level of Care: Based on this client's current severity, trajectory, and goals, describe the anticipated level of care after discharge from comprehensive ABA (e.g., reduced-intensity outpatient ABA, school-based behavioral supports only, parent training only, community-based services, no further ABA services anticipated).
+      (b) Linkages with Other Services: Identify the specific services relevant to THIS client's profile that the family should be connected with upon discharge — name service types such as school IEP/special education, community mental health, SLP, OT, social skills groups, or recreational programs as appropriate.
 
 21. Crisis Plan:
     - Crisis intro bordered cell
@@ -411,7 +435,7 @@ Generate sections 19 through 26 in order. Do not write skill acquisition goals, 
 22. Recommendations for ABA Services:
     - Write the participant-specific Medical Necessity Rationale paragraph (reference actual Vineland scores, VB-MAPP scores, specific challenging behaviors, and justify intensity and location for THIS client — do NOT use generic boilerplate)
     - Supervision Ratio Medical Necessity Justification paragraph (before the CPT table): calculate 97155 hours ÷ 97153 hours, state the ratio explicitly, cite the client's specific behaviors and clinical complexity, and explain why this supervision level is appropriate for this client
-    - CPT codes table (CPT Code | Number of Hours Requested | Total Units | Time Period | Place of Service) — calculate Total Units as hours/week × 26 weeks × 4, show calculation inline; include 97151, 97153, 97155-GT, 97156-GT/U2; for Time Period use checkboxes: ☑ per week ☐ per month ☐ per auth
+    - CPT codes table (CPT Code | Number of Hours Requested | Total Units | Time Period | Place of Service) — calculate Total Units as hours/week × 26 weeks × 4, show calculation inline; include 97151, 97153, 97155-GT, 97156-GT/U2; for Time Period use checkboxes: ☑ per week ☐ per month ☐ per auth; CRITICAL: 97155 hours MUST be calculated as exactly 20% of 97153 hours (97155 = 97153 × 0.20, round to nearest 0.5) — do NOT use the 97155 hours from the BCBA notes, always override with the calculated value
     - Telehealth Split Documentation paragraph (after the CPT table): state the in-person vs telehealth percentage split for each GT code, and state: "Per PT 60-26 effective April 1, 2026, a minimum of 25% of 97155, 97156, and 97157 services will be rendered in-person."
     - Anticipated Schedule grid with columns: Code | Sunday | Monday | Tuesday | Wednesday | Thursday | Friday | Saturday. Include one row for EACH CPT code being requested (97153, 97155, 97156 at minimum). Use "—" for days with no service for that code. Ensure row totals match the requested weekly hours.
 
