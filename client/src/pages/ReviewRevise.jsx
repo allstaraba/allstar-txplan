@@ -473,7 +473,7 @@ export default function ReviewRevise({ user, currentPlan, setCurrentPlan, inject
 
   // Regenerate the complete plan incorporating all chat feedback
   const handleRegenerate = async () => {
-    if (regenerating || sending) return;
+    if (regenerating || sending || !currentPlan) return;
     setError('');
     setRegenerating(true);
     if (onRegeneratingChange) onRegeneratingChange(true, currentPlan.client_name || '');

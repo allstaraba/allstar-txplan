@@ -305,7 +305,6 @@ export default function ClientProfile({ currentPlan, setCurrentPlan, injectedTex
         <textarea
           value={notes}
           onChange={e => setNotes(e.target.value)}
-          onBlur={handleNotesSave}
           placeholder="Add notes about this client..."
           rows={2}
           style={{
@@ -322,7 +321,7 @@ export default function ClientProfile({ currentPlan, setCurrentPlan, injectedTex
             background: '#fff',
           }}
           onFocus={e => e.target.style.borderColor = '#2563eb'}
-          onBlur2={e => e.target.style.borderColor = '#e2e8f0'}
+          onBlur={e => { e.target.style.borderColor = '#e2e8f0'; handleNotesSave(e); }}
         />
         {savedMsg && (
           <span style={{ fontSize: '12px', color: '#16a34a', paddingTop: '8px', whiteSpace: 'nowrap' }}>Saved ✓</span>

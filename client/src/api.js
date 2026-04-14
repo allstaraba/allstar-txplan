@@ -139,6 +139,7 @@ export async function revisePlan(plan_id, feedback, onChunk) {
       if (evt.type === 'error') throw new Error(evt.error || 'Revision failed');
     }
   }
+  if (revision_number == null) throw new Error('Revision stream ended without confirmation. Please try again.');
   return { revision_number };
 }
 
@@ -609,5 +610,6 @@ export async function regeneratePlan(plan_id, onChunk) {
       if (evt.type === 'error') throw new Error(evt.error || 'Regeneration failed');
     }
   }
+  if (revision_number == null) throw new Error('Regeneration stream ended without confirmation. Please try again.');
   return { revision_number };
 }

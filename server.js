@@ -804,7 +804,8 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
             content: `You are an ABA treatment plan assistant. A complete treatment plan was just generated from the BCBA notes below. Any missing information was filled with bracketed placeholders like [PHONE NUMBER] or [TO BE DETERMINED].\n\nReview the notes and identify what specific information is missing or unclear that would improve the plan. Ask targeted clarifying questions in a friendly, clinical tone — 3 to 7 questions max. Be specific (e.g., "What is the 97153 hours per week you want to request?" not "Are there any missing hours?"). Do not ask about things that are clearly present in the notes.\n\nBCBA Notes:\n${notes.slice(0, 8000)}`
           }]
         });
-        const clarifyText = clarifyMsg.content[0].text;
+        const clarifyText = clarifyMsg.content?.[0]?.text;
+        if (!clarifyText) throw new Error('Empty clarify response');
         db.prepare('INSERT INTO chat_messages (plan_id, role, content, username) VALUES (?, ?, ?, ?)').run(planId, 'assistant', clarifyText, 'Claude');
         console.log(`[generate] Posted clarifying questions to chat for plan_id=${planId}`);
       } catch (e) {
@@ -1938,14 +1939,17 @@ Rules:
     for (const op of ops) {
       if (!op.find || op.replace === undefined) continue;
       if (revisedText.includes(op.find)) {
-        revisedText = revisedText.replace(op.find, op.replace);
+        // Use a function replacement to prevent $ special-pattern interpretation
+        // (e.g. "$1,200" in op.replace would otherwise be treated as a backreference)
+        revisedText = revisedText.replace(op.find, () => op.replace);
         appliedCount++;
       } else {
         // Whitespace-normalized fallback
         const normPlan = revisedText.replace(/\s+/g, ' ');
         const normFind = op.find.replace(/\s+/g, ' ');
         if (normPlan.includes(normFind)) {
-          revisedText = revisedText.replace(new RegExp(normFind.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+'), 's'), op.replace);
+          const safeReplace = op.replace;
+          revisedText = revisedText.replace(new RegExp(normFind.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+'), 's'), () => safeReplace);
           appliedCount++;
         } else {
           console.warn(`[targeted-revise] Could not find text to replace: "${op.find.slice(0, 80)}"`);
