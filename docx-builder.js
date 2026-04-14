@@ -643,24 +643,9 @@ function parseMarkdown(text) {
     if (t.startsWith('|')) {
       flushSection();
       const tblLines = [];
-      while (i < lines.length) {
-        const cur = lines[i].trim();
-        if (cur.startsWith('|')) {
-          tblLines.push(lines[i]);
-          i++;
-        } else if (!cur) {
-          // Blank line — peek ahead: if next non-blank line is also a | row,
-          // absorb the blank and keep collecting (multi-paragraph bordered cell).
-          let j = i + 1;
-          while (j < lines.length && !lines[j].trim()) j++;
-          if (j < lines.length && lines[j].trim().startsWith('|')) {
-            i++;  // skip blank, keep collecting
-            continue;
-          }
-          break;  // blank followed by non-| content — stop
-        } else {
-          break;
-        }
+      while (i < lines.length && lines[i].trim().startsWith('|')) {
+        tblLines.push(lines[i]);
+        i++;
       }
       out.push(...buildMarkdownTable(tblLines));
       continue;
