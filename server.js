@@ -393,12 +393,12 @@ Output the JSON object only. Nothing before or after it.`,
     label: 'BIPs, Behavior Reduction & Parent Training',
   },
 
-  S3D: {
-    id: 'S3D',
-    label: 'Generalization, Fading, Crisis & Final Sections',
-    instruction: `Sections 1–14 of the treatment plan have been written above. Now generate the final sections.
+  S3D1: {
+    id: 'S3D1',
+    label: 'Generalization, Fading & Crisis Plan',
+    instruction: `Sections 1–14 of the treatment plan have been written above. Now generate sections 19 through 21 only.
 
-Generate sections 19 through 26 in order. Do not write skill acquisition goals, behavior reduction, parent training, or BIPs — those are handled separately.
+Do not write skill acquisition goals, behavior reduction, parent training, BIPs, or any section after 21.
 
 19. Generalization Plan — Bordered table:
     Row 1 (header): "Generalization Protocol"
@@ -421,6 +421,16 @@ Generate sections 19 through 26 in order. Do not write skill acquisition goals, 
     - Individualized crisis protocol table (or "no individualized crisis plan" if client has no significant safety behaviors)
     - Post-Crisis Procedures cell: '[POST_CRISIS_PROCEDURES]'
 
+STOP after section 21.`,
+  },
+
+  S3D2: {
+    id: 'S3D2',
+    label: 'Recommendations, Provider Info & Final Sections',
+    instruction: `Sections 1–21 of the treatment plan have been written above. Now generate sections 22 through 25 only.
+
+Do not write skill acquisition goals, behavior reduction, parent training, BIPs, generalization, fading, or crisis sections.
+
 22. Recommendations for ABA Services:
     - Write the participant-specific Medical Necessity Rationale paragraph (reference actual Vineland scores, VB-MAPP scores, specific challenging behaviors, and justify intensity and location for THIS client — do NOT use generic boilerplate)
     - Write the Supervision Ratio Medical Necessity Justification paragraph: calculate 97155 hours ÷ 97153 hours, state the ratio explicitly, cite the client's specific behaviors and clinical complexity, and explain why this supervision level is appropriate for this client
@@ -435,7 +445,9 @@ Generate sections 19 through 26 in order. Do not write skill acquisition goals, 
     Parent/Caregiver Signature: ____________________ Date: ______________
     Date: ______________
 
-25. Maryland Medicaid Telehealth Readiness Checklist — write only: '[TELEHEALTH_CHECKLIST]'`,
+25. Maryland Medicaid Telehealth Readiness Checklist — write only: '[TELEHEALTH_CHECKLIST]'
+
+STOP after section 25.`,
   },
 };
 
@@ -760,8 +772,9 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
         } catch (err) {
           lastErr = err;
           const isPrematureClose = err.message === 'Premature close' || err.code === 'ERR_STREAM_PREMATURE_CLOSE';
+          const isAborted = err.constructor?.name === 'APIUserAbortError' || err.message?.includes('aborted');
           const isTimeout = err.message && err.message.includes('timed out after 5 minutes');
-          if ((isPrematureClose || isTimeout) && sectionText.length === 0 && attempt < maxAttempts) {
+          if ((isPrematureClose || isTimeout || isAborted) && attempt < maxAttempts) {
             const delay = attempt * 5000;
             const reason = isTimeout ? 'timeout (no response)' : 'premature close (no output)';
             console.log(`[generate] ${secId} ${reason}. Retrying in ${delay/1000}s (attempt ${attempt+1}/${maxAttempts})...`);
@@ -863,16 +876,18 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
 
     send({ type: 'progress', section: 4, total: 4, label: 'BIPs & Final Sections (parallel)' });
     setJob(userId, { section: 4, label: 'BIPs & Final Sections (parallel)' });
-    console.log('[generate] Starting S3C (JSON mode) and S3D in parallel');
+    console.log('[generate] Starting S3C (JSON mode), S3D1, S3D2 in parallel');
     const bipContext = s1s2Context + (goalList
       ? '\n\n=== SKILL ACQUISITION GOALS (reference these numbers for FERB goals) ===\n' + goalList
       : '');
     const s3cSec = { id: GEN.S3C.id, instruction: buildS3CInstruction(nextGoalNum) };
-    const [s3cRaw, s3dText] = await Promise.all([
+    const [s3cRaw, s3d1Text, s3d2Text] = await Promise.all([
       callWithRetry(s3cSec.id, buildMessages(s3cSec, bipContext), 4, { suppressStream: true }),
-      callWithRetry(GEN.S3D.id, buildMessages(GEN.S3D, s1s2Context)),
+      callWithRetry(GEN.S3D1.id, buildMessages(GEN.S3D1, s1s2Context)),
+      callWithRetry(GEN.S3D2.id, buildMessages(GEN.S3D2, s1s2Context)),
     ]);
-    console.log(`[generate] S3C+S3D complete. S3C raw=${s3cRaw.length} chars, S3D=${s3dText.length} chars`);
+    const s3dText = [s3d1Text, s3d2Text].filter(Boolean).join('\n\n');
+    console.log(`[generate] S3C+S3D1+S3D2 complete. S3C raw=${s3cRaw.length} chars, S3D1=${s3d1Text.length} chars, S3D2=${s3d2Text.length} chars`);
 
     let s3cText, s3cData = null;
     try {
