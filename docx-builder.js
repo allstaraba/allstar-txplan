@@ -399,13 +399,17 @@ function buildGoalTable(goalNum, goalLines, domainHeader = null) {
     // Skip redundant "Goal N" lines
     if (/^Goal\s+\d+$/i.test(line)) { i++; continue; }
 
+    // Skip markdown separator rows (--- or ---: patterns)
+    if (/^-{2,}:?\s*$/.test(line) || /^[-|: ]+$/.test(line)) { i++; continue; }
+
     // Try to parse as field:value
     const field = parseField(line);
     if (field) {
-      // Medical Necessity: collect continuation lines (criterion text + bullets) into one cell
+      // Medical Necessity: ONE full-width merged cell (colspan:2) with all content
+      // as multiple paragraphs — label bold first, then criterion text, then bullets
       if (/Medical Necessity/i.test(field.label)) {
-        const valueParts = [];
-        if (field.value) valueParts.push(field.value);
+        const mnrParas = [];
+        mnrParas.push(cellParaRaw(field.label, true));
         let j = i + 1;
         while (j < contentLines.length) {
           const nx = contentLines[j].trim();
@@ -413,21 +417,16 @@ function buildGoalTable(goalNum, goalLines, domainHeader = null) {
           if (KNOWN_FIELD_RE.test(nx)) break;
           if (/^\d+\.\s+\*\*(?:\(FERB\)\s+)?Goal Statement:/i.test(nx)) break;
           if (/^\*\*Goal\s+\d+:\*\*/i.test(nx)) break;
-          valueParts.push(nx);
+          if (/^[●•\-]\s/.test(nx)) {
+            mnrParas.push(new Paragraph({ children: runs('• ' + nx.replace(/^[●•\-]\s*/, '')), spacing: { after: 40 } }));
+          } else {
+            mnrParas.push(cellPara(nx));
+          }
           j++;
         }
-        const valueParas = valueParts.map(vl => {
-          if (/^[●•\-]\s/.test(vl)) {
-            return new Paragraph({ children: runs('• ' + vl.replace(/^[●•\-]\s*/, '')), spacing: { after: 40 } });
-          }
-          return cellPara(vl);
-        });
-        if (!valueParas.length) valueParas.push(cellPara(''));
+        if (field.value) mnrParas.splice(1, 0, cellPara(field.value));
         rows.push(new TableRow({
-          children: [
-            cell(cellParaRaw(field.label, true), COL2_L, { fill: GRAY_HD }),
-            cell(valueParas.length === 1 ? valueParas[0] : valueParas, COL2_R),
-          ],
+          children: [cell(mnrParas, TABLE_W, { colspan: 2 })],
         }));
         i = j;
         continue;
@@ -580,6 +579,8 @@ function buildGoalTableFromPipeRows(tblLines, domainHeader) {
     if (cols.length < 2) continue;
     const label = cols[0];
     const value = cols[1] || '';
+    // Skip markdown separator rows (|---|---|)
+    if (/^-{2,}:?\s*$/.test(label) || cols.every(c => /^[-: ]+$/.test(c))) continue;
     // Numbered goal statement: "1. Goal Statement:" or "1. (FERB) Goal Statement:"
     const numMatch = label.match(/^(\d+)\.\s+((?:\(FERB\)\s+)?Goal Statement):?$/i);
     if (numMatch) {
