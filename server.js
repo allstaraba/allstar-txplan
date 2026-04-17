@@ -6,7 +6,7 @@ const os = require('os');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const multer = require('multer');
-const Anthropic = require('@anthropic-ai/sdk');
+const { aiClient: anthropic, PROVIDER } = require('./ai-client');
 const AdmZip = require('adm-zip');
 const mammoth = require('mammoth');
 const pdfParse = require('pdf-parse');
@@ -24,7 +24,7 @@ const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'allstar-aba-secret-2026';
 const CLAUDE_MODEL = process.env.CLAUDE_MODEL || 'claude-opus-4-5';
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+console.log(`[startup] AI provider: ${PROVIDER.toUpperCase()}`);
 
 // Server-side generation job tracking keyed by userId
 // Survives client disconnects so users can reconnect and see status
