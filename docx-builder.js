@@ -298,12 +298,20 @@ function buildMarkdownTable(lines) {
     return (t.startsWith('**') && t.endsWith('**')) || t === '';
   });
 
-  // For 2-col tables, use reference column widths
+  // For 2-col tables, use reference column widths; for 7+ col tables (schedule grid), widen label
   const isTwoCol = nCols === 2;
 
-  const colWidths = isTwoCol
-    ? [COL2_L, COL2_R]
-    : Array.from({ length: nCols }, (_, i) => i === nCols - 1 ? lastW : colW);
+  let colWidths;
+  if (isTwoCol) {
+    colWidths = [COL2_L, COL2_R];
+  } else if (nCols >= 7) {
+    const labelW = 1400;
+    const dayW = Math.floor((TABLE_W - labelW) / (nCols - 1));
+    const lastDayW = TABLE_W - labelW - dayW * (nCols - 2);
+    colWidths = [labelW, ...Array(nCols - 2).fill(dayW), lastDayW];
+  } else {
+    colWidths = Array.from({ length: nCols }, (_, i) => i === nCols - 1 ? lastW : colW);
+  }
 
   const tableRows = finalRows.map((row, ri) => {
     const isHeader = firstRowBold && ri === 0;
@@ -380,6 +388,10 @@ function buildGoalTable(goalNum, goalLines, domainHeader = null) {
   // Content lines
   const contentLines = goalNum ? goalLines : goalLines.slice(1);
   let i = 0;
+
+  // Field labels that start a new 2-column row (stop Medical Necessity collection)
+  const KNOWN_FIELD_RE = /^\*\*(?:\(FERB\)\s+)?(?:Goal Statement|Baseline|Date of Introduction|Projected Mastery|Progress Data|Mastery Criteria|Target Date|Current Performance|Measurement Method):\*\*/i;
+
   while (i < contentLines.length) {
     const line = contentLines[i].trimEnd().replace(/\s+$/, '').trim();
     if (!line) { i++; continue; }
@@ -387,26 +399,57 @@ function buildGoalTable(goalNum, goalLines, domainHeader = null) {
     // Skip redundant "Goal N" lines
     if (/^Goal\s+\d+$/i.test(line)) { i++; continue; }
 
-    // Bullet line → full-width merged
+    // Try to parse as field:value
+    const field = parseField(line);
+    if (field) {
+      // Medical Necessity: collect continuation lines (criterion text + bullets) into one cell
+      if (/Medical Necessity/i.test(field.label)) {
+        const valueParts = [];
+        if (field.value) valueParts.push(field.value);
+        let j = i + 1;
+        while (j < contentLines.length) {
+          const nx = contentLines[j].trim();
+          if (!nx) { j++; continue; }
+          if (KNOWN_FIELD_RE.test(nx)) break;
+          if (/^\d+\.\s+\*\*(?:\(FERB\)\s+)?Goal Statement:/i.test(nx)) break;
+          if (/^\*\*Goal\s+\d+:\*\*/i.test(nx)) break;
+          valueParts.push(nx);
+          j++;
+        }
+        const valueParas = valueParts.map(vl => {
+          if (/^[●•\-]\s/.test(vl)) {
+            return new Paragraph({ children: runs('• ' + vl.replace(/^[●•\-]\s*/, '')), spacing: { after: 40 } });
+          }
+          return cellPara(vl);
+        });
+        if (!valueParas.length) valueParas.push(cellPara(''));
+        rows.push(new TableRow({
+          children: [
+            cell(cellParaRaw(field.label, true), COL2_L, { fill: GRAY_HD }),
+            cell(valueParas.length === 1 ? valueParas[0] : valueParas, COL2_R),
+          ],
+        }));
+        i = j;
+        continue;
+      }
+
+      // Normal field — standard 2-column row
+      rows.push(new TableRow({
+        children: [
+          cell(cellParaRaw(field.label, true), COL2_L, { fill: GRAY_HD }),
+          cell(cellPara(field.value || ''), COL2_R),
+        ],
+      }));
+      i++; continue;
+    }
+
+    // Bullet line → full-width merged (stray bullets not under Medical Necessity)
     if (/^[●•\-]\s/.test(line)) {
       rows.push(new TableRow({
         children: [cell(
           new Paragraph({ children: runs('• ' + line.replace(/^[●•\-]\s*/, '')), spacing: { after: 0 } }),
           TABLE_W, { colspan: 2 }
         )],
-      }));
-      i++; continue;
-    }
-
-    // Field: value line
-    const field = parseField(line);
-    if (field) {
-      const { label, value } = field;
-      rows.push(new TableRow({
-        children: [
-          cell(cellParaRaw(label, true), COL2_L, { fill: GRAY_HD }),
-          cell(cellPara(value), COL2_R),
-        ],
       }));
       i++; continue;
     }
@@ -431,10 +474,10 @@ function buildGoalTable(goalNum, goalLines, domainHeader = null) {
 function buildBipTable(bipTitle, bipLines) {
   const rows = [];
 
-  // Header: "Behavior Intervention Plan"
+  // Header: BIP title from ### heading, or fallback
   rows.push(new TableRow({
     children: [cell(
-      cellParaRaw('Behavior Intervention Plan', true),
+      cellParaRaw(bipTitle || 'Behavior Intervention Plan', true),
       TABLE_W, { fill: GRAY_HD, colspan: 2 }
     )],
   }));
@@ -526,6 +569,30 @@ function buildBipTable(bipTitle, bipLines) {
   ];
 }
 
+// ─── Pipe-format goal table → buildGoalTable ─────────────────────────────────
+// Detects pipe rows that form a goal block and converts them to the bold format
+// that buildGoalTable expects, preserving Medical Necessity first.
+function buildGoalTableFromPipeRows(tblLines, domainHeader) {
+  let goalNum = null;
+  const goalLines = [];
+  for (const tblLine of tblLines) {
+    const cols = tblLine.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+    if (cols.length < 2) continue;
+    const label = cols[0];
+    const value = cols[1] || '';
+    // Numbered goal statement: "1. Goal Statement:" or "1. (FERB) Goal Statement:"
+    const numMatch = label.match(/^(\d+)\.\s+((?:\(FERB\)\s+)?Goal Statement):?$/i);
+    if (numMatch) {
+      goalNum = numMatch[1];
+      goalLines.push(`**${numMatch[2]}:** ${value}`);
+    } else {
+      const cleanLabel = label.replace(/:$/, '').trim();
+      goalLines.push(`**${cleanLabel}:** ${value}`);
+    }
+  }
+  return buildGoalTable(goalNum, goalLines, domainHeader);
+}
+
 // ─── Main markdown parser ─────────────────────────────────────────────────────
 function parseMarkdown(text) {
   const out   = [];
@@ -574,17 +641,25 @@ function parseMarkdown(text) {
     // Skip title line (already handled)
     if (t.startsWith('# ') && !t.startsWith('## ')) { i++; continue; }
 
-    // Checkbox lines (e.g., ☐ or ☑) — output as standalone para then skip
+    // Checkbox lines (e.g., ☐ or ☑) — render in a bordered table for consistent styling
     if (t.startsWith('☐') || t.startsWith('☑') || t.startsWith('☒')) {
       flushSection();
-      out.push(para(t, { after: 60 }));
+      const checkRow = new TableRow({ children: [cell(cellPara(t), TABLE_W, { colspan: 2 })] });
+      out.push(makeTable([checkRow], [TABLE_W]));
+      out.push(gap(60));
       i++; continue;
     }
 
     // ── H2 section heading → flush + start new section ──
     if (t.startsWith('## ') && !t.startsWith('### ')) {
       flushSection();
-      sectionHeader = t.slice(3).trim().replace(/^\d+\.\s+/, '');  // Fix 6: strip leading "N. "
+      const headingText = t.slice(3).trim().replace(/^\d+\.\s+/, '');
+      // If heading looks like a goal domain header, treat as pendingDomainHeader (S1)
+      if (/(?:Goals?|Training)\s*$/i.test(headingText) && !/Behavior Intervention|Behavior Reduction|Summary|Response|Authorization/i.test(headingText)) {
+        pendingDomainHeader = headingText;
+        i++; continue;
+      }
+      sectionHeader = headingText;
       inBipSection = /^Behavior Intervention Plan/i.test(sectionHeader);
       i++;
       continue;
@@ -646,6 +721,16 @@ function parseMarkdown(text) {
       while (i < lines.length && lines[i].trim().startsWith('|')) {
         tblLines.push(lines[i]);
         i++;
+      }
+      // Route goal tables (pipe rows containing a numbered Goal Statement) through
+      // buildGoalTable so they get proper shaded-label styling
+      const isGoalTable = tblLines.some(l =>
+        /\|\s*\d+\.\s+(?:\(FERB\)\s+)?Goal Statement:/i.test(l)
+      );
+      if (isGoalTable) {
+        out.push(...buildGoalTableFromPipeRows(tblLines, pendingDomainHeader));
+        pendingDomainHeader = null;
+        continue;
       }
       out.push(...buildMarkdownTable(tblLines));
       continue;
