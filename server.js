@@ -314,59 +314,76 @@ Be thorough. STOP after section 14.`,
   S3A: {
     id: 'S3A',
     label: 'Communication & Social Goals',
-    instruction: `Sections 1–14 of the treatment plan have been written above. Continue — do not repeat anything.
+    instruction: `Sections 1–14 of the treatment plan have been written above.
 
-Generate ONLY the Language/Communication and Social skill acquisition goals (the first two domains of section 15):
+Output ONLY a JSON object — no other text, no markdown fences, no explanation. Use this exact schema:
 
-**Language/Communication Goals** (shaded domain header row, then goals)
-Write 12–18 goals for this domain.
+{
+  "communicationGoals": [
+    {
+      "goalNumber": 1,
+      "isFerb": true,
+      "goalStatement": "When [condition], [client] will [behavior] in 90% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.",
+      "medicalNecessityRationale": "Core Deficit of ASD Addressed: A. Persistent deficits in social communication and social interaction across multiple contexts, specifically: (1) [specific deficit]; (2) [specific deficit]",
+      "baseline": "[descriptive baseline with date]",
+      "dateOfIntroduction": "[date]",
+      "projectedMastery": "[date ~6 months out]"
+    }
+  ],
+  "socialGoals": [
+    {
+      "goalNumber": 13,
+      "isFerb": false,
+      "goalStatement": "When [condition], [client] will [behavior] in 80% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.",
+      "medicalNecessityRationale": "Core Deficit of ASD Addressed: A. Persistent deficits in social communication and social interaction across multiple contexts, specifically: (1) [specific deficit]; (2) [specific deficit]",
+      "baseline": "[descriptive baseline with date]",
+      "dateOfIntroduction": "[date]",
+      "projectedMastery": "[date ~6 months out]"
+    }
+  ]
+}
 
-**Social Goals** (shaded domain header row, then goals)
-Write 8–12 goals for this domain.
+REQUIREMENTS:
+- communicationGoals: 12–18 goals for Language/Communication domain. Start numbering at 1.
+- socialGoals: 8–12 goals for Social domain. Continue numbering after last communication goal.
+- isFerb: true for goals serving as functionally equivalent replacement behaviors
+- FERB goals (isFerb: true) → "in 90% of opportunities" in goalStatement. Non-FERB → "in 80% of opportunities". No exceptions.
+- Language/Communication and Social goals: medicalNecessityRationale ALWAYS cites Criterion A. NEVER cite Criterion B for social goals.
+- Goals targeting restricted/repetitive behaviors (stereotypy, insistence on sameness, sensory seeking): cite Criterion B in medicalNecessityRationale.
+- Write full, individualized clinical content. No placeholders except [date] fields.
 
-Start numbering at Goal 1. Use this EXACT format for every goal:
-| Medical Necessity Rationale: | Core Deficit of ASD Addressed: A. ... B. ... C. ... |
-| [N]. Goal Statement: | (FERB if applicable) When [condition], [client] will [behavior] in [X]% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people. |
-| Baseline: | [descriptive baseline with date] |
-| Date of Introduction: | [date] |
-| Projected Mastery: | [date ~6 months out] |
-| Progress Data: | N/A |
-
-Label goals that serve as functionally equivalent replacement behaviors with (FERB) prefix. FERB goals use 90% mastery criteria. Non-FERB goals use 80% mastery criteria.
-
-MASTERY CRITERIA: FERB goals = 90%. Non-FERB goals = 80%. No exceptions.
-
-DSM-5 CRITERION RULE FOR MEDICAL NECESSITY RATIONALE:
-- Language/Communication goals → ALWAYS cite Criterion A: Persistent deficits in social communication and social interaction
-- Social goals → ALWAYS cite Criterion A: Persistent deficits in social communication and social interaction
-- Social domain goals (making friends, interest in peers, social approach, sharing play, joint attention, social reciprocity) MUST NEVER cite Criterion B. Social deficits are Criterion A without exception.
-- Goals targeting restricted/repetitive behaviors (stereotypy, insistence on sameness, sensory seeking) → cite Criterion B: Restricted, repetitive patterns of behavior, interests, or activities
-
-Write every goal in full. STOP after the last Social goal. Do NOT write Adaptive goals, BIPs, behavior reduction, or any later sections.`,
+Output the JSON object only. Nothing before or after it.`,
   },
 
   S3B: {
     id: 'S3B',
     label: 'Adaptive/Self-Care Goals',
-    instruction: `Sections 1–14 of the treatment plan have been written above. Continue — do not repeat anything.
+    instruction: `Sections 1–14 of the treatment plan have been written above. The Communication and Social goals (Goals 1–24) are being generated in a parallel stage.
 
-Generate ONLY the Adaptive/Self-Care skill acquisition goals (section 15, third domain):
+Output ONLY a JSON object — no other text, no markdown fences, no explanation:
 
-**Adaptive/Self-Care Goals** (shaded domain header row, then goals)
-Write 5–8 goals for this domain. Start numbering at Goal 25.
-Use the same exact goal table format as Communication and Social goals above.
-Do NOT include hygiene, dressing, or toileting as skill acquisition goals — instead write those as Caregiver Training goals in a later section.
+{
+  "adaptiveGoals": [
+    {
+      "goalNumber": 25,
+      "isFerb": false,
+      "goalStatement": "When [condition], [client] will [behavior] in 80% of opportunities across 5 consecutive sessions, in two settings, and in the presence of two people.",
+      "medicalNecessityRationale": "Core Deficit of ASD Addressed: A. Persistent deficits in social communication and social interaction across multiple contexts, specifically: (1) [specific deficit]; (2) [specific deficit]",
+      "baseline": "[descriptive baseline with date]",
+      "dateOfIntroduction": "[date]",
+      "projectedMastery": "[date ~6 months out]"
+    }
+  ]
+}
 
-Label goals that serve as functionally equivalent replacement behaviors with (FERB) prefix. FERB goals use 90% mastery criteria. Non-FERB goals use 80% mastery criteria.
+REQUIREMENTS:
+- adaptiveGoals: 5–8 goals for Adaptive/Self-Care domain. Start numbering at 25.
+- isFerb: true/false as clinically appropriate
+- FERB goals → "in 90% of opportunities". Non-FERB → "in 80% of opportunities". No exceptions.
+- Do NOT include hygiene, dressing, or toileting goals — those belong in parent training.
+- Adaptive goals may cite Criterion A or B based on clinical judgment.
 
-MASTERY CRITERIA: FERB goals = 90%. Non-FERB goals = 80%. No exceptions.
-
-DSM-5 CRITERION RULE FOR MEDICAL NECESSITY RATIONALE:
-- Adaptive/Self-Care goals may cite Criterion A or Criterion B depending on the specific goal — use clinical judgment based on whether the deficit is primarily communicative/social (Criterion A) or related to restricted/inflexible patterns (Criterion B)
-- Goals targeting restricted/repetitive behaviors (stereotypy, insistence on sameness, sensory seeking) → cite Criterion B: Restricted, repetitive patterns of behavior, interests, or activities
-- Social domain goals MUST NEVER cite Criterion B. Social deficits are Criterion A without exception.
-
-Write every goal completely. STOP after the last Adaptive goal. Do NOT write behavior reduction goals, parent training goals, BIPs, or any later sections.`,
+Output the JSON object only. Nothing before or after it.`,
   },
 
   // S3C instruction is built dynamically at runtime (after S3A+S3B finish) so it can inject
@@ -427,48 +444,76 @@ Generate sections 19 through 26 in order. Do not write skill acquisition goals, 
 function buildS3CInstruction(nextGoalNum) {
   return `The skill acquisition goals listed above contain the goal numbers to reference for FERB goals.
 
-Generate sections 16, 17, and 18 in order:
+Output ONLY a JSON object — no other text, no markdown fences, no explanation:
 
-## Section 16: Behavior Intervention Plans
+{
+  "bips": [
+    {
+      "function": "Social Negative Reinforcement",
+      "notApplicable": false,
+      "date": "[date]",
+      "targetBehaviors": ["BehaviorName1", "BehaviorName2"],
+      "operationalDefinitions": [
+        { "behavior": "BehaviorName1", "definition": "One precise definition. If not inherently maladaptive, specify the maladaptive context." }
+      ],
+      "behaviorAssessmentABC": "[antecedent-behavior-consequence analysis]",
+      "quantitativeBaseline": "[frequency or duration data with date]",
+      "hypothesizedFunction": "[function statement]",
+      "ferbGoalNumbers": [1, 3, 5],
+      "antecedentInterventions": [
+        { "name": "Intervention Name", "description": "2–3 sentence clinical description." }
+      ],
+      "consequenceInterventions": [
+        { "name": "Intervention Name", "description": "2–3 sentence description including reinforcement schedule (CRF thinning to VR-2, VR-3, VR-5)." }
+      ]
+    },
+    {
+      "function": "Social Positive Reinforcement",
+      "notApplicable": true
+    },
+    {
+      "function": "Automatic Positive Reinforcement",
+      "notApplicable": false,
+      "date": "[date]",
+      "targetBehaviors": ["BehaviorName"],
+      "operationalDefinitions": [{ "behavior": "BehaviorName", "definition": "[definition]" }],
+      "behaviorAssessmentABC": "[ABC]",
+      "quantitativeBaseline": "[data with date]",
+      "hypothesizedFunction": "[function]",
+      "ferbGoalNumbers": [7, 9],
+      "antecedentInterventions": [{ "name": "[name]", "description": "[description]" }],
+      "consequenceInterventions": [{ "name": "[name]", "description": "[description]" }]
+    }
+  ],
+  "behaviorReductionGoals": [
+    {
+      "goalNumber": ${nextGoalNum},
+      "goalStatement": "When [condition], [client] will reduce instances of [behavior] to [0 or N] instances per day across four consecutive weeks in the presence of two people and in two settings.",
+      "medicalNecessityRationale": "Core Deficit of ASD Addressed: [criterion and specifics]",
+      "baseline": "[frequency/duration data] on [date]",
+      "dateOfIntroduction": "[date]",
+      "projectedMastery": "[date ~6 months out]"
+    }
+  ],
+  "parentTrainingGoals": [
+    {
+      "goalNumber": ${nextGoalNum + 10},
+      "goalStatement": "[parent/caregiver training goal statement]",
+      "medicalNecessityRationale": "Core Deficit of ASD Addressed: [criterion and specifics]",
+      "baseline": "[baseline]",
+      "dateOfIntroduction": "[date]",
+      "projectedMastery": "[date ~6 months out]"
+    }
+  ]
+}
 
-CONCISENESS RULE: Each antecedent and consequence intervention entry must be 2–3 sentences maximum. Bold intervention name + brief clinical description. One blank line between interventions. No explanatory paragraphs.
+REQUIREMENTS:
+- bips: Always include all 3 functions in this order: Social Negative Reinforcement, Social Positive Reinforcement, Automatic Positive Reinforcement. Set notApplicable: true if none applies.
+- CRITICAL: Every FERB goal number from the skill acquisition list MUST appear in ferbGoalNumbers of the appropriate BIP. Verify all FERB goals are covered before outputting.
+- behaviorReductionGoals: ONE goal per target behavior across all BIPs. If BIPs list 5 total target behaviors, write exactly 5 reduction goals — no combining, no skipping. Start at goalNumber: ${nextGoalNum}.
+- parentTrainingGoals: At least 2 goals. Continue numbering after last behavior reduction goal.
 
-Write all applicable function-based BIPs. For each BIP that applies, include ALL subsections:
-- Date
-- Behavior Assessment (ABC)
-- Target Behavior (names only — list all topographies for this function)
-- Operational Definition (one precise bullet per topography; if not inherently maladaptive, specify maladaptive context)
-- Quantitative Baseline Data
-- Hypothesized Function
-- Functionally Equivalent Replacement Behaviors (reference specific goal numbers from the goal list above)
-- Antecedent Interventions (bold sub-header + 2–3 sentences each)
-- Consequence Interventions (bold sub-header + 2–3 sentences each; include reinforcement schedule — CRF thinning to VR-2, VR-3, VR-5)
-- De-escalation Procedures: write only '[STANDARD_DEESCALATION_PROTOCOL]'
-
-Write BIPs in this order:
-1. Social Negative Reinforcement BIP (escape/avoidance). If none: "No Social Negative Reinforcement BIP is indicated for this client."
-2. Social Positive Reinforcement BIP (access/attention). If none: "No Social Positive Reinforcement BIP is indicated for this client."
-3. Automatic Positive Reinforcement BIP (sensory/automatic). If none: "No Automatic Positive Reinforcement BIP is indicated for this client."
-
-CRITICAL: Every goal labeled (FERB) in the skill acquisition section MUST be referenced in at least one BIP's Functionally Equivalent Replacement Behaviors row. After writing all BIPs, verify that every FERB goal number appears in at least one BIP. If a FERB goal is not referenced, add it to the BIP whose function it replaces.
-
-## Section 17: Behavior Reduction Goals
-
-CRITICAL — ONE GOAL PER BEHAVIOR: Every target behavior listed in any BIP MUST have its own corresponding behavior reduction goal. Count the target behaviors across all BIPs and write exactly that many behavior reduction goals — one per behavior, no more, no less. Do NOT combine multiple behaviors into a single reduction goal. Do NOT skip any behavior. If the BIPs list 5 target behaviors (e.g., Tantrum, SIB, Aggression, Screaming, Throwing), there must be exactly 5 behavior reduction goals.
-
-Start numbering at Goal ${nextGoalNum}. Write one goal per target behavior identified in the BCBA notes using this format:
-| Medical Necessity Rationale: | Core Deficit of ASD Addressed: A. ... B. ... |
-| [N]. Goal Statement: | When [condition], [client] will reduce instances of [behavior] to [0 or specific number] instances per day across four consecutive weeks in the presence of two people and in two settings. |
-| Baseline: | [data] on [date] |
-| Date of Introduction: | [date] |
-| Projected Mastery: | [date ~6 months out] |
-| Progress Data: | N/A |
-
-## Section 18: Parent or Caregiver Training Goals
-
-Continue numbering from the last Behavior Reduction goal. Write at least 2 goals using the standard parent training language from your instructions.
-
-Write every goal completely. STOP after the last Parent Training goal. Do NOT write generalization, fading, or any later sections.`;
+Output the JSON object only. Nothing before or after it.`;
 }
 
 /**
@@ -507,6 +552,116 @@ function fixMasteryCriteria(text) {
   }).join('\n');
 
   return { text: fixed, ferbFixed, nonFerbFixed };
+}
+
+// ─── JSON pipeline helpers ────────────────────────────────────────────────────
+
+function parseJSONResponse(text) {
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+  if (fenced) {
+    try { return JSON.parse(fenced[1]); } catch {}
+  }
+  const objMatch = text.match(/(\{[\s\S]*\})/);
+  if (objMatch) {
+    try { return JSON.parse(objMatch[1]); } catch {}
+  }
+  throw new Error(`Could not extract JSON from Claude response (first 300 chars): ${text.slice(0, 300)}`);
+}
+
+function serializeGoal(goal) {
+  const masteryPct = goal.isFerb ? 90 : 80;
+  const ferbPrefix = goal.isFerb ? '(FERB) ' : '';
+  const stmt = (goal.goalStatement || '')
+    .replace(/\bin \d+% of opportunities/i, `in ${masteryPct}% of opportunities`);
+  return [
+    `| Medical Necessity Rationale: | ${goal.medicalNecessityRationale || ''} |`,
+    `| ${goal.goalNumber}. Goal Statement: | ${ferbPrefix}${stmt} |`,
+    `| Baseline: | ${goal.baseline || ''} |`,
+    `| Date of Introduction: | ${goal.dateOfIntroduction || ''} |`,
+    `| Projected Mastery: | ${goal.projectedMastery || ''} |`,
+    `| Progress Data: | N/A |`,
+  ].join('\n');
+}
+
+function serializeGoalDomain(header, goals) {
+  if (!goals || goals.length === 0) return '';
+  const parts = [`**${header}**`, ''];
+  for (const g of goals) {
+    parts.push(serializeGoal(g), '');
+  }
+  return parts.join('\n');
+}
+
+function serializeBIP(bip) {
+  if (bip.notApplicable) {
+    const noneMessages = {
+      'Social Negative Reinforcement': 'No Social Negative Reinforcement BIP is indicated for this client.',
+      'Social Positive Reinforcement': 'No Social Positive Reinforcement BIP is indicated for this client.',
+      'Automatic Positive Reinforcement': 'No Automatic Positive Reinforcement BIP is indicated for this client.',
+    };
+    return noneMessages[bip.function] || 'No BIP is indicated for this client.';
+  }
+  const opDefs = (bip.operationalDefinitions || [])
+    .map(od => `• ${od.behavior}: ${od.definition}`)
+    .join('\n');
+  const ferbRefs = (bip.ferbGoalNumbers || []).length > 0
+    ? bip.ferbGoalNumbers.map(n => `Goal ${n}`).join(', ')
+    : 'None';
+  const antecedents = (bip.antecedentInterventions || [])
+    .map(a => `**${a.name}:** ${a.description}`)
+    .join('\n\n');
+  const consequences = (bip.consequenceInterventions || [])
+    .map(c => `**${c.name}:** ${c.description}`)
+    .join('\n\n');
+  return [
+    `**Date:** ${bip.date || ''}`,
+    `**Behavior Assessment (ABC):** ${bip.behaviorAssessmentABC || ''}`,
+    `**Target Behavior:** ${(bip.targetBehaviors || []).join(', ')}`,
+    `**Operational Definition:**\n${opDefs}`,
+    `**Quantitative Baseline Data:** ${bip.quantitativeBaseline || ''}`,
+    `**Hypothesized Function:** ${bip.hypothesizedFunction || ''}`,
+    `**Functionally Equivalent Replacement Behaviors:** ${ferbRefs}`,
+    `**Antecedent Interventions:**\n${antecedents}`,
+    `**Consequence Interventions:**\n${consequences}`,
+    `**De-escalation Procedures:** [STANDARD_DEESCALATION_PROTOCOL]`,
+  ].join('\n');
+}
+
+function serializeReductionGoal(goal) {
+  return [
+    `| Medical Necessity Rationale: | ${goal.medicalNecessityRationale || ''} |`,
+    `| ${goal.goalNumber}. Goal Statement: | ${goal.goalStatement || ''} |`,
+    `| Baseline: | ${goal.baseline || ''} |`,
+    `| Date of Introduction: | ${goal.dateOfIntroduction || ''} |`,
+    `| Projected Mastery: | ${goal.projectedMastery || ''} |`,
+    `| Progress Data: | N/A |`,
+  ].join('\n');
+}
+
+function serializeS3CToMarkdown(data) {
+  const parts = [];
+  parts.push('## Section 16: Behavior Intervention Plans', '');
+  const bipTitles = {
+    'Social Negative Reinforcement': 'Social Negative Reinforcement BIP (Escape/Avoidance)',
+    'Social Positive Reinforcement': 'Social Positive Reinforcement BIP (Access/Attention)',
+    'Automatic Positive Reinforcement': 'Automatic Positive Reinforcement BIP (Sensory/Automatic)',
+  };
+  for (const bip of (data.bips || [])) {
+    const title = bipTitles[bip.function] || `${bip.function} BIP`;
+    parts.push(`### ${title}`, '');
+    parts.push(serializeBIP(bip), '');
+  }
+  parts.push('## Section 17: Behavior Reduction Goals', '');
+  parts.push('**Behavior Reduction Goals**', '');
+  for (const goal of (data.behaviorReductionGoals || [])) {
+    parts.push(serializeReductionGoal(goal), '');
+  }
+  parts.push('## Section 18: Parent or Caregiver Training Goals', '');
+  parts.push('**Parent or Caregiver Training Goals**', '');
+  for (const goal of (data.parentTrainingGoals || [])) {
+    parts.push(serializeReductionGoal(goal), '');
+  }
+  return parts.join('\n');
 }
 
 app.post('/api/generate', authMiddleware, async (req, res) => {
@@ -562,11 +717,12 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
     console.log("=== STARTING PLAN GENERATION ===");
 
     const SECTION_TIMEOUT_MS = 5 * 60 * 1000;
-    const callWithRetry = async (secId, messages, maxAttempts = 4) => {
+    const callWithRetry = async (secId, messages, maxAttempts = 4, opts = {}) => {
+      const { suppressStream = false } = opts;
       let lastErr;
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         const msgChars = messages.reduce((sum, m) => sum + (m.content ? m.content.length : 0), 0);
-        console.log(`[generate] ${secId} attempt ${attempt}/${maxAttempts}: ${msgChars.toLocaleString()} chars input (~${Math.round(msgChars/4).toLocaleString()} tokens)`);
+        console.log(`[generate] ${secId} attempt ${attempt}/${maxAttempts}: ${msgChars.toLocaleString()} chars input (~${Math.round(msgChars/4).toLocaleString()} tokens)${suppressStream ? ' [JSON mode]' : ''}`);
 
         let sectionText = '';
         try {
@@ -587,7 +743,7 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
             stream.on('text', (chunk) => {
               if (firstChunk) { console.log(`[generate] ${secId} first chunk received`); firstChunk = false; }
               sectionText += chunk;
-              send({ type: 'chunk', text: chunk });
+              if (!suppressStream) send({ type: 'chunk', text: chunk });
             });
             stream.on('finalMessage', (msg) => {
               clearTimeout(timeoutId);
@@ -663,38 +819,82 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
 
     send({ type: 'progress', section: 3, total: 4, label: 'Skill Acquisition Goals (parallel)' });
     setJob(userId, { section: 3, label: 'Skill Acquisition Goals (parallel)' });
-    console.log('[generate] Starting S3A and S3B in parallel');
-    const [s3aText, s3bText] = await Promise.all([
-      callWithRetry(GEN.S3A.id, buildMessages(GEN.S3A, s1s2Context)),
-      callWithRetry(GEN.S3B.id, buildMessages(GEN.S3B, s1s2Context)),
+    console.log('[generate] Starting S3A and S3B in parallel (JSON mode)');
+    const [s3aRaw, s3bRaw] = await Promise.all([
+      callWithRetry(GEN.S3A.id, buildMessages(GEN.S3A, s1s2Context), 4, { suppressStream: true }),
+      callWithRetry(GEN.S3B.id, buildMessages(GEN.S3B, s1s2Context), 4, { suppressStream: true }),
     ]);
-    console.log(`[generate] S3A+S3B complete. S3A=${s3aText.length} chars, S3B=${s3bText.length} chars`);
+    console.log(`[generate] S3A+S3B raw complete. S3A=${s3aRaw.length} chars, S3B=${s3bRaw.length} chars`);
 
-    const goalList = extractGoalNumbers(s3aText, s3bText);
-    const highestSkillGoalNum = extractHighestGoalNum(s3aText + '\n' + s3bText);
-    const nextGoalNum = highestSkillGoalNum + 1;
-    console.log(`[generate] Highest skill acquisition goal: ${highestSkillGoalNum} → Behavior Reduction starts at ${nextGoalNum}`);
+    let s3aText, s3bText, allSkillGoals = null;
+    try {
+      const s3aData = parseJSONResponse(s3aRaw);
+      const s3bData = parseJSONResponse(s3bRaw);
+      const s3aGoals = [...(s3aData.communicationGoals || []), ...(s3aData.socialGoals || [])];
+      const s3bGoals = s3bData.adaptiveGoals || [];
+      allSkillGoals = [...s3aGoals, ...s3bGoals];
+      s3aText = [
+        serializeGoalDomain('Language/Communication Goals', s3aData.communicationGoals),
+        serializeGoalDomain('Social Goals', s3aData.socialGoals),
+      ].filter(Boolean).join('\n');
+      s3bText = serializeGoalDomain('Adaptive/Self-Care Goals', s3bGoals);
+      console.log(`[generate] S3A/S3B JSON parsed: ${allSkillGoals.length} skill acquisition goals serialized`);
+    } catch (e) {
+      console.error('[generate] S3A/S3B JSON parse failed, falling back to raw text:', e.message);
+      s3aText = s3aRaw;
+      s3bText = s3bRaw;
+    }
+
+    let goalList, nextGoalNum;
+    if (allSkillGoals) {
+      goalList = allSkillGoals
+        .map(g => `${g.goalNumber}. Goal Statement: ${g.isFerb ? '(FERB) ' : ''}${g.goalStatement}`)
+        .join('\n');
+      const highestSkillGoalNum = allSkillGoals.length > 0
+        ? Math.max(...allSkillGoals.map(g => g.goalNumber))
+        : 0;
+      nextGoalNum = highestSkillGoalNum + 1;
+    } else {
+      goalList = extractGoalNumbers(s3aText, s3bText);
+      const highestSkillGoalNum = extractHighestGoalNum(s3aText + '\n' + s3bText);
+      nextGoalNum = highestSkillGoalNum + 1;
+    }
+    console.log(`[generate] Highest skill acquisition goal: ${nextGoalNum - 1} → Behavior Reduction starts at ${nextGoalNum}`);
 
     send({ type: 'progress', section: 4, total: 4, label: 'BIPs & Final Sections (parallel)' });
     setJob(userId, { section: 4, label: 'BIPs & Final Sections (parallel)' });
-    console.log('[generate] Starting S3C and S3D in parallel');
+    console.log('[generate] Starting S3C (JSON mode) and S3D in parallel');
     const bipContext = s1s2Context + (goalList
       ? '\n\n=== SKILL ACQUISITION GOALS (reference these numbers for FERB goals) ===\n' + goalList
       : '');
     const s3cSec = { id: GEN.S3C.id, instruction: buildS3CInstruction(nextGoalNum) };
-    const [s3cText, s3dText] = await Promise.all([
-      callWithRetry(s3cSec.id, buildMessages(s3cSec, bipContext)),
+    const [s3cRaw, s3dText] = await Promise.all([
+      callWithRetry(s3cSec.id, buildMessages(s3cSec, bipContext), 4, { suppressStream: true }),
       callWithRetry(GEN.S3D.id, buildMessages(GEN.S3D, s1s2Context)),
     ]);
-    console.log(`[generate] S3C+S3D complete. S3C=${s3cText.length} chars, S3D=${s3dText.length} chars`);
+    console.log(`[generate] S3C+S3D complete. S3C raw=${s3cRaw.length} chars, S3D=${s3dText.length} chars`);
 
-    const GOAL_LINE_RE = /\d+\.\s+(?:\(FERB\)\s+)?Goal Statement/i;
-    const goalCount = (s3aText + '\n' + s3bText + '\n' + s3cText)
-      .split('\n').filter(line => GOAL_LINE_RE.test(line)).length;
+    let s3cText, s3cData = null;
+    try {
+      s3cData = parseJSONResponse(s3cRaw);
+      s3cText = serializeS3CToMarkdown(s3cData);
+      console.log(`[generate] S3C JSON parsed: ${(s3cData.bips || []).length} BIPs, ${(s3cData.behaviorReductionGoals || []).length} reduction goals, ${(s3cData.parentTrainingGoals || []).length} parent training goals`);
+    } catch (e) {
+      console.error('[generate] S3C JSON parse failed, falling back to raw text:', e.message);
+      s3cText = s3cRaw;
+    }
+
+    let goalCount;
+    if (allSkillGoals && s3cData) {
+      goalCount = allSkillGoals.length +
+        (s3cData.behaviorReductionGoals || []).length +
+        (s3cData.parentTrainingGoals || []).length;
+    } else {
+      const GOAL_LINE_RE = /\d+\.\s+(?:\(FERB\)\s+)?Goal Statement/i;
+      goalCount = (s3aText + '\n' + s3bText + '\n' + s3cText)
+        .split('\n').filter(line => GOAL_LINE_RE.test(line)).length;
+    }
     console.log(`[generate] Goal count for summary table: ${goalCount}`);
-    const debugLines = (s3aText + '\n' + s3bText + '\n' + s3cText).split('\n').filter(l => /Goal Statement/i.test(l)).slice(0, 10);
-    console.log('[generate] GOAL DEBUG: First 10 goal lines found in s3a+s3b+s3c:');
-    debugLines.forEach(l => console.log('  ', l.slice(0, 120)));
 
     fullPlanText = [s1Text, s2Text, s3aText, s3bText, s3cText, s3dText].filter(Boolean).join('\n\n');
     console.log(`[generate] All sections complete. Total: ${fullPlanText.length} chars (${fullPlanText.split('\n').length} lines)`);
