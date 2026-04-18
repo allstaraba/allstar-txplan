@@ -22,7 +22,7 @@ const db = require('./db');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'allstar-aba-secret-2026';
-const CLAUDE_MODEL = process.env.CLAUDE_MODEL || 'claude-opus-4-7';
+const CLAUDE_MODEL = process.env.CLAUDE_MODEL || 'claude-opus-4-5';
 
 console.log(`[startup] AI provider: ${PROVIDER.toUpperCase()}`);
 
