@@ -1824,62 +1824,134 @@ app.post('/api/chat/:plan_id/regenerate', authMiddleware, async (req, res) => {
     };
 
     let revisedText = '';
-    console.log(`[regenerate] plan_id=${req.params.plan_id} plan_type=${plan.plan_type} input: ${userContent.length.toLocaleString()} chars (~${Math.round(userContent.length/4).toLocaleString()} tokens)`);
+    console.log(`[regenerate] plan_id=${req.params.plan_id} plan_type=${plan.plan_type} input: ${userContent.length.toLocaleString()} chars (~${Math.round(userContent.length/4).toLocaleString()} tokens) — using sectioned pipeline`);
 
     keepAlive = setInterval(() => { try { res.write(': ping\n\n'); } catch {} }, 20000);
 
-    // Retry on premature close / timeout / abort — same pattern as callWithRetry in /generate
-    const REGEN_TIMEOUT_MS = 5 * 60 * 1000;
-    const maxAttempts = 4;
-    let stream = null;
-    let finalMsg = null;
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      revisedText = '';
-      try {
-        await new Promise((resolve, reject) => {
-          stream = anthropic.messages.stream({
-            model: CLAUDE_MODEL,
-            max_tokens: 32768,
-            system: [{ type: 'text', text: regenSystemPrompt, cache_control: { type: 'ephemeral' } }],
-            messages: [{ role: 'user', content: userContent }],
+    // ── Sectioned pipeline (same as /generate) — each section is its own retryable API call ──
+    const SECTION_TIMEOUT_MS = 5 * 60 * 1000;
+    const callSection = async (secId, messages, maxAttempts = 4) => {
+      let lastErr;
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        const msgChars = messages.reduce((sum, m) => sum + (m.content ? m.content.length : 0), 0);
+        console.log(`[regenerate] ${secId} attempt ${attempt}/${maxAttempts}: ${msgChars.toLocaleString()} chars input`);
+        let sectionText = '';
+        try {
+          await new Promise((resolve, reject) => {
+            const stream = anthropic.messages.stream({
+              model: CLAUDE_MODEL,
+              max_tokens: 32768,
+              system: [{ type: 'text', text: regenSystemPrompt, cache_control: { type: 'ephemeral' } }],
+              messages,
+            });
+            const timeoutId = setTimeout(() => {
+              try { stream.abort(); } catch {}
+              reject(new Error(`${secId} timed out after 5 minutes`));
+            }, SECTION_TIMEOUT_MS);
+            let firstChunk = true;
+            stream.on('text', (chunk) => {
+              if (firstChunk) { console.log(`[regenerate] ${secId} first chunk received`); firstChunk = false; }
+              sectionText += chunk;
+              send({ type: 'chunk', text: chunk });
+            });
+            stream.on('finalMessage', (msg) => {
+              clearTimeout(timeoutId);
+              console.log(`[regenerate] ${secId} done. stop_reason=${msg.stop_reason} output=${sectionText.length} chars`);
+              resolve();
+            });
+            stream.on('error', (err) => { clearTimeout(timeoutId); reject(err); });
           });
-          const timeoutId = setTimeout(() => {
-            try { stream.abort(); } catch {}
-            reject(new Error(`regenerate timed out after 5 minutes`));
-          }, REGEN_TIMEOUT_MS);
-          stream.on('text', (chunk) => {
-            revisedText += chunk;
-            send({ type: 'chunk', text: chunk });
-          });
-          stream.on('finalMessage', (msg) => {
-            clearTimeout(timeoutId);
-            finalMsg = msg;
-            resolve();
-          });
-          stream.on('error', (err) => { clearTimeout(timeoutId); reject(err); });
-        });
-        break; // success
-      } catch (err) {
-        const isPrematureClose = err.message === 'Premature close' || err.code === 'ERR_STREAM_PREMATURE_CLOSE';
-        const isAborted = err.constructor?.name === 'APIUserAbortError' || err.message?.includes('aborted');
-        const isTimeout = err.message?.includes('timed out');
-        if ((isPrematureClose || isTimeout || isAborted) && attempt < maxAttempts) {
-          const delay = attempt * 5000;
-          console.log(`[regenerate] ${err.message}. Retrying in ${delay/1000}s (attempt ${attempt+1}/${maxAttempts})...`);
-          send({ type: 'chunk', text: `\n\n[Retrying due to network error... attempt ${attempt+1}/${maxAttempts}]\n\n` });
-          await new Promise(r => setTimeout(r, delay));
-          continue;
+          if (sectionText.trim().length < 100) {
+            throw new Error(`${secId} returned suspiciously short output (${sectionText.trim().length} chars)`);
+          }
+          return sectionText;
+        } catch (err) {
+          lastErr = err;
+          const isPrematureClose = err.message === 'Premature close' || err.code === 'ERR_STREAM_PREMATURE_CLOSE';
+          const isAborted = err.constructor?.name === 'APIUserAbortError' || err.message?.includes('aborted');
+          const isTimeout = err.message?.includes('timed out');
+          if ((isPrematureClose || isTimeout || isAborted) && attempt < maxAttempts) {
+            const delay = attempt * 5000;
+            console.log(`[regenerate] ${secId} ${err.message}. Retrying in ${delay/1000}s (${attempt+1}/${maxAttempts})...`);
+            await new Promise(r => setTimeout(r, delay));
+            continue;
+          }
+          throw err;
         }
-        clearInterval(keepAlive);
-        console.error('Regenerate stream error:', err);
-        if (clientConnected) { send({ type: 'error', error: err.message }); res.end(); }
-        return;
       }
+      throw lastErr;
+    };
+
+    // baseMessage = original BCBA notes + (optional) feedback. Reused across all sections.
+    const baseMessage = userContent;
+
+    const buildSectionMessages = (sec, contextBlock) => {
+      const clientPrefix = `You are regenerating a treatment plan for ${plan.client_name}. Use ONLY "${plan.client_name}" as the client's name throughout.\n\n`;
+      const instruction = clientPrefix + sec.instruction;
+      return contextBlock
+        ? [
+            { role: 'user', content: baseMessage },
+            { role: 'assistant', content: contextBlock },
+            { role: 'user', content: instruction },
+          ]
+        : [{ role: 'user', content: `${baseMessage}\n\n${instruction}` }];
+    };
+
+    const extractGoalNums = (s3aText, s3bText) => {
+      const lines = [];
+      const RE = /(\d+)\.\s+(?:\(FERB\)\s+)?Goal Statement:\**\s*\|?\s*(.+?)(?:\s*\|)?\s*$/i;
+      for (const line of (s3aText + '\n' + s3bText).split('\n')) {
+        const m = line.match(RE);
+        if (m) lines.push(`${m[1]}. Goal Statement: ${m[2].trim()}`);
+      }
+      return lines.join('\n');
+    };
+
+    const extractHighestGoal = (text) => {
+      let highest = 0;
+      for (const line of text.split('\n')) {
+        const m = line.match(/(\d+)\.\s+(?:\(FERB\)\s+)?Goal Statement/i);
+        if (m) highest = Math.max(highest, parseInt(m[1], 10));
+      }
+      return highest;
+    };
+
+    let s1Text, s2Text, s3aText, s3bText, s3cText, s3dText;
+    try {
+      s1Text = await callSection(GEN.S1.id, buildSectionMessages(GEN.S1, null));
+      s2Text = await callSection(GEN.S2.id, buildSectionMessages(GEN.S2, s1Text));
+      const s1s2 = s1Text + '\n\n' + s2Text;
+      console.log('[regenerate] Starting S3A and S3B in parallel');
+      [s3aText, s3bText] = await Promise.all([
+        callSection(GEN.S3A.id, buildSectionMessages(GEN.S3A, s1s2)),
+        callSection(GEN.S3B.id, buildSectionMessages(GEN.S3B, s1s2)),
+      ]);
+      const goalList = extractGoalNums(s3aText, s3bText);
+      const nextGoalNum = extractHighestGoal(s3aText + '\n' + s3bText) + 1;
+      console.log(`[regenerate] Behavior Reduction starts at Goal ${nextGoalNum}`);
+      const bipContext = s1s2 + (goalList ? '\n\n=== SKILL ACQUISITION GOALS (reference these for FERB goals) ===\n' + goalList : '');
+      const s3cSec = { id: GEN.S3C.id, instruction: buildS3CInstruction(nextGoalNum) };
+      console.log('[regenerate] Starting S3C, S3D1, S3D2 in parallel');
+      const [s3cT, s3d1T, s3d2T] = await Promise.all([
+        callSection(s3cSec.id, buildSectionMessages(s3cSec, bipContext)),
+        callSection(GEN.S3D1.id, buildSectionMessages(GEN.S3D1, s1s2)),
+        callSection(GEN.S3D2.id, buildSectionMessages(GEN.S3D2, s1s2)),
+      ]);
+      s3cText = s3cT;
+      s3dText = s3d1T + '\n\n' + s3d2T;
+    } catch (err) {
+      clearInterval(keepAlive);
+      console.error('[regenerate] Pipeline failed:', err.message);
+      if (clientConnected) { send({ type: 'error', error: err.message }); res.end(); }
+      return;
     }
 
-    // ── Post-processing (runs once after a successful stream) ──
+    revisedText = [s1Text, s2Text, s3aText, s3bText, s3cText, s3dText].filter(Boolean).join('\n\n');
+    console.log(`[regenerate] Pipeline complete. Total: ${revisedText.length} chars`);
+
+    // ── Post-processing (mastery, goal count, boilerplate, save) ──
     {
-      const msg = finalMsg;
+      const msg = { stop_reason: 'sectioned_complete' };
       clearInterval(keepAlive);
       const newRevisionNumber = latestRevision.revision_number + 1;
       const feedbackSummary = userChatMessages.length > 0
