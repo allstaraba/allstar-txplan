@@ -58,3 +58,35 @@ State of `docx-builder.js` after the fix was applied from `abaland` branch.
 | `6ae2879` | Added Fix 14 and Fix 15 to docx-postprocess.js |
 | `d6bc92a` | Fixed 5 bugs found in audit |
 | `ccc573d` | Fixed duplicate XML declaration |
+
+---
+
+## /regenerate refactor — April 18 2026
+
+### How to roll back BEFORE the regenerate refactor
+
+Tagged commit: `pre-regenerate-refactor-2026-04-18` (= commit `f7312f9`)
+
+```bash
+# Restore the OLD single-call regenerate route
+git checkout pre-regenerate-refactor-2026-04-18 -- server.js
+git add server.js
+git commit -m "Revert regenerate route to pre-refactor (single-call) version"
+git push origin main
+```
+
+### BEFORE — commit `f7312f9` (current, before refactor)
+
+`/api/chat/:plan_id/regenerate` does ONE giant `anthropic.messages.stream()`
+call with the full plan + feedback (~130K chars input). Has 4-attempt retry
+on premature close, but each attempt is the full call — Anthropic's API
+often closes the stream mid-response on inputs this large, causing
+"Regeneration stream ended without confirmation" errors.
+
+### AFTER — (about to be applied)
+
+`/regenerate` will use the same sectioned pipeline as `/generate`:
+S1 → S2 → [S3A ‖ S3B] → [S3C ‖ S3D1 ‖ S3D2]. Each section is a small
+self-contained API call with its own retry. User feedback gets injected
+into the system prompt for every section so the regeneration honors the
+requested changes throughout.
