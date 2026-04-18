@@ -1826,21 +1826,60 @@ app.post('/api/chat/:plan_id/regenerate', authMiddleware, async (req, res) => {
     let revisedText = '';
     console.log(`[regenerate] plan_id=${req.params.plan_id} plan_type=${plan.plan_type} input: ${userContent.length.toLocaleString()} chars (~${Math.round(userContent.length/4).toLocaleString()} tokens)`);
 
-    const stream = anthropic.messages.stream({
-      model: CLAUDE_MODEL,
-      max_tokens: 32768,
-      system: [{ type: 'text', text: regenSystemPrompt, cache_control: { type: 'ephemeral' } }],
-      messages: [{ role: 'user', content: userContent }],
-    });
-
     keepAlive = setInterval(() => { try { res.write(': ping\n\n'); } catch {} }, 20000);
 
-    stream.on('text', (chunk) => {
-      revisedText += chunk;
-      send({ type: 'chunk', text: chunk });
-    });
+    // Retry on premature close / timeout / abort — same pattern as callWithRetry in /generate
+    const REGEN_TIMEOUT_MS = 5 * 60 * 1000;
+    const maxAttempts = 4;
+    let stream = null;
+    let finalMsg = null;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      revisedText = '';
+      try {
+        await new Promise((resolve, reject) => {
+          stream = anthropic.messages.stream({
+            model: CLAUDE_MODEL,
+            max_tokens: 32768,
+            system: [{ type: 'text', text: regenSystemPrompt, cache_control: { type: 'ephemeral' } }],
+            messages: [{ role: 'user', content: userContent }],
+          });
+          const timeoutId = setTimeout(() => {
+            try { stream.abort(); } catch {}
+            reject(new Error(`regenerate timed out after 5 minutes`));
+          }, REGEN_TIMEOUT_MS);
+          stream.on('text', (chunk) => {
+            revisedText += chunk;
+            send({ type: 'chunk', text: chunk });
+          });
+          stream.on('finalMessage', (msg) => {
+            clearTimeout(timeoutId);
+            finalMsg = msg;
+            resolve();
+          });
+          stream.on('error', (err) => { clearTimeout(timeoutId); reject(err); });
+        });
+        break; // success
+      } catch (err) {
+        const isPrematureClose = err.message === 'Premature close' || err.code === 'ERR_STREAM_PREMATURE_CLOSE';
+        const isAborted = err.constructor?.name === 'APIUserAbortError' || err.message?.includes('aborted');
+        const isTimeout = err.message?.includes('timed out');
+        if ((isPrematureClose || isTimeout || isAborted) && attempt < maxAttempts) {
+          const delay = attempt * 5000;
+          console.log(`[regenerate] ${err.message}. Retrying in ${delay/1000}s (attempt ${attempt+1}/${maxAttempts})...`);
+          send({ type: 'chunk', text: `\n\n[Retrying due to network error... attempt ${attempt+1}/${maxAttempts}]\n\n` });
+          await new Promise(r => setTimeout(r, delay));
+          continue;
+        }
+        clearInterval(keepAlive);
+        console.error('Regenerate stream error:', err);
+        if (clientConnected) { send({ type: 'error', error: err.message }); res.end(); }
+        return;
+      }
+    }
 
-    stream.on('finalMessage', (msg) => {
+    // ── Post-processing (runs once after a successful stream) ──
+    {
+      const msg = finalMsg;
       clearInterval(keepAlive);
       const newRevisionNumber = latestRevision.revision_number + 1;
       const feedbackSummary = userChatMessages.length > 0
@@ -1889,16 +1928,7 @@ app.post('/api/chat/:plan_id/regenerate', authMiddleware, async (req, res) => {
         send({ type: 'done', revision_number: newRevisionNumber });
         res.end();
       }
-    });
-
-    stream.on('error', (err) => {
-      clearInterval(keepAlive);
-      console.error('Regenerate stream error:', err);
-      if (clientConnected) {
-        send({ type: 'error', error: err.message });
-        res.end();
-      }
-    });
+    }
 
   } catch (err) {
     console.error('Regenerate error:', err);
