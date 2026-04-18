@@ -11,17 +11,29 @@ const AdmZip = require('adm-zip');
 const mammoth = require('mammoth');
 const pdfParse = require('pdf-parse');
 const { Packer } = require('docx');
-const { buildDocx } = require('./docx-builder');
+const { buildDocx, renderPlanDoc } = require('./docx-builder');
 const XLSX = require('xlsx');
 const { injectBoilerplate, buildGoalSummaryTable } = require('./plan-boilerplate');
 const { REAUTH_SYSTEM_PROMPT } = require('./reauth-prompt');
 const { runBackup, latestBackup, BACKUP_DIR } = require('./backup');
 const db = require('./db');
+const {
+  DEFAULT_FORMATTER_MODEL,
+  normalizeCanonicalPlan,
+  buildDeterministicRenderPayload,
+  renderPayloadToTextPreview,
+  renderPayloadToLegacyMarkdown,
+  callClaudeForCanonicalPlan,
+  callOpenAIFormatter,
+} = require('./two-model-pipeline');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'allstar-aba-secret-2026';
 const CLAUDE_MODEL = process.env.CLAUDE_MODEL || 'claude-opus-4-5';
+const CLAUDE_MAX_TOKENS = Number(process.env.CLAUDE_MAX_TOKENS || 16384);
+const FORMATTER_MODEL = DEFAULT_FORMATTER_MODEL;
+const USE_TWO_MODEL_PIPELINE = process.env.USE_TWO_MODEL_PIPELINE === '1';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -676,7 +688,193 @@ function serializeS3CToMarkdown(data) {
   return parts.join('\n');
 }
 
+async function runTwoModelGeneration(req, res) {
+  const keepAlive = setInterval(() => { try { res.write(': ping\n\n'); } catch {} }, 10000);
+
+  try {
+    const { notes, clientInfo, uploadedFileIds } = req.body;
+    if (!notes) {
+      clearInterval(keepAlive);
+      return res.status(400).json({ error: 'Notes are required' });
+    }
+
+    let clientName = clientInfo?.client_full_name || 'Unknown';
+    if (clientName === 'Unknown') {
+      const nameMatch = notes.match(/(?:client(?:'?s)?(?:\s+(?:full\s+)?name)?|child(?:'?s)?(?:\s+name)?)\s*:\s*([^\n,]+)/i);
+      if (nameMatch) clientName = nameMatch[1].trim();
+    }
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+    if (res.socket) res.socket.setNoDelay(true);
+    res.write(': connected\n\n');
+
+    const userId = req.user.id;
+    setJob(userId, {
+      status: 'running',
+      section: 1,
+      total: 4,
+      label: 'Clinical JSON',
+      planId: null,
+      clientName,
+      error: null,
+      startedAt: Date.now(),
+    });
+
+    let clientConnected = true;
+    res.on('close', () => { clientConnected = false; });
+
+    const send = (obj) => {
+      if (!clientConnected) return;
+      try { res.write(`data: ${JSON.stringify(obj)}\n\n`); } catch {}
+    };
+
+    send({ type: 'progress', section: 1, total: 4, label: 'Clinical JSON' });
+    const canonicalDraft = await callClaudeForCanonicalPlan({
+      anthropic,
+      model: CLAUDE_MODEL,
+      notes,
+      clientInfo,
+    });
+
+    send({ type: 'progress', section: 2, total: 4, label: 'Validation & Normalization' });
+    setJob(userId, { section: 2, label: 'Validation & Normalization' });
+    const { plan: canonicalPlan, softFixes, hardErrors } = normalizeCanonicalPlan(canonicalDraft, {
+      clientInfo,
+      generationDate: new Date().toISOString().slice(0, 10),
+    });
+
+    if (hardErrors.length) {
+      throw new Error(`Canonical plan validation failed: ${hardErrors.join(' ')}`);
+    }
+    clientName = canonicalPlan.clientInformation?.participantName || clientName;
+
+    send({
+      type: 'info',
+      message: softFixes.length
+        ? `Applied mechanical fixes: ${softFixes.join(' ')}`
+        : 'Validation passed with no mechanical fixes.',
+    });
+
+    send({ type: 'progress', section: 3, total: 4, label: 'GPT Formatter' });
+    setJob(userId, { section: 3, label: 'GPT Formatter' });
+
+    let renderPayload;
+    let formatterSource = 'openai';
+    try {
+      if (!process.env.OPENAI_API_KEY) {
+        throw new Error('OPENAI_API_KEY is not configured');
+      }
+      renderPayload = await callOpenAIFormatter({
+        apiKey: process.env.OPENAI_API_KEY,
+        model: FORMATTER_MODEL,
+        canonicalPlan,
+      });
+    } catch (formatterError) {
+      console.error('[generate] Formatter fallback:', formatterError.message);
+      formatterSource = 'deterministic-fallback';
+      renderPayload = buildDeterministicRenderPayload(canonicalPlan);
+      send({
+        type: 'info',
+        message: `Formatter fallback used: ${formatterError.message}`,
+      });
+    }
+
+    send({ type: 'progress', section: 4, total: 4, label: 'Saving Plan' });
+    setJob(userId, { section: 4, label: 'Saving Plan' });
+
+    const bcbaName =
+      canonicalPlan.providerInformation?.name ||
+      canonicalPlan.clientInformation?.supervisingBcba ||
+      clientInfo?.supervising_bcba_name ||
+      '[BCBA NAME]';
+    const assessmentDate =
+      canonicalPlan.clientInformation?.dateOfCurrentReassessment ||
+      canonicalPlan.clientInformation?.dateOfInitialAssessment ||
+      '[DATE]';
+    const previewText = stripAIPreamble(renderPayloadToLegacyMarkdown(renderPayload, {
+      clientName,
+      bcbaName,
+      assessmentDate,
+      goalSummary: canonicalPlan.goalObjectiveSummary,
+    }));
+
+    const planInsert = db.prepare(
+      'INSERT INTO plan_history (user_id, client_name, original_notes) VALUES (?, ?, ?)'
+    ).run(req.user.id, clientName, notes);
+    const planId = planInsert.lastInsertRowid;
+
+    db.prepare(
+      `INSERT INTO plan_revisions
+       (plan_id, revision_number, text, feedback, canonical_json, render_payload)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    ).run(
+      planId,
+      0,
+      previewText,
+      `Initial generation (${formatterSource})`,
+      JSON.stringify(canonicalPlan),
+      JSON.stringify(renderPayload)
+    );
+
+    if (clientInfo && Object.keys(clientInfo).length > 0) {
+      db.prepare('INSERT OR REPLACE INTO client_info (plan_id, data, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)')
+        .run(planId, JSON.stringify(clientInfo));
+    }
+
+    if (Array.isArray(uploadedFileIds) && uploadedFileIds.length > 0) {
+      const clientDir = path.join(UPLOADS_DIR, 'clients', String(planId));
+      fs.mkdirSync(clientDir, { recursive: true });
+      for (const f of uploadedFileIds) {
+        try {
+          const tempFiles = fs.readdirSync(TEMP_UPLOADS_DIR).filter((n) => n.startsWith(f.fileId + '_'));
+          if (tempFiles.length === 0) continue;
+          const tempFilename = tempFiles[0];
+          const destFilename = `${Date.now()}_${tempFilename.slice(f.fileId.length + 1)}`;
+          fs.renameSync(
+            path.join(TEMP_UPLOADS_DIR, tempFilename),
+            path.join(clientDir, destFilename)
+          );
+          const ext = path.extname(f.originalName).toLowerCase();
+          db.prepare(
+            'INSERT INTO client_documents (plan_id, filename, original_name, file_type, file_size, uploaded_by) VALUES (?,?,?,?,?,?)'
+          ).run(planId, destFilename, f.originalName, ext || f.fileType, f.fileSize || 0, req.user.id);
+        } catch (e) {
+          console.error(`[generate] Failed to save temp file ${f.fileId}:`, e.message);
+        }
+      }
+    }
+
+    send({ type: 'chunk', text: previewText });
+    send({ type: 'done', plan_id: planId, client_name: clientName });
+    if (clientConnected) res.end();
+    clearInterval(keepAlive);
+
+    setJob(userId, { status: 'done', planId, clientName });
+    setTimeout(() => {
+      if (generationJobs.get(userId)?.status === 'done') clearJob(userId);
+    }, 60000);
+    logActivity(req.user.id, req.user.username, 'generated_plan', 'plan', planId, `${clientName} (${formatterSource})`);
+  } catch (err) {
+    clearInterval(keepAlive);
+    console.error('Generate error:', err);
+    if (req.user) setJob(req.user.id, { status: 'error', error: err.message });
+    setTimeout(() => {
+      if (req.user && generationJobs.get(req.user.id)?.status === 'error') clearJob(req.user.id);
+    }, 30000);
+    try {
+      res.write(`data: ${JSON.stringify({ type: 'error', error: err.message })}\n\n`);
+      res.end();
+    } catch {}
+  }
+}
+
 app.post('/api/generate', authMiddleware, async (req, res) => {
+  if (USE_TWO_MODEL_PIPELINE) {
+    return runTwoModelGeneration(req, res);
+  }
   // Keep-alive ping every 10s so Railway's proxy doesn't close the SSE connection.
   const keepAlive = setInterval(() => { try { res.write(': ping\n\n'); } catch {} }, 10000);
 
@@ -741,7 +939,7 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
           await new Promise((resolve, reject) => {
             const stream = anthropic.messages.stream({
               model: CLAUDE_MODEL,
-              max_tokens: 32768,
+              max_tokens: CLAUDE_MAX_TOKENS,
               system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
               messages,
             });
@@ -911,7 +1109,7 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
     }
     console.log(`[generate] Goal count for summary table: ${goalCount}`);
 
-    fullPlanText = [s1Text, s2Text, s3aText, s3bText, s3cText, s3dText].filter(Boolean).join('\n\n');
+    fullPlanText = [s1Text, s2Text, s3aText, s3bText, s3cText, s3d1Text, s3d2Text].filter(Boolean).join('\n\n');
     console.log(`[generate] All sections complete. Total: ${fullPlanText.length} chars (${fullPlanText.split('\n').length} lines)`);
     console.log(`[generate] SSE chunks sent: ${totalChunksSent}, total chars streamed: ${totalCharsSent}`);
 
@@ -1079,7 +1277,7 @@ app.post('/api/revise', authMiddleware, async (req, res) => {
 
     const stream = anthropic.messages.stream({
       model: CLAUDE_MODEL,
-      max_tokens: 32768,
+      max_tokens: CLAUDE_MAX_TOKENS,
       system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
       messages,
     });
@@ -1468,7 +1666,30 @@ app.get('/api/export/:plan_id/:revision_number', authMiddleware, async (req, res
 
     console.log(`[export] plan_id=${plan_id} rev=${revision_number} text_length=${revision.text.length} chars (${revision.text.split('\n').length} lines)`);
     const logoBuffer = fs.existsSync(LOGO_PATH) ? fs.readFileSync(LOGO_PATH) : null;
-    const doc = buildDocx(revision.text, plan.client_name, logoBuffer);
+    let doc;
+    if (process.env.USE_STRUCTURED_EXPORT === '1' && revision.render_payload) {
+      const renderPayload = JSON.parse(revision.render_payload);
+      const canonicalPlan = revision.canonical_json ? JSON.parse(revision.canonical_json) : {};
+      const clientName = canonicalPlan.clientInformation?.participantName || plan.client_name;
+      const bcbaName =
+        canonicalPlan.providerInformation?.name ||
+        canonicalPlan.clientInformation?.supervisingBcba ||
+        '[BCBA NAME]';
+      const assessmentDate =
+        canonicalPlan.clientInformation?.dateOfCurrentReassessment ||
+        canonicalPlan.clientInformation?.dateOfInitialAssessment ||
+        '[DATE]';
+      const goalCount = Number(canonicalPlan.goalObjectiveSummary?.totalGoals) || 0;
+      doc = renderPlanDoc(renderPayload, {
+        logoBuffer,
+        clientName,
+        bcbaName,
+        assessmentDate,
+        goalCount,
+      });
+    } else {
+      doc = buildDocx(revision.text, plan.client_name, logoBuffer);
+    }
     const buffer = await Packer.toBuffer(doc);
     console.log(`[export] docx buffer size: ${buffer.length} bytes`);
     const safeName = (plan.client_name || 'treatment-plan').replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, '-');
@@ -1983,7 +2204,7 @@ app.post('/api/chat/:plan_id/regenerate', authMiddleware, async (req, res) => {
 
     const stream = anthropic.messages.stream({
       model: CLAUDE_MODEL,
-      max_tokens: 32768,
+      max_tokens: CLAUDE_MAX_TOKENS,
       system: [{ type: 'text', text: regenSystemPrompt, cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content: userContent }],
     });
