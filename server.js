@@ -17,6 +17,9 @@ const { injectBoilerplate, buildGoalSummaryTable } = require('./plan-boilerplate
 const { REAUTH_SYSTEM_PROMPT } = require('./reauth-prompt');
 const { runBackup, latestBackup, BACKUP_DIR } = require('./backup');
 const db = require('./db');
+const { parse97155Workbook } = require('./report-parser');
+const { buildSummaryRows, buildOwnerReports } = require('./report-metrics');
+const { build97155Workbook } = require('./report-workbook');
 const {
   DEFAULT_FORMATTER_MODEL,
   normalizeCanonicalPlan,
@@ -126,6 +129,12 @@ const uploadLogo = multer({
     }
   },
 });
+
+function build97155ReportData(parsed) {
+  const summaryRows = buildSummaryRows(parsed.detailRows, parsed.summaryRows, parsed.ownerHints);
+  const ownerReports = buildOwnerReports(summaryRows);
+  return { summaryRows, ownerReports };
+}
 
 // ---- AUTH ROUTES ----
 
@@ -1504,6 +1513,69 @@ app.post('/api/upload', authMiddleware, upload.single('file'), async (req, res) 
     res.json({ text: extractedText, fileId, originalName: originalname, fileSize: buffer.length, fileType: ext || mimetype });
   } catch (err) {
     console.error('Upload error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---- 97155 REPORTING ----
+
+app.post('/api/reports/97155/preview', authMiddleware, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    const parsed = await parse97155Workbook(req.file.buffer);
+    const { summaryRows, ownerReports } = build97155ReportData(parsed);
+    if (!summaryRows.length) {
+      return res.status(400).json({ error: 'No summary rows found. Upload a workbook with an "In-Person by Client" sheet or BCBA tabs.' });
+    }
+    res.json({
+      source: {
+        filename: req.file.originalname,
+        sheetNames: parsed.sheetNames,
+        months: parsed.months,
+        detailRowCount: parsed.detailRows.length,
+        summaryRowCount: summaryRows.length,
+        ownerSheetCount: ownerReports.length,
+      },
+      warnings: parsed.warnings,
+      owners: ownerReports.map((report) => ({
+        owner_name: report.owner_name,
+        client_count: report.rows.length,
+        scheduled_97153_hours: report.totals.scheduled_97153_hours,
+        total_97155_needed: report.totals.total_97155_needed,
+        total_97155_completed: report.totals.total_97155_completed,
+      })),
+      firstRows: summaryRows.slice(0, 10),
+    });
+  } catch (err) {
+    console.error('97155 preview error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/reports/97155/export', authMiddleware, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    const parsed = await parse97155Workbook(req.file.buffer);
+    const { summaryRows, ownerReports } = build97155ReportData(parsed);
+    if (!summaryRows.length) {
+      return res.status(400).json({ error: 'No summary rows found. Upload a workbook with an "In-Person by Client" sheet or BCBA tabs.' });
+    }
+
+    const workbook = await build97155Workbook({
+      detailRows: parsed.detailRows,
+      summaryRows,
+      ownerReports,
+    });
+    const buffer = await workbook.xlsx.writeBuffer();
+    const baseName = path.basename(req.file.originalname, path.extname(req.file.originalname)).replace(/[^a-zA-Z0-9._-]+/g, '-');
+    const filename = `${baseName || '97155-report'}-styled.xlsx`;
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    logActivity(req.user.id, req.user.username, 'exported_97155_report', 'report', null, filename);
+    res.send(Buffer.from(buffer));
+  } catch (err) {
+    console.error('97155 export error:', err);
     res.status(500).json({ error: err.message });
   }
 });

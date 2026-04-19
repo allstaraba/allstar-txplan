@@ -164,6 +164,39 @@ export async function uploadFile(file) {
   return data;
 }
 
+export async function preview97155Report(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await fetch(`${BASE_URL}/api/reports/97155/preview`, {
+    method: 'POST',
+    headers: authHeadersNoContentType(),
+    body: formData,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to preview 97155 report');
+  return data;
+}
+
+export async function export97155Report(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await fetch(`${BASE_URL}/api/reports/97155/export`, {
+    method: 'POST',
+    headers: authHeadersNoContentType(),
+    body: formData,
+  });
+  if (!res.ok) {
+    let data = {};
+    try { data = await res.json(); } catch {}
+    throw new Error(data.error || 'Failed to export 97155 report');
+  }
+  const disposition = res.headers.get('Content-Disposition') || '';
+  const match = disposition.match(/filename=\"?([^"]+)\"?/i);
+  const filename = match ? match[1] : '97155-report-styled.xlsx';
+  const blob = await res.blob();
+  return { blob, filename };
+}
+
 export async function getPrompt() {
   const res = await fetch(`${BASE_URL}/api/prompt`, {
     headers: authHeaders(),
