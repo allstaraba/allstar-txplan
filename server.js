@@ -620,12 +620,20 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
         let sectionText = '';
         try {
           await new Promise((resolve, reject) => {
-            const stream = anthropic.messages.stream({
+            const thinkingEffort = process.env.CLAUDE_THINKING_EFFORT || '';
+            const streamParams = {
               model: CLAUDE_MODEL,
               max_tokens: 32768,
               system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
               messages,
-            });
+            };
+            if (thinkingEffort) {
+              // Opus 4.7 API: thinking.type='adaptive' + output_config.effort
+              streamParams.thinking = { type: 'adaptive' };
+              streamParams.output_config = { effort: thinkingEffort };
+              streamParams.temperature = 1;
+            }
+            const stream = anthropic.messages.stream(streamParams);
 
             const timeoutId = setTimeout(() => {
               try { stream.abort(); } catch {}
@@ -782,6 +790,63 @@ app.post('/api/generate', authMiddleware, async (req, res) => {
       /(Total\s*#?\s*(?:of\s*)?(?:new\s*)?[Gg]oals[:\s|*]+)\d+/g,
       (match, prefix) => prefix + goalCount
     );
+
+    // ── REVIEW PASS — self-critique the plan for quality issues ──
+    send({ type: 'progress', section: 5, total: 5, label: 'Quality Review' });
+    setJob(userId, { section: 5, label: 'Quality Review' });
+    console.log('[generate] Starting quality review pass...');
+    try {
+      const reviewPrompt = `You are a Carelon compliance reviewer for ABA treatment plans. Review the plan below and output ONLY a JSON object listing SPECIFIC quality issues that need fixing.
+
+Return this exact shape: {"fixes": [{"issue":"short description","find":"exact text to search for","replace":"corrected text"},...]}
+
+Check for and fix these issues ONLY (provide find/replace pairs):
+1. Double "(FERB) (FERB)" — collapse to single "(FERB) "
+2. Duplicate "Goal Statement:" lines for the same goal number (keep the more detailed one, drop the duplicate)
+3. Vague or empty baselines like "Baseline: N/A" or "Baseline: [date]" — flag but don't fix
+4. Goals missing MNR (no "Medical Necessity Rationale" row) — flag but don't fix
+5. FERB goals that use 80% mastery instead of 90% (and non-FERB using 90% instead of 80%) — fix with precise find/replace
+6. Social goals whose MNR cites Criterion A (should be Criterion B for restricted/repetitive behavior contexts) — flag
+7. Any remaining "Unknown" in place of a client name — replace with "${clientName}"
+8. Goals numbered out of sequence (e.g., Goal 5 appearing twice, or jump from Goal 7 to Goal 9) — flag
+9. "<br>" or "<br/>" HTML tags — remove
+10. Unfilled [PLACEHOLDER] tokens — flag
+
+Only output find/replace pairs for fixes you are confident about. Do NOT make up find strings — they must be exact text that exists in the plan. Do NOT output anything outside the JSON.
+
+Client name: ${clientName}
+Plan to review:
+${fullPlanText}`;
+
+      const reviewResp = await anthropic.messages.create({
+        model: CLAUDE_MODEL,
+        max_tokens: 8192,
+        messages: [{ role: 'user', content: reviewPrompt }],
+      });
+      const reviewText = reviewResp.content?.[0]?.text || '';
+      const jsonMatch = reviewText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const review = JSON.parse(jsonMatch[0]);
+        const fixes = Array.isArray(review.fixes) ? review.fixes : [];
+        let applied = 0;
+        const skipped = [];
+        for (const fix of fixes) {
+          if (!fix || typeof fix.find !== 'string' || typeof fix.replace !== 'string') continue;
+          if (!fix.find.trim()) continue;
+          if (fullPlanText.includes(fix.find)) {
+            fullPlanText = fullPlanText.replace(fix.find, fix.replace);
+            applied += 1;
+            console.log(`[review] Applied: ${fix.issue || '(no label)'}`);
+          } else {
+            skipped.push(fix.issue || '(no label)');
+          }
+        }
+        console.log(`[review] Review complete. Applied ${applied} fixes, skipped ${skipped.length}. Skipped: ${skipped.join(' | ')}`);
+        send({ type: 'info', message: `Quality review: ${applied} fixes applied, ${skipped.length} flagged` });
+      }
+    } catch (reviewErr) {
+      console.error('[review] Review pass failed (continuing without it):', reviewErr.message);
+    }
 
     const injectedPlanText = injectBoilerplate(fullPlanText, clientName, bcbaName, assessmentDate, goalCount);
     console.log(`[generate] Boilerplate injected. Raw: ${fullPlanText.length} chars → Final: ${injectedPlanText.length} chars`);
